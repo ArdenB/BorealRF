@@ -1,4 +1,4 @@
-
+# This creates the corellations and the RDA files
 library(dplyr)
 library(plyr)
 
@@ -112,6 +112,7 @@ raw_stem_df = read.csv(paste0(leadpath,"scooperdock/EWS/data/psp/stem_dens_inter
 stem_df = clean_df(raw_stem_df)
 stem_df[stem_df<0] = NA
 
+# ========== Used for Remoing sites that have undergone disturbance ==========
 #Read in damage and burn dataframes
 raw_damaged_df<-read.csv(paste0(leadpath,"scooperdock/EWS/data/psp/damage_flags.csv"),stringsAsFactors = FALSE,row.names = "X")
 raw_damaged_df[is.na(raw_damaged_df)] = 0
@@ -154,9 +155,10 @@ for (VI in VIs){
   vi_df = data.frame(vi_df,df)
 }
 
-#Read in species compositions
+# Read in species compositions
+# Table used to read species groups and time, different group types
 LUT = read.csv(paste0(leadpath,"scooperdock/EWS/data/raw_psp/SP_LUT.csv"),stringsAsFactors = F)
-sp_groups = read.csv(paste0(leadpath,"scooperdock/EWS/data/raw_psp/SP_groups.csv"),stringsAsFactors = F)
+sp_groups = read.csv(paste0(leadpath,"scooperdock/EWS/data/raw_psp/SP_groups.csv"),stringsAsFactors = F) 
 
 sp_out_df = data.frame('site' = rep(sites,37))
 rows = vector()

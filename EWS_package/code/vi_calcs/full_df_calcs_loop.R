@@ -43,8 +43,8 @@ print(VIs)
 # Sub metrics. This is only really used for ddj and ews, so it's a bit inefficient to have it for both but oh well...
 sub_metrics = list(
   "trend" = c("trend"),
-  "pulse" = c("pulse"),
-  "ews" = c("ar1","sd","sk","kurt","cv","densratio","acf1"),
+  "pulse" = c("pulse"), # Largest positive or negative jump in the window
+  "ews" = c("ar1","sd","sk","kurt","cv","densratio","acf1"), # earliy-warning-signals.org (Brendan 2018 GCB paper)
   "ddj" = c("TotVar.t","Diff2.t","Lamda.t","S2.t")
 )
 

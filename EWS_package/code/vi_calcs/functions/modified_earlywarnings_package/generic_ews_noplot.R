@@ -1,3 +1,4 @@
+# 
 generic_ews_noplot = function (timeseries, winsize = 50, detrending = c("no", "gaussian",
 "loess", "linear", "first-diff"), bandwidth = NULL, span = NULL,
 degree = NULL, logtransform = FALSE, interpolate = FALSE,

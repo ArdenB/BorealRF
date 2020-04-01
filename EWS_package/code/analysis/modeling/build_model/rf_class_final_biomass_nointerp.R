@@ -33,6 +33,7 @@ today = Sys.Date()
 num_quants = 7
 
 #Which VIS to use?
+# Logan Berner method, as B
 VIs = c('ndvi','psri','ndii','ndvsi','msi','nirv','ndwi','nbr','satvi','tvfc')
 
 #Create the folder based on the above
@@ -147,7 +148,7 @@ if(!file.exists(outfile)){
 
 
 #Read in boreal species fraction dataframe and determine which sites have >50% boreal species
-bor_frac = read.csv(paste0(leadpath,"data/psp/databases/PSP_boreal_frac_biomass_v1.csv"),row.names = 'X')
+bor_frac = read.csv(paste0(leadpath,"data/psp/databases/PSP_boreal_frac_biomass.csv"),row.names = 'X')
 bor_frac = rowMeans(bor_frac,na.rm=T)
 bor_frac = bor_frac[sites]
 bor_over50 = names(bor_frac)[bor_frac>0.5]
@@ -166,7 +167,14 @@ site_loc_sp = raster::intersect(site_loc_sp,above_core)
 above_core_loc = site_loc_sp@data$rownames.site_loc_sp.
 
 #Load in vi_df and correlations
-load(paste0(leadpath,"data/models/input_data/vi_df_all_2019-10-30.Rda"))
+# USED IN:
+# determing the coresponding variables that are used in covariance
+# Predictor Variables read in (Soil, Climate, VI)
+# VI is the 0- to 5, 0 - 10 year trend
+#   Basic Linear regression
+load(paste0(leadpath,"data/models/input_data/vi_df_all_2019-10-30.Rda")) #Written out by 
+
+
 load(paste0(leadpath,"data/models/input_data/correlations_2019-10-09.Rda"))
 
 #Determine quantile steps
@@ -207,6 +215,7 @@ for(run in run_vect){
       importance_vect = 'biomass'
       all_corr = unique(correlations$y[correlations$x %in% predictors])
       
+      # ========== This is where the variable importance is determined ==========
       #Run random forest interations, removing all variables correlated to the most important variable (which has not
       #been defined as the most important at previous steps) at each step until no more correlations exist
       while (sum(predictors %in% all_corr)>0){  
@@ -231,6 +240,7 @@ for(run in run_vect){
       steps = 500
       importance_vect = unique(c(importance_vect,predictors))
       
+      # ========== This is where the final model is made ==========
       #Prep data for final rf_model
       temp_data = data[,c(importance_vect,'site','lagged_biomass','class')]
       temp_data = temp_data[rowSums(is.na(temp_data))==0,]
