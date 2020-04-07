@@ -224,14 +224,14 @@ for(run in run_vect){
         mass_vect = mass_vect[rowSums(is.na(temp_data))==0]
         temp_data = temp_data[rowSums(is.na(temp_data))==0,]
         rf_model = randomForest(temp_data,as.factor(mass_vect),importance = T,do.trace = T, ntree = steps)
-        varImpPlot(rf_model,sort=T,type=1,scale=F)
+        varImpPlot(rf_model,sort=T,type=1,scale=F) # AB: The plot uses the good importance metric ??but the actual chose variables use the bad??
         imp = data.frame(rf_model$importance,rownames(rf_model$importance))
         non_imp = as.character(imp[imp$MeanDecreaseAccuracy<=0,'rownames.rf_model.importance.'])
         
-        imp = imp[-which(rownames(imp) %in% importance_vect),]
+        imp = imp[-which(rownames(imp) %in% importance_vect),] #AB: drop the important vectors tha have already been checked
         
-        most_imp = as.character(arrange(imp,desc(MeanDecreaseAccuracy))[1,'rownames.rf_model.importance.'])
-        importance_vect = c(importance_vect,most_imp)
+        most_imp = as.character(arrange(imp,desc(MeanDecreaseAccuracy))[1,'rownames.rf_model.importance.']) #AB: find most important left
+        importance_vect = c(importance_vect,most_imp) #AB:add that most important to a list
         corr = correlations$y[correlations$x==most_imp]
         predictors = predictors[!predictors %in% corr]
         predictors = predictors[!predictors %in% non_imp]
