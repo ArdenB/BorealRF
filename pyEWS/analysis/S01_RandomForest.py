@@ -90,7 +90,7 @@ def main():
 	X, y, col_nms = df_proccessing(window, mode="Sol")
 
 	# ========== Perform the experiment ===========
-	FS_tester(X, y, col_nms, ntree, test_size, cores=-1, ittrs=10, force=False)
+	FS_tester(X, y, col_nms, ntree, test_size, cores=-1, ittrs=7, force=False)
 
 	ipdb.set_trace()
 
@@ -111,9 +111,9 @@ def FS_tester(X, y, col_nms, ntree, test_size, cores=-1, ittrs=10, force=False):
 
 	# ========== Setup the experiment combinations ==========
 	SelM = ([
-		"Sol", "hierarchical", "hierarchical", "hierarchical", 
+		"Sol","SolMod",  "hierarchical", "hierarchical", "hierarchical", 
 		"hierarchicalPermutation", "hierarchicalPermutation"])
-	VarI = [None, None, "base", "recursive", "base", "recursive"]
+	VarI = [None, None, None, "base", "recursive", "base", "recursive"]
 	
 	# ========== Setup the colnames that will be shuffled after each experiment ===========
 	colnms = col_nms[:-1]
@@ -127,10 +127,11 @@ def FS_tester(X, y, col_nms, ntree, test_size, cores=-1, ittrs=10, force=False):
 		for SelMth,  VarImp in zip(SelM, VarI):	
 			print(SelMth, VarImp)
 			# # ========== Skip incomplete methods ===========
-			# if SelMth in  ["Sol"]:
-			# 	warn.warn("This method has yet to be implemented. Skipping")
-			# 	warn.warn("Sol method is broken, to be fixed asap")
-			# 	continue
+			# if SelMth.startswith("Sol"):
+			if (exp > 0) and   (SelMth in  ["Sol"]):
+				warn.warn("This method has yet to be implemented. Skipping")
+				warn.warn("Sol method is broken, to be fixed asap")
+				continue
 			
 			# ========== Make the file name ===========
 			fnout =  folder + "S01_RandomForest_FStester_Exp%02d_%s" % (exp, SelMth)
@@ -162,16 +163,27 @@ def FS_tester(X, y, col_nms, ntree, test_size, cores=-1, ittrs=10, force=False):
 		# ========== shuffle the column order of the dataframe ===========
 		# /// a dataframe column shuffle is done here, the random_state makes in reproducable ///
 		colnms = shuffle(col_nms[:-1], random_state=exp)
-
+	
+	Network_plot(X, y)
+	
 	# +++++ make a single df that contains the spped and accuracy of the methods +++++
-	ipdb.set_trace()
-	# imp_df = pd.concat(Importance).reset_index()
-	# imp_df.groupby("FeatureSelection").plot.bar(subplots=True)
-
+	exp_df  = pd.concat([pd.read_csv(fn).rename( columns={'Unnamed: 0':'iter'}) for fn in fnames])
+	exp_df["R2perVar"] = exp_df["R2"] / exp_df["NumVar"]
+	df_std  = exp_df.groupby(["FeatureSelection", "iter"]).std().reset_index()
+	df_mean = exp_df.groupby(["FeatureSelection", "iter"]).mean().reset_index()
 	# ax = sns.catplot(x="index", y="R2", data=imp_df, hue="FeatureSelection", kind="bar")
-	# ax.set_xticklabels(rotation=30)
-	# plt.show()
+	for va in ["Time", "TimeCumulative", "R2", "NumVar", "R2perVar"]:
+		plt.figure(va)
+		ax = sns.lineplot(x="iter", y=va, data=exp_df, hue="FeatureSelection", err_style='bars')
+		# ax.set_xticklabels(rotation=30)
+		for label in ax.get_xticklabels():label.set_rotation(90)
+		plt.show()
+	
+	ax = sns.lineplot(x="NumVar", y=va, data=exp_df, hue="FeatureSelection", err_style='bars')
+	for label in ax.get_xticklabels():label.set_rotation(90)
+	plt.show()
 
+	ipdb.set_trace()
 
 
 
@@ -179,6 +191,26 @@ def FS_tester(X, y, col_nms, ntree, test_size, cores=-1, ittrs=10, force=False):
 # ==============================================================================
 # ============================= Feature selection ==============================
 # ==============================================================================
+
+def Network_plot(X, y):
+	corr         = spearmanr(X).correlation
+	# +++++ Calculate the ward hierarchy +++++
+	corr_linkage = hierarchy.ward(corr)
+
+	# ========== Build a plot ==========
+	fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
+	dendro          = hierarchy.dendrogram(corr_linkage, labels=X.columns.values, ax=ax1, leaf_rotation=90)
+	dendro_idx      = np.arange(0, len(dendro['ivl']))
+
+	ax2.imshow(corr[dendro['leaves'], :][:, dendro['leaves']])
+	ax2.set_xticks(dendro_idx)
+	ax2.set_yticks(dendro_idx)
+	ax2.set_xticklabels(dendro['ivl'], rotation='vertical')
+	ax2.set_yticklabels(dendro['ivl'])
+	fig.tight_layout()
+	plt.show()
+	ipdb.set_trace()
+
 
 def feature_selection(X, y,  col_nms, ntree, test_size, cores=-1,  SelMethod = None, var_importance=None, plot = False, perm=False):
 	"""
@@ -203,21 +235,6 @@ def feature_selection(X, y,  col_nms, ntree, test_size, cores=-1,  SelMethod = N
 	corr         = spearmanr(X).correlation
 	# +++++ Calculate the ward hierarchy +++++
 	corr_linkage = hierarchy.ward(corr)
-
-	if plot:
-		# ========== Build a plot ==========
-		fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
-		dendro          = hierarchy.dendrogram(corr_linkage, labels=X.columns.values, ax=ax1, leaf_rotation=90)
-		dendro_idx      = np.arange(0, len(dendro['ivl']))
-
-		ax2.imshow(corr[dendro['leaves'], :][:, dendro['leaves']])
-		ax2.set_xticks(dendro_idx)
-		ax2.set_yticks(dendro_idx)
-		ax2.set_xticklabels(dendro['ivl'], rotation='vertical')
-		ax2.set_yticklabels(dendro['ivl'])
-		fig.tight_layout()
-		plt.show()
-		ipdb.set_trace()
 
 	# ========== Create the branches i want to loop over ==========
 	tpbrnch = 80
@@ -335,7 +352,7 @@ def feature_selection(X, y,  col_nms, ntree, test_size, cores=-1,  SelMethod = N
 			# ========== Pull out the features that i'm going to use on the next loop ==========
 			ColNm = sel_feat
 
-	elif SelMethod == "Sol":
+	elif SelMethod.startswith("Sol"):
 		# ========== This mode implements the exact method sol used ==========
 		corr_df = pd.DataFrame(data=corr, index=X.columns.values, columns=X.columns.values)
 		# /// Get rid of biobass which Sol did (not sure why)///
@@ -347,13 +364,17 @@ def feature_selection(X, y,  col_nms, ntree, test_size, cores=-1,  SelMethod = N
 		threshold = 0.5  # /// picked by sol without much justification
 		Imp_var   = ['biomass'] #/// again picked before the first regression
 		perm      = True # tell it to check permutation importance
-		insamp    = True # tell the regression to use the training rather than the more robust test method (Sols)
+		if SelMethod == "Sol":
+			insamp    = True # tell the regression to use the training rather than the more robust test method (Sols)
+		else:
+			insamp    = False
 		br_num    = 0    # Number of times i have to calculate the regression
 		drop_VA   = []   # container to hold dropped variables
 
 
 		# ========== While loop will keep looping while correlated variables are included  ==========
-		while any(corr_df.abs() > threshold):
+		while any(corr_df.abs() > threshold) == True:
+			print
 			print("starting Random forest with %s feature Selection level %d at:" % (SelMethod, br_num), pd.Timestamp.now())
 			ColLevel = []
 			for var in ColNm: 
@@ -394,8 +415,6 @@ def feature_selection(X, y,  col_nms, ntree, test_size, cores=-1,  SelMethod = N
 			drop     = [dva for dva in np.hstack([drop_bad, drop_cor])]
 			for va in drop: 
 				drop_VA.append(va)
-			warn.warn("this is where things start to really break")
-			ipdb.set_trace()
 
 			# ========== Loop through the items and make a list of the ones i'm keeping ===========
 			corr_df = corr_df.drop(most_imp).drop(most_imp, axis=1)
@@ -403,14 +422,14 @@ def feature_selection(X, y,  col_nms, ntree, test_size, cores=-1,  SelMethod = N
 
 			# ========== add one to the row number ===========
 			br_num +=1
-			print("The number of columns left after this itteration: ", len(ColLevel))
+			print("The number of columns used in this itteration: ", len(ColLevel))
 
-			if br_num > 12:
-				warn.warn("This has taken more than 12 itterations. Going interactive to stop looping")
-				ipdb.set_trace()
+			if br_num >= 39:
+				warn.warn("This has taken more than 20 itterations. Going interactive to stop looping")
+				break
 
 		warn.warn("Add a check for the final number of itterations")
-		ipdb.set_trace()
+		# ipdb.set_trace()
 		# mass_vect = mass_vect[rowSums(is.na(temp_data))==0]
 		# temp_data = temp_data[rowSums(is.na(temp_data))==0,]
 		# rf_model = randomForest(temp_data,as.factor(mass_vect),importance = T,do.trace = T, ntree = steps)
@@ -426,7 +445,7 @@ def feature_selection(X, y,  col_nms, ntree, test_size, cores=-1,  SelMethod = N
 		# predictors = predictors[!predictors %in% corr]
 		# predictors = predictors[!predictors %in% non_imp]
 		# all_corr = predictors[predictors %in% unique(correlations$y[correlations$x %in% predictors])]
-		ipdb.set_trace()
+		# ipdb.set_trace()
 	
 	elif SelMethod is None:
 		# Test
@@ -530,12 +549,11 @@ def skl_rf_regression( Xin, yin, col_nms, ntree, test_size, cores=-1, verbose=Tr
 		# +++++ use permutation importance +++++
 		print("starting sklearn permutation importance calculation at:", pd.Timestamp.now())
 		if insamp:
-			# result = permutation_importance(regressor, X_train, y_train, n_repeats=5) #n_jobs=cores
-			result = permutation_importance(regressor, X_test, y_test, n_repeats=5) #n_jobs=cores
-			# for fname, f_imp in zip(clnames, regressor.feature_importances_):
-			# 	FI[fname] = f_imp
+			result = permutation_importance(regressor, X_train, y_train, n_repeats=3) #n_jobs=cores
+			# result = permutation_importance(regressor, X_test, y_test, n_repeats=5) #n_jobs=cores
 		else:
 			result = permutation_importance(regressor, X_test, y_test, n_repeats=5) #n_jobs=cores
+		
 		for fname, f_imp in zip(clnames, result.importances_mean): 
 			FI[fname] = f_imp
 	else:
