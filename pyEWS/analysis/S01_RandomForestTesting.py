@@ -89,7 +89,7 @@ def main():
 	# ========== open and import dataframes ===========
 	X, y, col_nms = df_proccessing(window, mode="Sol")
 
-	# ========== Perform the experiment ===========
+	# ========== Perform the experiment on different RF feature importance methods ===========
 	FS_tester(X, y, col_nms, ntree, test_size, cores=-1, ittrs=7, force=False)
 
 	ipdb.set_trace()
@@ -102,7 +102,7 @@ def FS_tester(X, y, col_nms, ntree, test_size, cores=-1, ittrs=10, force=False):
 	implemented and compare them to each other
 
 		ittrs:		int
-			The number of experiments 
+			The number of times to test the result
 	"""
 
 	# ========== Make a folder to store the results  ==========
@@ -112,8 +112,8 @@ def FS_tester(X, y, col_nms, ntree, test_size, cores=-1, ittrs=10, force=False):
 	# ========== Setup the experiment combinations ==========
 	SelM = ([
 		"Sol","SolMod",  "hierarchical", "hierarchical", "hierarchical", 
-		"hierarchicalPermutation", "hierarchicalPermutation"])
-	VarI = [None, None, None, "base", "recursive", "base", "recursive"]
+		"hierarchicalPermutation", "hierarchicalPermutation", "hierarchicalPermutation"])
+	VarI = [None, None, None, "base", "recursive", "base", "recursive", "recursiveDrop"]
 	
 	# ========== Setup the colnames that will be shuffled after each experiment ===========
 	colnms = col_nms[:-1]
@@ -179,7 +179,7 @@ def FS_tester(X, y, col_nms, ntree, test_size, cores=-1, ittrs=10, force=False):
 		for label in ax.get_xticklabels():label.set_rotation(90)
 		plt.show()
 	
-	ax = sns.lineplot(x="NumVar", y=va, data=exp_df, hue="FeatureSelection", err_style='bars')
+	ax = sns.lineplot(x="NumVar", y="R2", data=exp_df, hue="FeatureSelection", err_style='bars')
 	for label in ax.get_xticklabels():label.set_rotation(90)
 	plt.show()
 
@@ -295,7 +295,7 @@ def feature_selection(X, y,  col_nms, ntree, test_size, cores=-1,  SelMethod = N
 				elif var_importance == "base":
 					# Only consideres the base variable 
 					cum_time = base_time + time
-				elif var_importance == "recursive":
+				elif var_importance in ["recursive", "recursiveDrop"]:
 					cum_time = cum_time + time   
 
 			# ========== Add the performce stats to the OrderedDict ===========
@@ -342,10 +342,22 @@ def feature_selection(X, y,  col_nms, ntree, test_size, cores=-1,  SelMethod = N
 								FIs.append(np.NAN)
 						# inset = [nn in ColNm for nn in NMs]
 						# for nn in NMs: inset.append(nn in ColNm)
+					elif var_importance == "recursiveDrop":
+						# +++++ drop the names that are irrelevant +++++
+						# This approach will look at the most recent feature performance
+						FIs = []
+						for fn in NMs:
+							if (fn in ColNm) and (feature_imp[fn]>0):
+								FIs.append(feature_imp[fn])
+							else:
+								FIs.append(np.NAN)
 					else:
 						raise ValueError("unknown var_importance passed, use None, base or recursive")
 					# +++++ Find the most relevant feature +++++
-					sel_feat.append(NMs[bn.nanargmax(FIs)])
+					try:
+						sel_feat.append(NMs[bn.nanargmax(FIs)])
+					except ValueError:
+						pass
 				except Exception as e:
 					warn.warn(str(e))
 					ipdb.set_trace()

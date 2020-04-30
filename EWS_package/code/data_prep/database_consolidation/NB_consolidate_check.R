@@ -2,15 +2,30 @@ library(readxl)
 library(plyr)
 library(dplyr)
 
-LUT = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/SP_LUT.csv",stringsAsFactors = F)
-NB_tree <- read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/NB/PSP_TREE_YIMO.txt",stringsAsFactors = F)
-NB_surveys = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/NB/NB_surveys.csv")
-NB_plots = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/NB/NB_PSP_PLOTS.csv")
+# ======================================================================
+# ======================================================================
+# ========== This scipt has been modified by ab to fic a bug ==========
+# All modifications are maked like this section
+# ========== Check what system i'm running on ==========
+if (startsWith(Sys.info()["nodename"], "BURRELL")){
+  # Preserves compatibility with script
+  setwd("C:/Users/aburrell/Documents/Boreal")
+}else{
+  # setwd("/att/nobackup/scooperd/scooperdock")
+  setwd("/mnt/data1/boreal/scooperdock")
+}
+    
+    
+
+LUT = read.csv("./EWS/data/raw_psp/SP_LUT.csv",stringsAsFactors = F)
+NB_tree <- read.csv("./EWS/data/raw_psp/NB/PSP_TREE_YIMO.txt",stringsAsFactors = F)
+NB_surveys = read.csv("./EWS/data/raw_psp/NB/NB_surveys.csv")
+NB_plots = read.csv("./EWS/data/raw_psp/NB/NB_PSP_PLOTS.csv")
 
 colnames(NB_tree) = c("RemeasID","treenumber","species","cause","dbh","agecl","cr","treetop","woundtype","depth","dim","ltbh","conks","lean","leaderda",
                       "curpct","cumpct","thincr","lat","sampleTree","sampleTreeEstabYr","sampleTreeAge","sampleTreeHt","standingDeadTreeDecayClass",
                       "standingDeadTreeHtClass","Notes","Tstamp","Plot","MeasNum","Form","Vigor")
-NB_plots_yr = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/NB/PSP_PLOTS_YR.csv",stringsAsFactors = F)
+NB_plots_yr = read.csv("./EWS/data/raw_psp/NB/PSP_PLOTS_YR.csv",stringsAsFactors = F)
 NB_plots_yr[3,2] = "10001"
 
 #This site has no date of inventory data
@@ -178,8 +193,8 @@ for (i in plot_vect){
   }
   plot_size = NB_plots[NB_plots$Plot==i,"PlotSize"]/10000
   df = data.frame(sp_df2,df,plot_size)
- # write.csv(df,paste0("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/NB/checks/",i,"_check.csv"))
+  write.csv(df,paste0("./EWS/data/raw_psp/NB/checks/",i,"_check.csv"))
 }
-write.csv(cut_percent,"/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/NB/NB_cut_percent.csv")
-write.csv(damage,"/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/NB/NB_flags_percent.csv")
-write.csv(surveys,"/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/NB/NB_surveys.csv")
+write.csv(cut_percent,"./EWS/data/raw_psp/NB/NB_cut_percent.csv")
+write.csv(damage,"./EWS/data/raw_psp/NB/NB_flags_percent.csv")
+write.csv(surveys,"./EWS/data/raw_psp/NB/NB_surveys.csv")
