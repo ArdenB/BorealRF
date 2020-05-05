@@ -1,9 +1,23 @@
 library(dplyr)
 library(readxl)
 
+# ======================================================================
+# ======================================================================
+# ========== This scipt has been modified by ab to fic a bug ==========
+# All modifications are maked like this section
+# ========== Check what system i'm running on ==========
+if (startsWith(Sys.info()["nodename"], "BURRELL")){
+  # Preserves compatibility with script
+  setwd("C:/Users/aburrell/Documents/Boreal")
+}else{
+  # setwd("/att/nobackup/scooperd/scooperdock")
+  setwd("/mnt/data1/boreal/scooperdock")
+}
+
+# ======================================================================
 
 #Newfoundland and Labrador
-# NL_meas = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/NL/tblRemCrewDate.txt",stringsAsFactors = F)
+# NL_meas = read.csv("./EWS_package/data/raw_psp/NL/tblRemCrewDate.txt",stringsAsFactors = F)
 # NL_meas$PlotNumber = paste0(NL_meas$District,NL_meas$PlotNumber)
 # sites = unique(NL_meas$PlotNumber)
 # NL_surveys = matrix(nrow = length(sites),ncol = max(NL_meas$Remeasurement)+1)
@@ -12,13 +26,13 @@ library(readxl)
 # for (i in 1:dim(NL_meas)[1]){
 #   NL_surveys[as.character(NL_meas$PlotNumber[i]),paste0("t",NL_meas$Remeasurement[i]+1)] = NL_meas$Year[i]
 # }
-NL_surveys = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/NL/NL_surveys.csv",stringsAsFactors = F,row.names = "X")
+NL_surveys = read.csv("./EWS_package/data/raw_psp/NL/NL_surveys.csv",stringsAsFactors = F,row.names = "X")
 rownames(NL_surveys) = paste0("7_",rownames(NL_surveys))
 NL_surveys = data.frame(NL_surveys,matrix(nrow = dim(NL_surveys)[1],ncol = 18-dim(NL_surveys)[2]))
 colnames(NL_surveys) = paste0("t",sprintf("%02.0f",1:18))
 
 #Alberta
-# files = list.files("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/AB/Data/PSP2011/csvs/")
+# files = list.files("./EWS_package/data/raw_psp/AB/Data/PSP2011/csvs/")
 # files = sub("_.*","",files)
 # files = unique(files)
 # AB_surveys = matrix(nrow = length(files),ncol = 8)
@@ -26,7 +40,7 @@ colnames(NL_surveys) = paste0("t",sprintf("%02.0f",1:18))
 # colnames(AB_surveys) = paste0("t",1:8)
 # AB_surveys = data.frame()
 # for (i in files){
-#   file = read.csv(paste0("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/AB/Data/PSP2011/csvs/",i,"_tree.csv"))
+#   file = read.csv(paste0("./EWS_package/data/raw_psp/AB/Data/PSP2011/csvs/",i,"_tree.csv"))
 #   for (k in unique(file$subplot_num)){
 #     temp = file[file$subplot_num==k,]
 #     psp = paste0(unique(temp$Group_num),".",k)
@@ -37,13 +51,13 @@ colnames(NL_surveys) = paste0("t",sprintf("%02.0f",1:18))
 #     }
 #   }
 # }
-AB_surveys <- read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/AB/AB_surveys.csv",stringsAsFactors = F,row.names = "X")
+AB_surveys <- read.csv("./EWS_package/data/raw_psp/AB/AB_surveys.csv",stringsAsFactors = F,row.names = "X")
 rownames(AB_surveys) = paste0("2_",rownames(AB_surveys))
 AB_surveys = data.frame(AB_surveys,matrix(nrow = dim(AB_surveys)[1],ncol = 18-dim(AB_surveys)[2]))
 colnames(AB_surveys) = paste0("t",sprintf("%02.0f",1:18))
 
 #Northwest Territories
-NWT_sites <- read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/NWT/NWT_Sites.csv",stringsAsFactors = F)
+NWT_sites <- read.csv("./EWS_package/data/raw_psp/NWT/NWT_Sites.csv",stringsAsFactors = F)
 sites = NWT_sites$Old_Label
 NWT_surveys = matrix(nrow = length(sites),ncol = 3)
 NWT_surveys = NWT_sites[,c(9,11,13)]
@@ -54,7 +68,7 @@ NWT_surveys = data.frame(NWT_surveys,matrix(nrow = dim(NWT_surveys)[1],ncol = 18
 colnames(NWT_surveys) = paste0("t",sprintf("%02.0f",1:18))
 
 #Yukon Territories
-YT_surveys = as.data.frame(read_excel("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/YT/PSP_data_Overview.xlsx"))
+YT_surveys = as.data.frame(read_excel("./EWS_package/data/raw_psp/YT/PSP_data_Overview.xlsx"))
 rownames(YT_surveys) = paste0("11_",sprintf("%03.0f",YT_surveys$'PSP Number'))
 YT_surveys = YT_surveys[,18:24]
 colnames(YT_surveys) = paste0("t",1:7)
@@ -62,7 +76,7 @@ YT_surveys = data.frame(YT_surveys,matrix(nrow = dim(YT_surveys)[1],ncol = 18-di
 colnames(YT_surveys) = paste0("t",sprintf("%02.0f",1:18))
 
 #Nova Scotia
-# NS_sample <- read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/NS/Sample.txt",stringsAsFactors = F)
+# NS_sample <- read.csv("./EWS_package/data/raw_psp/NS/Sample.txt",stringsAsFactors = F)
 # sites = unique(NS_sample$PlotNumber)
 # NS_surveys = matrix(nrow = length(sites),ncol = 11)
 # rownames(NS_surveys) = sites
@@ -71,17 +85,17 @@ colnames(YT_surveys) = paste0("t",sprintf("%02.0f",1:18))
 #   samp_vect = sort(NS_sample$FieldSeason[NS_sample$PlotNumber==NS_sample$PlotNumber[i]])
 #   NS_surveys[as.character(NS_sample$PlotNumber[i]),paste0("t",which(samp_vect==NS_sample$FieldSeason[i]))] = NS_sample$FieldSeason[i]
 # }
-NS_surveys = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/NS/NS_surveys.csv",row.names = "X")
+NS_surveys = read.csv("./EWS_package/data/raw_psp/NS/NS_surveys.csv",row.names = "X")
 rownames(NS_surveys) = paste0("9_",rownames(NS_surveys))
 NS_surveys = data.frame(NS_surveys,matrix(nrow = dim(NS_surveys)[1],ncol = 18-dim(NS_surveys)[2]))
 colnames(NS_surveys) = paste0("t",sprintf("%02.0f",1:18))
 
 #Manitoba
-files = list.files("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/MB/PSP_csvs/")
+files = list.files("./EWS_package/data/raw_psp/MB/PSP_csvs/")
 MB_surveys = matrix(nrow = length(files),ncol = 7)
 rownames(MB_surveys) = files
 for (i in files){
-  file = read.csv(paste0("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/MB/PSP_csvs/",i),stringsAsFactors = F)
+  file = read.csv(paste0("./EWS_package/data/raw_psp/MB/PSP_csvs/",i),stringsAsFactors = F)
   year = sort(unique(file$YEAR_MEAS))
   MB_surveys[i,1:length(year)] = year
 }
@@ -91,7 +105,7 @@ MB_surveys = data.frame(MB_surveys,matrix(nrow = dim(MB_surveys)[1],ncol = 18-di
 colnames(MB_surveys) = paste0("t",sprintf("%02.0f",1:18))
 
 #New Brunswick
-# NB_plots_yr = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/NB/PSP_PLOTS_YR.csv",stringsAsFactors = F)
+# NB_plots_yr = read.csv("./EWS_package/data/raw_psp/NB/PSP_PLOTS_YR.csv",stringsAsFactors = F)
 # NB_plots_yr[3,2] = "10001"
 # NB_plots_yr["10498","measNum"]=6
 # NB_plots_yr["10858","measNum"]=6
@@ -148,7 +162,7 @@ colnames(MB_surveys) = paste0("t",sprintf("%02.0f",1:18))
 # for (i in 1:dim(NB_plots_yr)[1]){
 #   NB_surveys[as.character(NB_plots_yr$Plot[i]),paste0("t",NB_plots_yr$measNum[i])] = NB_plots_yr$MeasYr[i]
 # }
-NB_surveys = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/NB/NB_surveys.csv",row.names = "X")
+NB_surveys = read.csv("./EWS_package/data/raw_psp/NB/NB_surveys.csv",row.names = "X")
 rownames(NB_surveys) = paste0("8_",rownames(NB_surveys))
 NB_surveys = data.frame(NB_surveys,matrix(nrow = dim(NB_surveys)[1],ncol = 18-dim(NB_surveys)[2]))
 colnames(NB_surveys) = paste0("t",sprintf("%02.0f",1:18))
@@ -158,23 +172,23 @@ NB_surveys["8_1001","t07"] = NA
 NB_surveys["8_10182","t02"] = NA
 
 #Quebec
-# QC_meas = as.data.frame(read_excel("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/QC/PLACETTE_MES.xlsx"))
+# QC_meas = as.data.frame(read_excel("./EWS_package/data/raw_psp/QC/PLACETTE_MES.xlsx"))
 # sites = unique(QC_meas$ID_PE)
 # QC_surveys = matrix(nrow = length(sites),ncol = max(QC_meas$NO_MES))
 # rownames(QC_surveys) = sites
 # for (i in 1:dim(QC_meas)[1]){
 #   QC_surveys[QC_meas$ID_PE[i],QC_meas$NO_MES[i]] = strsplit(as.character(QC_meas$DATE_SOND[i]),"-")[[1]][1]
 # }
-QC_surveys = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/QC/QC_surveys.csv",row.names = "X")
+QC_surveys = read.csv("./EWS_package/data/raw_psp/QC/QC_surveys.csv",row.names = "X")
 rownames(QC_surveys) = paste0("6_",rownames(QC_surveys))
 colnames(QC_surveys) = paste0("t",1:6)
 QC_surveys = data.frame(QC_surveys,matrix(nrow = dim(QC_surveys)[1],ncol = 18-dim(QC_surveys)[2]))
 colnames(QC_surveys) = paste0("t",sprintf("%02.0f",1:18))
 
 #Ontario
-# ON_plots = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/ON/ON_plots.csv",stringsAsFactors = F)
-# ON_package = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/ON/ON_package.csv",stringsAsFactors = F)
-# ON_visit = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/ON/ON_visit.csv",stringsAsFactors = F)
+# ON_plots = read.csv("./EWS_package/data/raw_psp/ON/ON_plots.csv",stringsAsFactors = F)
+# ON_package = read.csv("./EWS_package/data/raw_psp/ON/ON_package.csv",stringsAsFactors = F)
+# ON_visit = read.csv("./EWS_package/data/raw_psp/ON/ON_visit.csv",stringsAsFactors = F)
 # ON_visit = ON_visit[ON_visit$VisitTypeCode==2|ON_visit$VisitTypeCode==4,]
 # ON_surveys = matrix(nrow = dim(ON_plots)[1],ncol = 6)
 # rownames(ON_surveys) = ON_plots$PlotName
@@ -191,16 +205,16 @@ colnames(QC_surveys) = paste0("t",sprintf("%02.0f",1:18))
 # }
 # rownames(ON_surveys) = paste0("5_",rownames(ON_surveys))
 # colnames(ON_surveys) = paste0("t",1:6)
-ON_surveys = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/ON/ON_surveys.csv",stringsAsFactors = F,row.names = "X")
+ON_surveys = read.csv("./EWS_package/data/raw_psp/ON/ON_surveys.csv",stringsAsFactors = F,row.names = "X")
 ON_surveys = data.frame(ON_surveys,matrix(nrow = dim(ON_surveys)[1],ncol = 18-dim(ON_surveys)[2]))
 colnames(ON_surveys) = paste0("t",sprintf("%02.0f",1:18))
 
 #CIPHA
-CIPHA_surveys = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/CIPHA/CIPHA_surveys.csv",stringsAsFactors = F,row.names = "X")
+CIPHA_surveys = read.csv("./EWS_package/data/raw_psp/CIPHA/CIPHA_surveys.csv",stringsAsFactors = F,row.names = "X")
 colnames(CIPHA_surveys) = paste0("t",sprintf("%02.0f",1:18))
 
 #CAFI
-CAFI_surveys = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/CAFI/CAFI_Site_Description_2015_GE2_wFires_msin_final.csv",stringsAsFactors = F)
+CAFI_surveys = read.csv("./EWS_package/data/raw_psp/CAFI/CAFI_Site_Description_2015_GE2_wFires_msin_final.csv",stringsAsFactors = F)
 rownames(CAFI_surveys) = paste0("13_",CAFI_surveys$PSP)
 CAFI_surveys = CAFI_surveys[,c(25:29)]
 colnames(CAFI_surveys) = paste0("t",1:5)
@@ -224,12 +238,12 @@ CAFI_surveys = data.frame(CAFI_surveys,matrix(nrow = dim(CAFI_surveys)[1],ncol =
 colnames(CAFI_surveys) = paste0("t",sprintf("%02.0f",1:18))
 
 #Saskatchewan
-SK_surveys = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/SK/SK_surveys.csv",stringsAsFactors = F,row.names = "X")
+SK_surveys = read.csv("./EWS_package/data/raw_psp/SK/SK_surveys.csv",stringsAsFactors = F,row.names = "X")
 SK_surveys = data.frame(SK_surveys,matrix(nrow = dim(SK_surveys)[1],ncol = 18-dim(SK_surveys)[2]))
 colnames(SK_surveys) = paste0("t",sprintf("%02.0f",1:18))
 
 #British Columbia
-# BC_plots = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/BC/faib_data_plot_by_meas.csv",stringsAsFactors = F)
+# BC_plots = read.csv("./EWS_package/data/raw_psp/BC/faib_data_plot_by_meas.csv",stringsAsFactors = F)
 # BC_plots = BC_plots[!is.na(BC_plots$meas_no)]
 # BC_surveys = matrix(nrow = length(unique(BC_plots$SAMP_ID)),ncol = max(BC_plots$no_meas))
 # rownames(BC_surveys) = unique(BC_plots$SAMP_ID)
@@ -237,10 +251,11 @@ colnames(SK_surveys) = paste0("t",sprintf("%02.0f",1:18))
 # for (i in 1:dim(BC_plots)[1]){
 #   BC_surveys[BC_plots$SAMP_ID[i],paste0("t",BC_plots$meas_no[i]+1)] = BC_plots$meas_yr[i]
 # }
-BC_surveys = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/BC/BC_surveys.csv",stringsAsFactors = F,row.names = "X")
+BC_surveys = read.csv("./EWS_package/data/raw_psp/BC/BC_surveys.csv",stringsAsFactors = F,row.names = "X")
 BC_surveys = data.frame(BC_surveys,matrix(nrow = dim(BC_surveys)[1],ncol = 18-dim(BC_surveys)[2]))
 colnames(BC_surveys) = paste0("t",sprintf("%02.0f",1:18))
 
 surveys = rbind(AB_surveys,BC_surveys,SK_surveys,MB_surveys,ON_surveys,QC_surveys,NL_surveys,NB_surveys,NS_surveys,YT_surveys,NWT_surveys,CAFI_surveys,CIPHA_surveys)
 
-write.csv(surveys,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/survey_dates.csv")
+# ========== Modified the write path to add a version (AB) ==========
+write.csv(surveys,"./EWS_package/data/psp/survey_datesV2.csv")

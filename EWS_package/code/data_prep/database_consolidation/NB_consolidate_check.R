@@ -17,15 +17,15 @@ if (startsWith(Sys.info()["nodename"], "BURRELL")){
     
     
 
-LUT = read.csv("./EWS/data/raw_psp/SP_LUT.csv",stringsAsFactors = F)
-NB_tree <- read.csv("./EWS/data/raw_psp/NB/PSP_TREE_YIMO.txt",stringsAsFactors = F)
-NB_surveys = read.csv("./EWS/data/raw_psp/NB/NB_surveys.csv")
-NB_plots = read.csv("./EWS/data/raw_psp/NB/NB_PSP_PLOTS.csv")
+LUT = read.csv("./EWS_package/data/raw_psp/SP_LUT.csv",stringsAsFactors = F)
+NB_tree <- read.csv("./EWS_package/data/raw_psp/NB/PSP_TREE_YIMO.txt",stringsAsFactors = F)
+NB_surveys = read.csv("./EWS_package/data/raw_psp/NB/NB_surveys.csv")
+NB_plots = read.csv("./EWS_package/data/raw_psp/NB/NB_PSP_PLOTS.csv")
 
 colnames(NB_tree) = c("RemeasID","treenumber","species","cause","dbh","agecl","cr","treetop","woundtype","depth","dim","ltbh","conks","lean","leaderda",
                       "curpct","cumpct","thincr","lat","sampleTree","sampleTreeEstabYr","sampleTreeAge","sampleTreeHt","standingDeadTreeDecayClass",
                       "standingDeadTreeHtClass","Notes","Tstamp","Plot","MeasNum","Form","Vigor")
-NB_plots_yr = read.csv("./EWS/data/raw_psp/NB/PSP_PLOTS_YR.csv",stringsAsFactors = F)
+NB_plots_yr = read.csv("./EWS_package/data/raw_psp/NB/PSP_PLOTS_YR.csv",stringsAsFactors = F)
 NB_plots_yr[3,2] = "10001"
 
 #This site has no date of inventory data
@@ -168,13 +168,42 @@ for (i in plot_vect){
       temp_samp = rbind(temp_samp,add_mat)
       temp_samp = arrange(temp_samp,treenumber)
     }
+    # ====================================================
+    # ========== Arden added a check value here ==========
+    # This was added to deal with some insane dbh values
+    dbh_flag  <- FALSE
     for (j in 1:dim(df)[1]){
       sp_df[j,paste0("sp_t",n)] = as.numeric(temp_samp$species[temp_samp$treenumber==rownames(df)[j]])
-      df[j,paste0("dbh_t",n)] = temp_samp$dbh[temp_samp$treenumber==rownames(df)[j]]/10
+      # Pull out the DBH value so it can be checked
+      dbh_val   <-  temp_samp$dbh[temp_samp$treenumber==rownames(df)[j]]/10
+      # Check the DBH values
+      if (is.na(dbh_val)) {
+        # +++++ Missing vlaues +++++
+        df[j,paste0("dbh_t",n)] = dbh_val
+      } else if (dbh_val < 500){
+        # +++++ Normal dbh values +++++
+        df[j,paste0("dbh_t",n)] = dbh_val
+      } else {
+        # +++++ This should catch the insane dbh values +++++
+        df[j,paste0("dbh_t",n)] = NaN 
+        dbh_flag  <- TRUE
+      }
+      
       if(!is.na(temp_samp$cause[temp_samp$treenumber==rownames(df)[j]])&temp_samp$cause[temp_samp$treenumber==rownames(df)[j]]==0){
         df[j,paste0("status_t",n)] = "L"
       }
     }
+    if (dbh_flag){
+      # For sites with a bad DBH value, this will catch them
+      values = as.numeric(df[,paste0("dbh_t",n)])
+      testnan = is.nan(values)
+      # replace the bad value with a mean
+      values[testnan] = mean(values, na.rm=TRUE)
+      df[,paste0("dbh_t",n)] = values
+    }
+    # ====================================================
+    # ====================================================
+    
     cut_percent[as.character(i),paste0("t",n)] = sum(temp_samp$cause==8,na.rm=T)/sum(!is.na(temp_samp$cause))
     flags = temp_samp[,"cause"]
     for (s in 1:length(dam_codes)){
@@ -193,8 +222,9 @@ for (i in plot_vect){
   }
   plot_size = NB_plots[NB_plots$Plot==i,"PlotSize"]/10000
   df = data.frame(sp_df2,df,plot_size)
-  write.csv(df,paste0("./EWS/data/raw_psp/NB/checks/",i,"_check.csv"))
+  
+  write.csv(df,paste0("./EWS_package/data/raw_psp/NB/checks/",i,"_check.csv"))
 }
-write.csv(cut_percent,"./EWS/data/raw_psp/NB/NB_cut_percent.csv")
-write.csv(damage,"./EWS/data/raw_psp/NB/NB_flags_percent.csv")
-write.csv(surveys,"./EWS/data/raw_psp/NB/NB_surveys.csv")
+write.csv(cut_percent,"./EWS_package/data/raw_psp/NB/NB_cut_percent.csv")
+write.csv(damage,"./EWS_package/data/raw_psp/NB/NB_flags_percent.csv")
+write.csv(surveys,"./EWS_package/data/raw_psp/NB/NB_surveys.csv")

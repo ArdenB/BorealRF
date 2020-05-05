@@ -1,8 +1,22 @@
 
 library(dplyr)
 
+# ======================================================================
+# ======================================================================
+# ========== This scipt has been modified by ab to fic a bug ==========
+# All modifications are maked like this section
+# ========== Check what system i'm running on ==========
+if (startsWith(Sys.info()["nodename"], "BURRELL")){
+  # Preserves compatibility with script
+  setwd("C:/Users/aburrell/Documents/Boreal")
+}else{
+  # setwd("/att/nobackup/scooperd/scooperdock")
+  setwd("/mnt/data1/boreal/scooperdock")
+}
 
-surveys = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/psp/survey_dates.csv",row.names = "X")
+# ======================================================================
+
+surveys = read.csv("./EWS_package/data/psp/survey_datesV2.csv",row.names = "X")
 
 
 provinces = rbind(c(1,"BC",9),
@@ -182,9 +196,9 @@ sp_live_N = data.frame()
 
 
 for (i in c(1:12)){
-  files = list.files(paste0("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/",provinces[i,2],"/checks/"))
+  files = list.files(paste0("./EWS_package/data/raw_psp/",provinces[i,2],"/checks/"))
   for(n in files){
-    df = read.csv(paste0("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/",provinces[i,2],"/checks/",n),row.names = "X",stringsAsFactors = F)
+    df = read.csv(paste0("./EWS_package/data/raw_psp/",provinces[i,2],"/checks/",n),row.names = "X",stringsAsFactors = F)
     med_dbh = mean(unlist(df[,grep('dbh',colnames(df))]),na.rm=T)
     too_big_rows = which(apply(as.matrix(df[,grep('dbh',colnames(df))]),1,max,na.rm=T)>20*med_dbh)
     if(length(too_big_rows)>0){
@@ -260,7 +274,7 @@ for (i in c(1:12)){
       }
     }
     if(sum(!is.na(biomass))>0){
-      write.csv(biomass,paste0("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/",provinces[i,2],"/PSP/biomass/",gsub("_check.csv","",n),".csv"))
+      write.csv(biomass,paste0("./EWS_package/data/raw_psp/",provinces[i,2],"/PSP/biomass/",gsub("_check.csv","",n),".csv"))
       if(measurements>1){
         growth_mass = matrix(nrow = dim(biomass)[1], ncol = measurements-1)
         rownames(growth_mass) = rownames(biomass)
@@ -335,17 +349,19 @@ for (i in c(1:12)){
 }
 
 all = data.frame(living_wood,living_wood_N,growth,recruit,recruit_N,mort,mort_N)
-write.csv(all,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/PSP_total_changes.csv")
-write.csv(sp_ID,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/PSP_sp_IDs.csv")
-write.csv(sp_comp_mass,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/PSP_sp_comp_mass.csv")
-write.csv(sp_mort_mass,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/PSP_sp_mort_mass.csv")
-write.csv(sp_recruit_mass,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/PSP_sp_recruit_mass.csv")
-write.csv(sp_live_mass,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/PSP_sp_live_mass.csv")
-write.csv(sp_comp_N,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/PSP_sp_comp_N.csv")
-write.csv(sp_mort_N,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/PSP_sp_mort_N.csv")
-write.csv(sp_recruit_N,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/PSP_sp_recruit_N.csv")
-write.csv(sp_growth,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/PSP_sp_growth.csv")
-write.csv(sp_live_N,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/PSP_sp_live_N.csv")
+
+# ========== AB modified the pathways to a new version 2 ==========
+write.csv(all,"./EWS_package/data/psp/PSP_total_changesV2.csv")
+write.csv(sp_ID,"./EWS_package/data/psp/PSP_sp_IDsV2.csv")
+write.csv(sp_comp_mass,"./EWS_package/data/psp/PSP_sp_comp_massV2.csv")
+write.csv(sp_mort_mass,"./EWS_package/data/psp/PSP_sp_mort_massV2.csv")
+write.csv(sp_recruit_mass,"./EWS_package/data/psp/PSP_sp_recruit_massV2.csv")
+write.csv(sp_live_mass,"./EWS_package/data/psp/PSP_sp_live_massV2.csv")
+write.csv(sp_comp_N,"./EWS_package/data/psp/PSP_sp_comp_NV2.csv")
+write.csv(sp_mort_N,"./EWS_package/data/psp/PSP_sp_mort_NV2.csv")
+write.csv(sp_recruit_N,"./EWS_package/data/psp/PSP_sp_recruit_NV2.csv")
+write.csv(sp_growth,"./EWS_package/data/psp/PSP_sp_growthV2.csv")
+write.csv(sp_live_N,"./EWS_package/data/psp/PSP_sp_live_NV2.csv")
 
 # 
 # #Do it separately for CIPHA
@@ -363,10 +379,10 @@ write.csv(sp_live_N,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/PSP_sp_live
 # CIPHA_sp_ID = data.frame()
 # CIPHA_sp_live = data.frame()
 # 
-# files = list.files(paste0("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/CIPHA/checks/"))
+# files = list.files(paste0("./EWS_package/data/raw_psp/CIPHA/checks/"))
 # 
 # for(n in files){
-#   df = read.csv(paste0("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/CIPHA/checks/",n),row.names = "X",stringsAsFactors = F)
+#   df = read.csv(paste0("./EWS_package/data/raw_psp/CIPHA/checks/",n),row.names = "X",stringsAsFactors = F)
 #   measurements = (dim(df)[2]-1)/3
 #   biomass = matrix(nrow = dim(df)[1],ncol = measurements*7)
 #   rownames(biomass) = rownames(df)
@@ -394,7 +410,7 @@ write.csv(sp_live_N,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/PSP_sp_live
 #       }
 #     }
 #   }
-#   write.csv(biomass,paste0("/att/nobackup/scooperd/scooperdock/EWS/data/raw_psp/CIPHA/PSP/biomass/",gsub("_check.csv","",n),".csv"))
+#   write.csv(biomass,paste0("./EWS_package/data/raw_psp/CIPHA/PSP/biomass/",gsub("_check.csv","",n),".csv"))
 #   if(measurements>1){
 #     growth_mass = matrix(nrow = dim(biomass)[1], ncol = measurements-1)
 #     rownames(growth_mass) = rownames(biomass)
@@ -465,10 +481,10 @@ write.csv(sp_live_N,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/PSP_sp_live
 # 
 # 
 # CIPHA_all = data.frame(CIPHA_living_wood,CIPHA_living_wood_N,CIPHA_growth,CIPHA_recruit,CIPHA_recruit_N,CIPHA_mort,CIPHA_mort_N)
-# write.csv(CIPHA_all,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/CIPHA_total_changes.csv")
-# write.csv(CIPHA_sp_ID,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/CIPHA_sp_IDs.csv")
-# write.csv(CIPHA_sp_comp,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/CIPHA_sp_comp.csv")
-# write.csv(CIPHA_sp_mort,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/CIPHA_sp_mort.csv")
-# write.csv(CIPHA_sp_recruit,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/CIPHA_sp_recruit.csv")
-# write.csv(CIPHA_sp_growth,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/CIPHA_sp_growth.csv")
-# write.csv(CIPHA_sp_live,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/CIPHA_sp_live.csv")
+# write.csv(CIPHA_all,"./EWS_package/data/psp/CIPHA_total_changes.csv")
+# write.csv(CIPHA_sp_ID,"./EWS_package/data/psp/CIPHA_sp_IDs.csv")
+# write.csv(CIPHA_sp_comp,"./EWS_package/data/psp/CIPHA_sp_comp.csv")
+# write.csv(CIPHA_sp_mort,"./EWS_package/data/psp/CIPHA_sp_mort.csv")
+# write.csv(CIPHA_sp_recruit,"./EWS_package/data/psp/CIPHA_sp_recruit.csv")
+# write.csv(CIPHA_sp_growth,"./EWS_package/data/psp/CIPHA_sp_growth.csv")
+# write.csv(CIPHA_sp_live,"./EWS_package/data/psp/CIPHA_sp_live.csv")
