@@ -4,10 +4,21 @@ library(plyr)
 
 library(data.table)
 
+# ========== This scipt has been modified by ab to fic a bug ==========
+# All modifications are maked like this section
+# ========== Check what system i'm running on ==========
+if (startsWith(Sys.info()["nodename"], "BURRELL")){
+  # Preserves compatibility with script
+  setwd("C:/Users/aburrell/Documents/Boreal")
+}else{
+  # setwd("/att/nobackup/scooperd/scooperdock")
+  setwd("/mnt/data1/boreal/scooperdock")
+  leadpath = "/att/nobackup/scooperd/"
+}
+
 #Define variables
 y_range = 1981:2017
 null_val = -32768
-leadpath = "/att/nobackup/scooperd/"
 burn_win = 50
 burn_th = 10
 
@@ -70,14 +81,14 @@ process_dam = function(in_df){
 
 
 #Read in lengths of time since last survey
-raw_shift_df = read.csv(paste0(leadpath,"scooperdock/EWS/data/psp/surv_interval_filled.csv"))
+raw_shift_df = read.csv("./EWS_package/data/psp/surv_interval_filledV2.csv")
 raw_shift_df = arrange(raw_shift_df,X)
 rownames(raw_shift_df) = raw_shift_df[,"X"]
 sites = rownames(raw_shift_df)
 shift_df = clean_df(raw_shift_df)
 
 #Read in site locations
-site_loc = read.csv(paste0(leadpath,"scooperdock/EWS/data/raw_psp/All_sites_101218.csv"),row.names = 'Plot_ID')
+site_loc = read.csv("./EWS_package/data/raw_psp/All_sites_101218.csv", row.names = 'Plot_ID')
 #There's a mismatch in the names for some Yukon sites, so this fixes it
 adj_YT = site_loc[grep("11_",rownames(site_loc)),]
 for(i in 1:nrow(adj_YT)){
@@ -87,7 +98,7 @@ rownames(site_loc)[grep("11_",rownames(site_loc))] = rownames(adj_YT)
 site_loc = site_loc[sites,]
 
 #Read in survey dates
-surv_date = read.csv(paste0(leadpath,"scooperdock/EWS/data/psp/surv_date_matrix.csv"))
+surv_date = read.csv(".EWS_package/data/psp/surv_date_matrixV2.csv")
 surv_date = arrange(surv_date,X)
 rownames(surv_date) = surv_date[,"X"]
 surv_date = clean_df(surv_date)
@@ -99,27 +110,28 @@ colnames(surv_date_lag) = colnames(surv_date)
 shift_df[!is.na(surv_date)] = 1
 
 #Read in biomass dataframes
-raw_mass_df = read.csv(paste0(leadpath,"scooperdock/EWS/data/psp/biomass_interpolated_w_over_10years.csv"),row.names = 'X')
+raw_mass_df = read.csv("./EWS_package/data/psp/biomass_interpolated_w_over_10yearsV2.csv", row.names = 'X')
 mass_df = clean_df(raw_mass_df)
 mass_df[mass_df<0] = NA
 
 #I use the fully interploted dataframe for the values of the actual measurements, doesn't have to be this way, but it was there
-raw_mass_df = read.csv(paste0(leadpath,"scooperdock/EWS/data/psp/biomass_interpolated.csv"),row.names = 'X')
+raw_mass_df = read.csv("./EWS_package/data/psp/biomass_interpolatedV2.csv",row.names = 'X')
 mass_df2 = clean_df(raw_mass_df)
 
 #Read in stem density
-raw_stem_df = read.csv(paste0(leadpath,"scooperdock/EWS/data/psp/stem_dens_interpolated_w_over_10years.csv"),row.names = 'X')
+raw_stem_df = read.csv("./EWS_package/data/psp/stem_dens_interpolated_w_over_10yearsV2.csv",row.names = 'X')
 stem_df = clean_df(raw_stem_df)
 stem_df[stem_df<0] = NA
 
 # ========== Used for Remoing sites that have undergone disturbance ==========
 #Read in damage and burn dataframes
-raw_damaged_df<-read.csv(paste0(leadpath,"scooperdock/EWS/data/psp/damage_flags.csv"),stringsAsFactors = FALSE,row.names = "X")
+raw_damaged_df<-read.csv("./EWS_package/data/psp/damage_flags.csv"),stringsAsFactors = FALSE,row.names = "X")
 raw_damaged_df[is.na(raw_damaged_df)] = 0
 raw_damaged_df = raw_damaged_df*100
 undamaged_df = process_dam(raw_damaged_df)
 
-raw_burn_df = read.csv(paste0(leadpath,"scooperdock/EWS/data/fire/LANDSAT_fire.csv"),row.names="Plot_ID",stringsAsFactors = F)
+
+raw_burn_df = read.csv("./EWS_package/data/fire/LANDSAT_fire.csv"),row.names="Plot_ID",stringsAsFactors = F)
 raw_burn_df = raw_burn_df[,-1]
 #As above, there are some issues with names in Yukon
 adj_YT = raw_burn_df[grep("11_",rownames(raw_burn_df)),]
@@ -148,7 +160,10 @@ vi_df$stem_density = unlist(stem_df)
 
 #Add in all the vis
 for (VI in VIs){
-  df = data.frame(fread(paste0(leadpath,"scooperdock/EWS/data/vi_metrics/metric_dataframe_",VI,"_noshift.csv")))
+  # ========== Ths pathway was completly broken ==========
+  # paste0(leadpath,"scooperdock/EWS/data/vi_metrics/metric_dataframe_",VI,"_noshift.csv")
+
+  df = data.frame(fread(paste0("./EWS_package/data/VIs/metrics/metric_dataframe_",VI,"_noshift.csv"))) #maybe?
   rownames(df) = df[,1]
   df = df[,c(-1,-2)]
   print(paste0(VI,' read: ',Sys.time()))
@@ -157,13 +172,14 @@ for (VI in VIs){
 
 # Read in species compositions
 # Table used to read species groups and time, different group types
-LUT = read.csv(paste0(leadpath,"scooperdock/EWS/data/raw_psp/SP_LUT.csv"),stringsAsFactors = F)
-sp_groups = read.csv(paste0(leadpath,"scooperdock/EWS/data/raw_psp/SP_groups.csv"),stringsAsFactors = F) 
+LUT = read.csv("./EWS_package/data/raw_psp/SP_LUT.csv",stringsAsFactors = F)
+sp_groups = read.csv("./EWS_package/data/raw_psp/SP_groups.csv",stringsAsFactors = F) 
 
 sp_out_df = data.frame('site' = rep(sites,37))
 rows = vector()
 for(i in 1:151){
   if(file.exists(paste0(leadpath,"scooperdock/EWS/data/psp/comp_interp_",i,".csv"))){
+    #the correct path for this might be "/data/psp/modeling_data/species/"
     raw_sp_df = read.csv(paste0(leadpath,"scooperdock/EWS/data/psp/comp_interp_",i,".csv"),stringsAsFactors = F,row.names = 'X')
     sp_df = clean_df(raw_sp_df)
     sp_df[!is.na(mass_df)&is.na(sp_df)] = 0

@@ -1,13 +1,26 @@
 ###A script to interpolate biomass values, using a couple different methods.
 
-leadpath = 'I:/ppl/scooperd/'
+# ======================================================================
+# ======================================================================
+# ========== This scipt has been modified by ab to fic a bug ==========
+# All modifications are maked like this section
+# ========== Check what system i'm running on ==========
+if (startsWith(Sys.info()["nodename"], "BURRELL")){
+  # Preserves compatibility with script
+  setwd("C:/Users/aburrell/Documents/Boreal")
+}else{
+  # setwd("/att/nobackup/scooperd/scooperdock")
+  setwd("/mnt/data1/boreal/scooperdock")
+}
 
-LUT = read.csv(paste0(leadpath,"scooperdock/EWS/data/raw_psp/SP_LUT.csv"),stringsAsFactors = F)
-surveys = read.csv(paste0(leadpath,"scooperdock/EWS/data/psp/survey_dates.csv"),row.names = "X",stringsAsFactors = F)
-all_mort = read.csv(paste0(leadpath,"scooperdock/EWS/data/psp/PSP_total_changes.csv"),row.names = "X")
+# ======================================================================
+
+LUT      = read.csv("./EWS_package/data/raw_psp/SP_LUT.csv",stringsAsFactors = F)
+surveys  = read.csv("./EWS_package/data/psp/survey_datesV2.csv",row.names = "X", stringsAsFactors = F)
+all_mort = read.csv("./EWS_package/data/psp/PSP_total_changesV2.csv",row.names = "X")
 
 
-years = min(surveys,na.rm = T):max(surveys,na.rm = T)
+years    = min(surveys,na.rm = T):max(surveys,na.rm = T)
 
 interp_biomass = matrix(nrow = dim(all_mort)[1],ncol = length(years))
 rownames(interp_biomass) = rownames(all_mort)
@@ -37,7 +50,7 @@ for (n in 1:dim(interp_biomass)[1]){
   }
 }
 
- write.csv(interp_biomass,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/biomass_interpolated.csv")
+ write.csv(interp_biomass,"./EWS_package/data/psp/biomass_interpolatedV2.csv")
  
  
  #This method is more complex. Basically I decided there was an issue with trying to model using interpolated biomass values
@@ -101,9 +114,9 @@ for (n in 1:dim(interp_biomass)[1]){
  
  #Write it out, you might note that all values were interpolated, not just those that were 10 years before a measurement.
  #That step is actually added in the create_vi_df script.
- write.csv(biomass,paste0(leadpath,"scooperdock/EWS/data/psp/biomass_interpolated_w_over_10years.csv"))
- write.csv(stem_dens,paste0(leadpath,"scooperdock/EWS/data/psp/stem_dens_interpolated_w_over_10years.csv"))
- write.csv(intervals,paste0(leadpath,"scooperdock/EWS/data/psp/surv_interval_filled.csv"))
+ write.csv(biomass,"./EWS_package/data/psp/biomass_interpolated_w_over_10yearsV2.csv")
+ write.csv(stem_dens,"./EWS_package/data/psp/stem_dens_interpolated_w_over_10yearsV2.csv")
+ write.csv(intervals,"./EWS_package/data/psp/surv_interval_filledV2.csv")
  
  ##For just a matrix of years each site was measured
  
@@ -123,5 +136,5 @@ for (n in 1:dim(interp_biomass)[1]){
    
  }
  
- write.csv(surv_year,"/att/nobackup/scooperd/scooperdock/EWS/data/psp/surv_date_matrix.csv")
+ write.csv(surv_year,"./EWS_package/data/psp/surv_date_matrixV2.csv")
  
