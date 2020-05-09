@@ -1,4 +1,5 @@
 # This creates the corellations and the RDA files
+rm(list = ls())
 library(dplyr)
 library(plyr)
 
@@ -78,17 +79,33 @@ process_dam = function(in_df){
   undamaged_df[undamaged_df==0]=NA
   return(undamaged_df)
 }
-
+# ========== Function to figure out where the lack of values is coming from
+check_dataframe = function(df) {
+  # +++++ Check if the dataframe coming in is empty
+  if (empty(raw_shift_df)) {
+    print("Dataset is empty")
+    browser()
+    stop("A dataset that should have values is empty. exiting code")
+  }else if (all(is.na(df))){
+    print("Dataset is all NA")
+    browser()
+    stop("A dataset that should have values is empty. exiting code")
+  }
+}
 
 #Read in lengths of time since last survey
 raw_shift_df = read.csv("./EWS_package/data/psp/surv_interval_filledV2.csv")
-raw_shift_df = arrange(raw_shift_df,X)
+check_dataframe(raw_shift_df)
+
+raw_shift_df           = arrange(raw_shift_df,X)
 rownames(raw_shift_df) = raw_shift_df[,"X"]
-sites = rownames(raw_shift_df)
-shift_df = clean_df(raw_shift_df)
+sites                  = rownames(raw_shift_df)
+shift_df               = clean_df(raw_shift_df)
 
 #Read in site locations
 site_loc = read.csv("./EWS_package/data/raw_psp/All_sites_101218.csv", row.names = 'Plot_ID')
+check_dataframe(site_loc)
+
 #There's a mismatch in the names for some Yukon sites, so this fixes it
 adj_YT = site_loc[grep("11_",rownames(site_loc)),]
 for(i in 1:nrow(adj_YT)){
@@ -96,21 +113,31 @@ for(i in 1:nrow(adj_YT)){
 }
 rownames(site_loc)[grep("11_",rownames(site_loc))] = rownames(adj_YT)
 site_loc = site_loc[sites,]
+check_dataframe(site_loc)
 
 #Read in survey dates
-surv_date = read.csv(".EWS_package/data/psp/surv_date_matrixV2.csv")
+#surv_date = read.csv("./EWS_package/data/psp/surv_date_matrixV2.csv")
+surv_date = read.csv("./EWS_package/data/psp/modeling_data/surv_date_matrix.csv")
+print("ThIS data cannot be regenerated currently. Email Sol")
+check_dataframe(surv_date)
 surv_date = arrange(surv_date,X)
 rownames(surv_date) = surv_date[,"X"]
+check_dataframe(surv_date)
 surv_date = clean_df(surv_date)
+
+
 #Create a lagged dataframe that indicates when there is a measurement 1- years after a date. This is used to only take values 
 #that have been interpolated using a year 10 value from an actual measurement
+# browser()
 surv_date_lag = data.frame(surv_date[,-c(1:10)],matrix(nrow = nrow(surv_date),ncol = 10))
 colnames(surv_date_lag) = colnames(surv_date)
+check_dataframe(surv_date)
 
 shift_df[!is.na(surv_date)] = 1
 
 #Read in biomass dataframes
 raw_mass_df = read.csv("./EWS_package/data/psp/biomass_interpolated_w_over_10yearsV2.csv", row.names = 'X')
+check_dataframe(raw_mass_df)
 mass_df = clean_df(raw_mass_df)
 mass_df[mass_df<0] = NA
 
@@ -125,13 +152,13 @@ stem_df[stem_df<0] = NA
 
 # ========== Used for Remoing sites that have undergone disturbance ==========
 #Read in damage and burn dataframes
-raw_damaged_df<-read.csv("./EWS_package/data/psp/damage_flags.csv"),stringsAsFactors = FALSE,row.names = "X")
+raw_damaged_df<-read.csv("./EWS_package/data/psp/modeling_data/damage_flags.csv", stringsAsFactors = FALSE,row.names = "X")
 raw_damaged_df[is.na(raw_damaged_df)] = 0
 raw_damaged_df = raw_damaged_df*100
 undamaged_df = process_dam(raw_damaged_df)
 
 
-raw_burn_df = read.csv("./EWS_package/data/fire/LANDSAT_fire.csv"),row.names="Plot_ID",stringsAsFactors = F)
+raw_burn_df = read.csv("./EWS_package/data/fire/LANDSAT_fire.csv",row.names="Plot_ID",stringsAsFactors = F)
 raw_burn_df = raw_burn_df[,-1]
 #As above, there are some issues with names in Yukon
 adj_YT = raw_burn_df[grep("11_",rownames(raw_burn_df)),]
@@ -168,8 +195,8 @@ for (VI in VIs){
   df = df[,c(-1,-2)]
   print(paste0(VI,' read: ',Sys.time()))
   vi_df = data.frame(vi_df,df)
+  check_dataframe(vi_df)
 }
-
 # Read in species compositions
 # Table used to read species groups and time, different group types
 LUT = read.csv("./EWS_package/data/raw_psp/SP_LUT.csv",stringsAsFactors = F)
@@ -178,9 +205,9 @@ sp_groups = read.csv("./EWS_package/data/raw_psp/SP_groups.csv",stringsAsFactors
 sp_out_df = data.frame('site' = rep(sites,37))
 rows = vector()
 for(i in 1:151){
-  if(file.exists(paste0(leadpath,"scooperdock/EWS/data/psp/comp_interp_",i,".csv"))){
+  if(file.exists(paste0("./EWS_package/data/psp/modeling_data/species/comp_interp_",i,".csv"))){
     #the correct path for this might be "/data/psp/modeling_data/species/"
-    raw_sp_df = read.csv(paste0(leadpath,"scooperdock/EWS/data/psp/comp_interp_",i,".csv"),stringsAsFactors = F,row.names = 'X')
+    raw_sp_df = read.csv(paste0("./EWS_package/data/psp/modeling_data/species/comp_interp_",i,".csv"),stringsAsFactors = F,row.names = 'X')
     sp_df = clean_df(raw_sp_df)
     sp_df[!is.na(mass_df)&is.na(sp_df)] = 0
     sp = LUT$scientific[LUT$ID==i]
@@ -208,7 +235,7 @@ for(gr in colnames(sp_groups)[2:6]){
 }
 
 #Add in soil chracteristics
-soils = read.csv(paste0(leadpath,"scooperdock/EWS/data/psp/soils/soil_properties_aggregated.csv"))            
+soils = read.csv("./EWS_package/data/psp/modeling_data/soil_properties_aggregated.csv")
 rownames(soils) = soils$prop_vals.rownames.samp_loc.
 adj_YT = soils[grep("11_",rownames(soils)),]
 for(i in 1:nrow(adj_YT)){
@@ -231,7 +258,7 @@ for(i in 1:ncol(soils)){
 colnames(vi_df)[(num_cols+1):(num_cols+i)] = colnames(soils)
 
 #Add in climate df
-all_climate = read.csv(paste0(leadpath,"scooperdock/EWS/data/psp/Climate/1951-2018/climate_df_30years.csv"),row.names = 'X')
+all_climate = read.csv("./EWS_package/data/psp/modeling_data/climate/1951-2018/climate_df_30years.csv",row.names = 'X')
 #there were some statisitics that I decided afterwards that didn't make sense, like relative trends for a number of variables,
 #so I created absolute trends and am removing the relative trends here. 
 remove_clim = c('MAR_mean_30years','MAR_trend_30years','MAR_abs_trend_30years','MAT_trend_30years','MWMT_trend_30years',
@@ -239,17 +266,17 @@ remove_clim = c('MAR_mean_30years','MAR_trend_30years','MAR_abs_trend_30years','
                 'eFFP_trend_30years','DD5_trend_30years','DD18_trend_30years','DD_18_trend_30years','DD_0_trend_30years',
                 'bFFP_trend_30years','RH_trend_30years','NFFD_trend_30years')
 all_climate = all_climate[,!colnames(all_climate) %in% remove_clim]
-
 vi_df = data.frame(vi_df,all_climate)
 
 #Add in permafrost data
-permafrost = read.csv(paste0(leadpath,"scooperdock/EWS/data/psp/permafrost/extract_permafrost_probs.csv"))
+permafrost = read.csv("./EWS_package/data/psp/modeling_data/extract_permafrost_probs.csv")
 rownames(permafrost) = permafrost$rownames.samp_loc.
 permafrost = permafrost[,c(-1,-2)]
 adj_YT = permafrost[grep("11_",rownames(permafrost)),]
 for(i in 1:nrow(adj_YT)){
   rownames(adj_YT)[i] = paste0("11_",sprintf("%03.0f",as.numeric(strsplit(rownames(adj_YT)[i],"_")[[1]][2])))
 }
+
 rownames(permafrost)[grep("11_",rownames(permafrost))] = rownames(adj_YT)
 permafrost = permafrost[sites,]
 permafrost[is.na(permafrost)] = 0
@@ -268,22 +295,24 @@ remove_cols = tail(1:ncol(mass_df),l)*-1
 for(j in (1:(ncol(mass_df)))[remove_cols]){
   lagged_mass_df[,j] = (mass_df2[,j+l] - mass_df[,j])/(mass_df2[,j+l] + mass_df[,j])
 }
+
+
 #remove sites that don't have an actual measurment at year 10
 lagged_mass_df = lagged_mass_df*surv_date_lag
 lagged_mass_df = unlist(lagged_mass_df)
 lagged_mass_df[!is.finite(lagged_mass_df)] = NA
 vi_df$lagged_biomass = lagged_mass_df
 
-
+#browser()
 vi_df = vi_df[!is.na(vi_df$lagged_biomass),]
 
-save(vi_df,file = paste0(leadpath,"scooperdock/EWS/data/vi_metrics/vi_df_all_",today,".Rda"))
-
+save(vi_df,file = "./EWS_package/data/models/input_data/vi_df_all_V2.Rda")
+write.csv(vi_df,file = "./EWS_package/data/models/input_data/vi_df_all_V2.csv")
 #Read in correlations csv
-VI_corr = read.csv(paste0(leadpath,"scooperdock/EWS/data/linear_models/all_vi_corr_100219.csv"),stringsAsFactors = F)
-soils_corr = read.csv(paste0(leadpath,"scooperdock/EWS/data/linear_models/soils_corr_042419.csv"),stringsAsFactors = F)
-climate_corr = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/linear_models/climate_corr_082319.csv")
-sp_corr = read.csv("/att/nobackup/scooperd/scooperdock/EWS/data/linear_models/sp_groups_corr_082019.csv")
+VI_corr = read.csv("./EWS_package/data/models/correlations/all_vi_corr_100219.csv",stringsAsFactors = F)
+soils_corr = read.csv("./EWS_package/data/models/correlations/soils_corr_042419.csv",stringsAsFactors = F)
+climate_corr = read.csv("./EWS_package/data/models/correlations/climate_corr_082319.csv")
+sp_corr = read.csv("./EWS_package/data/models/correlations/sp_groups_corr_082019.csv")
 #add then all together. Note: the last two vectors added are just there so that if one of the permafrost datasets comes out as important,
 #the other will be removed because I've set them as correlated to each other.
 correlations = rbind(VI_corr,soils_corr,climate_corr,sp_corr,c(NA,'Obu2019','Gruber',1),c(NA,'Gruber','Obu2019',1))
@@ -292,5 +321,6 @@ rho_limit = 0.5
 #only take correlations with an absolute value over my rho limit (0.5)
 correlations = correlations[abs(correlations$rho)>rho_limit,]
 
-save(correlations,file = paste0(leadpath,"scooperdock/EWS/data/linear_models/correlations_",today,".Rda"))
+save(correlations,file = "./EWS_package/data/models/correlations/correlations_V2.Rda")
+write.csv(correlations,file = "./EWS_package/data/models/correlations/correlations_V2.csv")
 

@@ -6,12 +6,27 @@ library(dplyr)
 # ========== This scipt has been modified by ab to fic a bug ==========
 # All modifications are maked like this section
 # ========== Check what system i'm running on ==========
+rm(list = ls()) #cleans any files in the environment out
 if (startsWith(Sys.info()["nodename"], "BURRELL")){
   # Preserves compatibility with script
   setwd("C:/Users/aburrell/Documents/Boreal")
 }else{
   # setwd("/att/nobackup/scooperd/scooperdock")
   setwd("/mnt/data1/boreal/scooperdock")
+}
+
+# ========== dataframe check ==========
+check_dataframe = function(df) {
+  # +++++ Check if the dataframe coming in is empty
+  if (empty(df)) {
+    print("Dataset is empty")
+    browser()
+    stop("A dataset that should have values is empty. exiting code")
+  }else if (all(is.na(df))){
+    print("Dataset is all NA")
+    browser()
+    stop("A dataset that should have values is empty. exiting code")
+  }
 }
 
 # ======================================================================
@@ -351,16 +366,27 @@ for (i in c(1:12)){
 all = data.frame(living_wood,living_wood_N,growth,recruit,recruit_N,mort,mort_N)
 
 # ========== AB modified the pathways to a new version 2 ==========
+check_dataframe(all)
 write.csv(all,"./EWS_package/data/psp/PSP_total_changesV2.csv")
+check_dataframe(sp_ID)
 write.csv(sp_ID,"./EWS_package/data/psp/PSP_sp_IDsV2.csv")
+check_dataframe(sp_comp_mass)
 write.csv(sp_comp_mass,"./EWS_package/data/psp/PSP_sp_comp_massV2.csv")
+check_dataframe(sp_mort_mass)
 write.csv(sp_mort_mass,"./EWS_package/data/psp/PSP_sp_mort_massV2.csv")
+check_dataframe(sp_recruit_mass)
 write.csv(sp_recruit_mass,"./EWS_package/data/psp/PSP_sp_recruit_massV2.csv")
+check_dataframe(sp_live_mass)
 write.csv(sp_live_mass,"./EWS_package/data/psp/PSP_sp_live_massV2.csv")
+check_dataframe(sp_comp_N)
 write.csv(sp_comp_N,"./EWS_package/data/psp/PSP_sp_comp_NV2.csv")
+check_dataframe(sp_mort_N)
 write.csv(sp_mort_N,"./EWS_package/data/psp/PSP_sp_mort_NV2.csv")
+check_dataframe(sp_recruit_N)
 write.csv(sp_recruit_N,"./EWS_package/data/psp/PSP_sp_recruit_NV2.csv")
+check_dataframe(sp_growth)
 write.csv(sp_growth,"./EWS_package/data/psp/PSP_sp_growthV2.csv")
+check_dataframe(sp_live_N)
 write.csv(sp_live_N,"./EWS_package/data/psp/PSP_sp_live_NV2.csv")
 
 # 

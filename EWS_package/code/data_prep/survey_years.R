@@ -6,12 +6,27 @@ library(readxl)
 # ========== This scipt has been modified by ab to fic a bug ==========
 # All modifications are maked like this section
 # ========== Check what system i'm running on ==========
+rm(list = ls()) #cleans any files in the environment out
 if (startsWith(Sys.info()["nodename"], "BURRELL")){
   # Preserves compatibility with script
   setwd("C:/Users/aburrell/Documents/Boreal")
 }else{
   # setwd("/att/nobackup/scooperd/scooperdock")
   setwd("/mnt/data1/boreal/scooperdock")
+}
+
+# ========== dataframe check ==========
+check_dataframe = function(df) {
+  # +++++ Check if the dataframe coming in is empty
+  if (empty(df)) {
+    print("Dataset is empty")
+    browser()
+    stop("A dataset that should have values is empty. exiting code")
+  }else if (all(is.na(df))){
+    print("Dataset is all NA")
+    browser()
+    stop("A dataset that should have values is empty. exiting code")
+  }
 }
 
 # ======================================================================
@@ -258,4 +273,5 @@ colnames(BC_surveys) = paste0("t",sprintf("%02.0f",1:18))
 surveys = rbind(AB_surveys,BC_surveys,SK_surveys,MB_surveys,ON_surveys,QC_surveys,NL_surveys,NB_surveys,NS_surveys,YT_surveys,NWT_surveys,CAFI_surveys,CIPHA_surveys)
 
 # ========== Modified the write path to add a version (AB) ==========
+check_dataframe(surveys)
 write.csv(surveys,"./EWS_package/data/psp/survey_datesV2.csv")

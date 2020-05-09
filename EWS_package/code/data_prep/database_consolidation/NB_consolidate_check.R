@@ -7,6 +7,7 @@ library(dplyr)
 # ========== This scipt has been modified by ab to fic a bug ==========
 # All modifications are maked like this section
 # ========== Check what system i'm running on ==========
+rm(list = ls()) #cleans any files in the environment out
 if (startsWith(Sys.info()["nodename"], "BURRELL")){
   # Preserves compatibility with script
   setwd("C:/Users/aburrell/Documents/Boreal")
@@ -14,6 +15,23 @@ if (startsWith(Sys.info()["nodename"], "BURRELL")){
   # setwd("/att/nobackup/scooperd/scooperdock")
   setwd("/mnt/data1/boreal/scooperdock")
 }
+
+# ========== dataframe check ==========
+check_dataframe = function(df) {
+  # +++++ Check if the dataframe coming in is empty
+  if (empty(df)) {
+    print("Dataset is empty")
+    browser()
+    stop("A dataset that should have values is empty. exiting code")
+  }else if (all(is.na(df))){
+    print("Dataset is all NA")
+    browser()
+    stop("A dataset that should have values is empty. exiting code")
+  }
+}
+
+# ======================================================================
+
     
     
 
@@ -100,6 +118,7 @@ for (i in 1:dim(sp_err)[1]){
 print("changed")
 err_check = vector()
 for (n in 1:dim(sp_err)[1]){
+  print(n)
   for (i in 1:6){
     err_check[i] = sp_err[n,i]
   }
@@ -110,6 +129,7 @@ for (n in 1:dim(sp_err)[1]){
 
 #correct species in NB_tree
 for (i in 1:dim(sp_err)[1]){
+  print(j)
   indices = colnames(sp_err)[which(!is.na(sp_err[i,]))]
   samp_vect = unique(NB_tree$MeasNum[NB_tree$Plot==strsplit(rownames(sp_err)[i],"_")[[1]][1]])
   for (n in indices){
@@ -223,8 +243,12 @@ for (i in plot_vect){
   plot_size = NB_plots[NB_plots$Plot==i,"PlotSize"]/10000
   df = data.frame(sp_df2,df,plot_size)
   
+  check_dataframe(df)
   write.csv(df,paste0("./EWS_package/data/raw_psp/NB/checks/",i,"_check.csv"))
 }
+check_dataframe(cut_percent)
 write.csv(cut_percent,"./EWS_package/data/raw_psp/NB/NB_cut_percent.csv")
+check_dataframe(damage)
 write.csv(damage,"./EWS_package/data/raw_psp/NB/NB_flags_percent.csv")
+check_dataframe(surveys)
 write.csv(surveys,"./EWS_package/data/raw_psp/NB/NB_surveys.csv")

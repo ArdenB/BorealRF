@@ -5,6 +5,7 @@
 # ========== This scipt has been modified by ab to fic a bug ==========
 # All modifications are maked like this section
 # ========== Check what system i'm running on ==========
+rm(list = ls()) #cleans any files in the environment out
 if (startsWith(Sys.info()["nodename"], "BURRELL")){
   # Preserves compatibility with script
   setwd("C:/Users/aburrell/Documents/Boreal")
@@ -13,6 +14,20 @@ if (startsWith(Sys.info()["nodename"], "BURRELL")){
   setwd("/mnt/data1/boreal/scooperdock")
 }
 
+
+# ========== dataframe check ==========
+check_dataframe = function(df) {
+  # +++++ Check if the dataframe coming in is empty
+  if (empty(df)) {
+    print("Dataset is empty")
+    browser()
+    stop("A dataset that should have values is empty. exiting code")
+  }else if (all(is.na(df))){
+    print("Dataset is all NA")
+    browser()
+    stop("A dataset that should have values is empty. exiting code")
+  }
+}
 # ======================================================================
 
 LUT      = read.csv("./EWS_package/data/raw_psp/SP_LUT.csv",stringsAsFactors = F)
@@ -114,8 +129,11 @@ for (n in 1:dim(interp_biomass)[1]){
  
  #Write it out, you might note that all values were interpolated, not just those that were 10 years before a measurement.
  #That step is actually added in the create_vi_df script.
+ check_dataframe(biomass)
  write.csv(biomass,"./EWS_package/data/psp/biomass_interpolated_w_over_10yearsV2.csv")
+ check_dataframe(stem_dens)
  write.csv(stem_dens,"./EWS_package/data/psp/stem_dens_interpolated_w_over_10yearsV2.csv")
+ check_dataframe(intervals)
  write.csv(intervals,"./EWS_package/data/psp/surv_interval_filledV2.csv")
  
  ##For just a matrix of years each site was measured
@@ -135,6 +153,6 @@ for (n in 1:dim(interp_biomass)[1]){
    
    
  }
- 
+ check_dataframe(surv_year)
  write.csv(surv_year,"./EWS_package/data/psp/surv_date_matrixV2.csv")
  
