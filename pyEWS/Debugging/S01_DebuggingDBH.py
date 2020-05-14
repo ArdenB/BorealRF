@@ -61,6 +61,8 @@ def main():
 	# allv = False #look at everyvalue rather than just the site max
 	allv = True #look at everyvalue rather than just the site max
 
+	Filecheck()
+
 	# ========== Make a dictionary ==========
 	fnames = glob.glob(path+"**/checks/*.csv")
 
@@ -124,7 +126,78 @@ def Filecheck():
 	"""
 	script to quickly check the files
 	"""
+	# ========== Set the paths ==========
+	oldfp = "./pyEWS/Debugging/OldFiles/"
+	newfp = "./pyEWS/Debugging/Newfiles/"
+
+	# ========== Look at the files ==========
+	fnnew = glob.glob(newfp+"*.csv")
+	fnold = glob.glob(oldfp+"*.csv")
 	
+	# ========== List for the files i need to overwrite ==========
+	overwrite = []
+
+	# ========== Loop through the new files ==========
+	for fnN in fnnew:
+		# +++++ find the 'file name' +++++
+		tfn = fnN.split("/")[-1].split("V2.csv")[0]
+		tof = None
+
+		# +++++ Find the old file that matches +++++
+		for ofn in fnold:
+			if tfn in ofn:
+				tof = ofn
+				break
+		if not tof is None:
+			newdf = pd.read_csv(fnN, index_col=0)
+			newdf.sort_index(inplace=True)
+			olddf = pd.read_csv(tof, index_col=0)
+			olddf.sort_index(inplace=True)
+
+			newdf = newdf[olddf.columns]
+
+			# ========== Create a col diff ==========
+			cldif = (olddf.fillna(0)._get_numeric_data() - newdf.fillna(0)._get_numeric_data()).round(4)
+
+			# ========== make a log of the changes ==========
+			changelog = []
+			# ========== iteritems 
+			for (columnName, columnData) in cldif.iteritems():
+				if (columnData.abs() > 0).any():
+					# +++++ get the rows +++++
+					for ind in columnData[columnData.abs() > 0].index:
+						changelog.append(
+							"Value in col %s row %s changed from %04f to %04f" % (
+								columnName, ind, olddf[columnName][ind], newdf[columnName][ind]))
+
+				else:
+					pass
+
+			# ========== Check the change log ==========
+			if not changelog == []:
+				# ========== Create the Metadata ==========
+				Scriptinfo = ["File saved from %s (%s):%s by %s, %s" % (__title__, __file__, 
+					__version__, __author__, dt.datetime.today().strftime("(%Y %m %d)"))]
+
+				# ========== make and save a new file ==========
+				fnout = oldfp + tfn + "_V3abfix.csv"
+				newdf.to_csv(fnout)
+				cf.writemetadata(fnout, Scriptinfo+changelog)
+				overwrite.append("%s was updated" % tof.split("/")[-1])
+				print(changelog)
+			else:
+				print(tfn, " matchs existing file")
+				overwrite.append("%s matchs existing file" % tof.split("/")[-1])
+		else:
+			print(tfn, " has no oldfile match")
+	# ========== Save a summary ==========
+	infostring = ('V3abfix files are new versions of existing files which replace insane DBH values at two sites. Only the files listed below have been checked.')
+
+	fninfo = oldfp + "README_for_V3abfix"
+	cf.writemetadata(fninfo, [infostring, Scriptinfo[0]] + overwrite)
+	breakpoint()
+		
+
 # ==============================================================================
 # ==============================================================================
 
