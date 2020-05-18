@@ -68,23 +68,28 @@ from scipy.stats import spearmanr
 from scipy.cluster import hierarchy
 
 # ========== Import Cuda Package packages ==========
-warn.warn("add a cuda state variable here")
-# import cupy
-# import cudf
-# import cuml
+try:
+	import cupy
+	import cudf
+	import cuml
 
-# from cuml.dask.common import utils as dask_utils
-# from dask.distributed import Client, wait
-# from dask_cuda import LocalCUDACluster
-# import dask_cudf
+	from cuml.dask.common import utils as dask_utils
+	from dask.distributed import Client, wait
+	from dask_cuda import LocalCUDACluster
+	import dask_cudf
 
-# # from cuml import RandomForestRegressor as cuRFR
-# from cuml.dask.ensemble import RandomForestRegressor as cuRFR
-# from cuml.preprocessing.model_selection import train_test_split as  CUDAtrain_test_split
-# model_selection.train_test_split
+	from cuml import RandomForestRegressor as cuRFR
+	# from cuml.dask.ensemble import RandomForestRegressor as cuRFR
+	# from cuml.preprocessing.model_selection import train_test_split as  CUDAtrain_test_split
+	# model_selection.train_test_split
+	cuda = True
+except:
+	print("Unable to build a cuda environment on this OS and/or conda env")
+	cuda = False
+
 
 # ==============================================================================
-def main():
+def main(cuda):
 	# ========== These are all from Sol ===========
 	region      = 'all' 
 	num_quants  = 7 
@@ -103,73 +108,114 @@ def main():
 	cf.pymkdir(folder)
 
 	for test in np.arange(10):
-		# ========== Create a max number of branches ==========
-		test_branchs = np.arange(maxiter)
-		ColNm        = None #will be replaced as i keep adding new columns
-		corr_linkage = None # will be replaced after the 0 itteration
-		orig_clnm    = None
+		# ========== figure out if cuda works on they system ==========
+		if cuda:
+			meth = ["pandas", "cudf", "dask"]
+		else:
+			meth = ["pandas"]
 
-		# ========== Create a dictionary so i can store performance metrics ==========
-		perf  = OrderedDict()
+		for dftype in meth:
 
-		warn.warn("Add a cuda test here")
-		dftype="pandas"
-		# ========== Make a file name =============
-		fnout =  folder + "S02_RandomForest_Testing_%s_Exp%02d.csv" % (dftype, test)
+			# ========== Create a max number of branches ==========
+			test_branchs = np.arange(maxiter)
+			ColNm        = None #will be replaced as i keep adding new columns
+			corr_linkage = None # will be replaced after the 0 itteration
+			orig_clnm    = None
 
-		# ========== Check i the file already exists ===========
-		if os.path.isfile(fnout) and not force:
-			# The file already exists and i'm not focing the reload
+			# ========== Create a dictionary so i can store performance metrics ==========
+			perf  = OrderedDict()
+
+			# ========== Make a file name =============
+			fnout =  folder + "S02_RandomForest_Testing_%s_Exp%02d.csv" % (dftype, test)
+
+			# ========== Check i the file already exists ===========
+			if os.path.isfile(fnout) and not force:
+				# The file already exists and i'm not focing the reload
+				writenames.append(fnout)
+				continue
+
+			# ========== start a loop over the branches ==========
+			for branch in test_branchs:
+				print("starting Random forest with %s clustering level %d at:" % (SelMethod, branch), pd.Timestamp.now())
+				# ========== open and import dataframes ===========
+				X_train, X_test, y_train, y_test, col_nms, loadstats, corr = df_proccessing(
+					window, tmpath, test_size, dftype=dftype, cols_keep=ColNm, recur=None )#"dask_cudf"
+
+				# ========== perform the random forest ==========
+				if dftype == "pandas":
+					time,  r2, feature_imp  = skl_rf_regression(
+						X_train, X_test, y_train, y_test, col_nms, ntree, test_size, verbose=False, perm=True)
+				else:
+					time,  r2, feature_imp  = cuda_rf_regression( 
+						X_train, X_test, y_train, y_test, col_nms, ntree, test_size, dftype)
+
+				# ========== perform some zeo branch data storage ==========
+				if branch == 0:
+					# +++++ Calculate the ward hierarchy +++++
+					corr_linkage = hierarchy.ward(corr)
+					# +++++ Create a zero time deltat +++++
+					cum_time     = pd.Timedelta(0)
+					orig_clnm    = col_nms.copy()
+				else:
+					# ========== Pull out the existing total time ==========
+					cum_time = perf["Branch%02d" % (branch-1)]["TimeCumulative"]
+
+				# ========== Perform Variable selection and get new column names ==========
+				ColNm = Variable_selection(corr_linkage, branch, feature_imp, X_test, col_nms, orig_clnm)
+
+				# ========== Add the results of the different itterations to OD ==========
+				perf["Branch%02d" % branch] = ({
+					"testmethod":dftype, "dfloadtime":loadstats["loadtime"], 
+					"RFtime":time, "TimeCumulative":cum_time + (loadstats["loadtime"]+time),  
+					"R2":r2, "NumVar":loadstats["colcount"],  "SiteFraction":loadstats["fractrows"],
+					"correlated":loadstats["covariate"], "meancorr":loadstats["meancorr"],
+					})
+			
+			# ========== Pull out the features that i'm going to use on the next loop ==========
+			perf_df = pd.DataFrame(perf).T
+			for var in ["TimeCumulative", "RFtime", "dfloadtime"]:	
+				perf_df[var] = perf_df[var].astype('timedelta64[s]') / 60
+			perf_df["Iteration"] = test
+
+			# ========== Save the df with the timing and performance ===========
+			perf_df.to_csv(fnout)
 			writenames.append(fnout)
-			continue
 
-		# ========== start a loop over the branches ==========
-		for branch in test_branchs:
-			print("starting Random forest with %s clustering level %d at:" % (SelMethod, branch), pd.Timestamp.now())
-			# ========== open and import dataframes ===========
-			X_train, X_test, y_train, y_test, col_nms, loadstats, corr = df_proccessing(
-				window, tmpath, test_size, dftype=dftype, cols_keep=ColNm, recur=None )#"dask_cudf"
+	Summaryplots(writenames)
+	# ipdb.set_trace()
 
-			# ========== perform the random forest ==========
-			# cuda_rf_regression( X_train, X_test, y_train, y_test, col_nms, ntree, test_size)
-			time,  r2, feature_imp  = skl_rf_regression(
-				X_train, X_test, y_train, y_test, col_nms, ntree, test_size, verbose=False, perm=True)
+def Summaryplots(writenames):
+	"""
+	Function takes a list of filenames, concats into a single 
+	"""
 
-			# ========== perform some zeo branch data storage ==========
-			if branch == 0:
-				# +++++ Calculate the ward hierarchy +++++
-				corr_linkage = hierarchy.ward(corr)
-				# +++++ Create a zero time deltat +++++
-				cum_time     = pd.Timedelta(0)
-				orig_clnm    = col_nms.copy()
-			else:
-				# ========== Pull out the existing total time ==========
-				cum_time = perf["Branch%02d" % (branch-1)]["TimeCumulative"]
+	# +++++ make a single df that contains the spped and accuracy of the methods +++++
+	exp_df  = pd.concat([pd.read_csv(fn).rename( columns={'Unnamed: 0':'branch'}) for fn in writenames])
+	exp_df["R2perVar"] = exp_df["R2"] / exp_df["NumVar"]
+	df_mean = exp_df.groupby(["testmethod", "branch"]).mean().reset_index()
+	df_std  = exp_df.groupby(["testmethod", "branch"]).std().reset_index()
+	# ax = sns.catplot(x="index", y="R2", data=imp_df, hue="FeatureSelection", kind="bar")
+	for va in ["dfloadtime","RFtime", "TimeCumulative", "R2", "NumVar",'SiteFraction', 'correlated', 'meancorr', "R2perVar"]:
 
-
-			ColNm = Variable_selection(corr_linkage, branch, feature_imp, X_test, col_nms, orig_clnm)
-			print("this is where i need to store the results from a given itteration")
-
-			perf["Branch%02d" % branch] = ({
-				"testmethod":dftype, "dfloadtime":loadstats["loadtime"], 
-				"RFtime":time, "TimeCumulative":cum_time + (loadstats["loadtime"]+time),  
-				"R2":r2, "NumVar":loadstats["colcount"],  "SiteFraction":loadstats["fractrows"],
-				"correlated":loadstats["covariate"], "meancorr":loadstats["meancorr"],
-				})
+		# +++++ make some plots +++++
+		plt.figure(va)
+		ax = sns.lineplot(x="branch", y=va, data=exp_df,  err_style='bars')#hue="FeatureSelection",
+		# +++++ Make a log scale to help visulation in some variables +++++
+		if va in ["correlated"]: #"NumVar", 
+			ax.set_yscale('log')
 		
-		# ========== Pull out the features that i'm going to use on the next loop ==========
-		perf_df = pd.DataFrame(perf).T
-		for var in ["TimeCumulative", "RFtime", "dfloadtime"]:	
-			perf_df[var] = perf_df[var].astype('timedelta64[s]') / 60
-		perf_df["Iteration"] = test
-
-		# ========== Save the df with the timing and performance ===========
-		perf_df.to_csv(fnout)
-		writenames.append(fnout)
-
+		for label in ax.get_xticklabels():label.set_rotation(90)
 		
-	ipdb.set_trace()
-
+		plt.show()
+	
+	ax = sns.lineplot(x="NumVar", y="R2", data=exp_df, err_style='band', hue="Iteration")
+	for label in ax.get_xticklabels():label.set_rotation(90)
+	plt.show()
+	ax = sns.lineplot(x="correlated", y="R2", data=exp_df,  hue="Iteration") #err_style='band',
+	ax.set_xscale('log')
+	# for label in ax.get_xticklabels():label.set_rotation(90)
+	plt.show()
+	breakpoint()
 
 def Variable_selection(corr_linkage, branch, feature_imp, X_train, col_nms, orig_clnm):
 	"""
@@ -235,7 +281,7 @@ def Variable_selection(corr_linkage, branch, feature_imp, X_train, col_nms, orig
 # ==============================================================================
 
 
-def cuda_rf_regression( X_train, X_test, y_train, y_test, col_nms, ntree, test_size):
+def cuda_rf_regression( X_train, X_test, y_train, y_test, col_nms, ntree, test_size, dftype):
 	"""
 	This function is to test out the  speed of the random forest regressions using
 	sklearn 
@@ -249,32 +295,34 @@ def cuda_rf_regression( X_train, X_test, y_train, y_test, col_nms, ntree, test_s
 	"""
 
 	# This will use all GPUs on the local host by default
-	cluster = LocalCUDACluster(threads_per_worker=1)
-	c = Client(cluster)
+	if dftype == "dask":
+		cluster = LocalCUDACluster(threads_per_worker=1)
+		c = Client(cluster)
 
-	# Query the client for all connected workers
-	workers = c.has_what().keys()
-	n_workers = len(workers)
+		# Query the client for all connected workers
+		workers = c.has_what().keys()
+		n_workers = len(workers)
+	
 	n_streams = 8 # Performance optimization
 
 
 	# ========== convert to a GPU dataframe ==========
-	print ("Moving data to the GPU at: ", pd.Timestamp.now())
-	Xgpu = cudf.DataFrame.from_pandas(Xin)
-	ygpu = cudf.Series.from_pandas(yin) #.to_frame()
+	# print ("Moving data to the GPU at: ", pd.Timestamp.now())
+	# Xgpu = cudf.DataFrame.from_pandas(Xin)
+	# ygpu = cudf.Series.from_pandas(yin) #.to_frame()
 	# Xdask = dask_cudf.from_cudf(Xgpu, npartitions=5)
 	# ydask = dask_cudf.from_cudf(ygpu, npartitions=5)
 
 	# ipdb.set_trace()
 
 	# ========== Split the data  ==========
-	X_train, X_test, y_train, y_test = CUDAtrain_test_split(Xgpu, ygpu, test_size=test_size)
+	# X_train, X_test, y_train, y_test = CUDAtrain_test_split(Xgpu, ygpu, test_size=test_size)
 	# X_train, X_test, y_train, y_test = CUDAtrain_test_split(Xdask, ydask, test_size=test_size)
-	Xdask_train = dask_cudf.from_cudf(X_train, npartitions=5)
-	ydask_train = dask_cudf.from_cudf(y_train, npartitions=5)
+	# Xdask_train = dask_cudf.from_cudf(X_train, npartitions=5)
+	# ydask_train = dask_cudf.from_cudf(y_train, npartitions=5)
 
 	# Shard the data across all workers
-	Xdask_train, ydask_trainf = dask_utils.persist_across_workers(c,[Xdask_train,ydask_train],workers=workers)
+	# Xdask_train, ydask_trainf = dask_utils.persist_across_workers(c,[Xdask_train,ydask_train],workers=workers)
 
 	# ========== Setup some skl params ==========
 	# cu_rf_params = ({"n_estimators":ntree})
@@ -289,7 +337,9 @@ def cuda_rf_regression( X_train, X_test, y_train, y_test, col_nms, ntree, test_s
 	
 	# ========== Do the RF regression training ==========
 	regressor = cuRFR(**cu_rf_params)
-	regressor.fit(Xdask_train, ydask_train)
+	breakpoint()
+	regressor.fit(X_train, y_train)
+	breakpoint()
 
 	ipdb.set_trace()
 
@@ -408,15 +458,9 @@ def df_proccessing(window, tmpath, test_size, dftype="pandas", cols_keep=None, r
 	# ============ Open the variables and correlations ============
 	# This may need to change when using cuda 
 	print("loading the files using %s at:" % dftype, t0)
-	if dftype == "pandas":
-		vi_df  = pd.read_csv( vi_fn, index_col=0)
-		cor_df = pd.read_csv(cor_fn, index_col=0)
-	elif dftype == "cudf":
-		ipdb.set_trace()
-	elif dftype == "dask_cudf":
-		ipdb.set_trace()
-		vi_df  = dask_cudf.read_csv( vi_fn, npartitions=5).set_index('Unnamed: 0') #index_col=0, 
-		cor_df = dask_cudf.read_csv(cor_fn, npartitions=5).set_index('Unnamed: 0') #index_col=0, 
+	vi_df  = pd.read_csv( vi_fn, index_col=0)
+	cor_df = pd.read_csv(cor_fn, index_col=0)
+
 
 	
 	print("loading the files using %s took: " % dftype, pd.Timestamp.now()-t0)
@@ -502,8 +546,23 @@ def df_proccessing(window, tmpath, test_size, dftype="pandas", cols_keep=None, r
 	# =========== reload the data if needed ==========
 	if dftype == "pandas":
 		pass
+	elif dftype == "cudf":
+		X_train = cudf.read_csv(fnames["X_train"]).set_index('Unnamed: 0').astype("float32")
+		X_test  = cudf.read_csv(fnames["X_test"]).set_index('Unnamed: 0').astype("float32")
+		y_train = cudf.read_csv(
+			fnames["y_train"], names=["site", "lagged_biomass"], header=None).set_index('site').astype("float32")
+		y_test  = cudf.read_csv(
+			fnames["y_test"], names=["site", "lagged_biomass"], header=None).set_index('site').astype("float32")
 	else:
 		ipdb.set_trace()
+		# elif dftype == "cudf":
+		# 	vi_df  = dask_cudf.read_csv( vi_fn).set_index('Unnamed: 0') #index_col=0, 
+		# 	# cor_df = dask_cudf.read_csv(cor_fn).set_index('Unnamed: 0') #index_col=0, 
+		# 	breakpoint()
+		# elif dftype == "dask":
+		# 	ipdb.set_trace()
+		# 	vi_df  = dask_cudf.read_csv( vi_fn, npartitions=5).set_index('Unnamed: 0') #index_col=0, 
+		# 	# cor_df = dask_cudf.read_csv(cor_fn, npartitions=5).set_index('Unnamed: 0') #index_col=0, 
 	
 	# return the split data and the time it takes
 	statsOD["loadtime"] = pd.Timestamp.now() - t0
@@ -512,4 +571,4 @@ def df_proccessing(window, tmpath, test_size, dftype="pandas", cols_keep=None, r
 
 # ==============================================================================
 if __name__ == '__main__':
-	main()
+	main(cuda)
