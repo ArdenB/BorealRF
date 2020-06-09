@@ -87,19 +87,17 @@ except:
 	print("Unable to build a cuda environment on this OS and/or conda env")
 	cuda = False
 
-
 # ==============================================================================
 def main(cuda):
 	# ========== These are all from Sol ===========
 	region      = 'all' 
-	num_quants  = 7 
+	# num_quants  = 7 
 	window      = 10
 	ntree       = 500
 	test_size   = 0.2
 	tmpath      = "./pyEWS/experiments/1.FeatureSelection/tmp/"
 	SelMethod   = "hierarchicalPermutation"
 	VarImp      = "recursiveDrop"
-	maxiter     = 40
 	force       = False
 	writenames  = []
 
@@ -107,81 +105,100 @@ def main(cuda):
 	folder = "./pyEWS/experiments/1.FeatureSelection/"
 	cf.pymkdir(folder)
 
-	for test in np.arange(10):
-		# ========== figure out if cuda works on they system ==========
-		if cuda:
-			meth = ["pandas", "cudf", "dask"]
-		else:
-			meth = ["pandas"]
+	# Setup the experiment version
+	versions = OrderedDict()
+	versions["v2"] = ({
+		"desc":"Testing the the overall performance of the the final model",
+		"maxiter":11, # The maximum number to tests to run. determined observationally in v1
+		"tests":np.arange(10),
+		"teststr":"_V2" #string to add to written files
+	})
+	versions["v1"] = ({
+		"desc":"Testing the number of itterations that i will need to use in the final model",
+		"maxiter":40, # The maximum number to tests to run
+		"tests":np.arange(10),
+		"teststr":"" #string to add to written files
+	})
+	for vers in versions:
+		maxiter = versions[vers]["maxiter"]
 
-		for dftype in meth:
+		for test in versions[vers]["tests"]:
+			print("\n Version:", vers, " Test:", test)
+			# ========== figure out if cuda works on they system ==========
+			if cuda:
+				meth = ["pandas", "cudf", "dask"]
+			else:
+				meth = ["pandas"]
 
-			# ========== Create a max number of branches ==========
-			test_branchs = np.arange(maxiter)
-			ColNm        = None #will be replaced as i keep adding new columns
-			corr_linkage = None # will be replaced after the 0 itteration
-			orig_clnm    = None
+			for dftype in meth:
 
-			# ========== Create a dictionary so i can store performance metrics ==========
-			perf  = OrderedDict()
+				# ========== Create a max number of branches ==========
+				test_branchs = np.arange(maxiter)
+				ColNm        = None #will be replaced as i keep adding new columns
+				corr_linkage = None # will be replaced after the 0 itteration
+				orig_clnm    = None
 
-			# ========== Make a file name =============
-			fnout =  folder + "S02_RandomForest_Testing_%s_Exp%02d.csv" % (dftype, test)
+				# ========== Create a dictionary so i can store performance metrics ==========
+				perf  = OrderedDict()
 
-			# ========== Check i the file already exists ===========
-			if os.path.isfile(fnout) and not force:
-				# The file already exists and i'm not focing the reload
+				# ========== Make a file name =============
+				fnout =  folder + "S02_RandomForest_Testing_%s_Exp%02d%s.csv" % (dftype, test,  versions[vers]["teststr"])
+
+				# ========== Check i the file already exists ===========
+				if os.path.isfile(fnout) and not force:
+					# The file already exists and i'm not focing the reload
+					writenames.append(fnout)
+					continue
+
+				# ========== start a loop over the branches ==========
+				for branch in test_branchs:
+					print("starting Random forest with %s clustering level %d at:" % (SelMethod, branch), pd.Timestamp.now())
+					# ========== open and import dataframes ===========
+					X_train, X_test, y_train, y_test, col_nms, loadstats, corr = df_proccessing(
+						window, tmpath, test_size, branch, test, dftype=dftype, cols_keep=ColNm, recur=None )#"dask_cudf"
+
+					# ========== perform the random forest ==========
+					if dftype == "pandas":
+						time,  r2, feature_imp  = skl_rf_regression(
+							X_train, X_test, y_train, y_test, col_nms, ntree, test_size, 
+							branch, test, tmpath, maxiter, verbose=False, perm=True)
+					else:
+						time,  r2, feature_imp  = cuda_rf_regression( 
+							X_train, X_test, y_train, y_test, col_nms, ntree, test_size, dftype)
+
+					# ========== perform some zeo branch data storage ==========
+					if branch == 0:
+						# +++++ Calculate the ward hierarchy +++++
+						corr_linkage = hierarchy.ward(corr)
+						# +++++ Create a zero time deltat +++++
+						cum_time     = pd.Timedelta(0)
+						orig_clnm    = col_nms.copy()
+					else:
+						# ========== Pull out the existing total time ==========
+						cum_time = perf["Branch%02d" % (branch-1)]["TimeCumulative"]
+
+					# ========== Perform Variable selection and get new column names ==========
+					ColNm = Variable_selection(corr_linkage, branch, feature_imp, X_test, col_nms, orig_clnm)
+
+					# ========== Add the results of the different itterations to OD ==========
+					perf["Branch%02d" % branch] = ({
+						"testmethod":dftype, "dfloadtime":loadstats["loadtime"], 
+						"RFtime":time, "TimeCumulative":cum_time + (loadstats["loadtime"]+time),  
+						"R2":r2, "NumVar":loadstats["colcount"],  "SiteFraction":loadstats["fractrows"],
+						"correlated":loadstats["covariate"], "meancorr":loadstats["meancorr"],
+						})
+				
+				# ========== Pull out the features that i'm going to use on the next loop ==========
+				perf_df = pd.DataFrame(perf).T
+				for var in ["TimeCumulative", "RFtime", "dfloadtime"]:	
+					perf_df[var] = perf_df[var].astype('timedelta64[s]') / 60
+				perf_df["Iteration"] = test
+
+				# ========== Save the df with the timing and performance ===========
+				perf_df.to_csv(fnout)
 				writenames.append(fnout)
-				continue
 
-			# ========== start a loop over the branches ==========
-			for branch in test_branchs:
-				print("starting Random forest with %s clustering level %d at:" % (SelMethod, branch), pd.Timestamp.now())
-				# ========== open and import dataframes ===========
-				X_train, X_test, y_train, y_test, col_nms, loadstats, corr = df_proccessing(
-					window, tmpath, test_size, dftype=dftype, cols_keep=ColNm, recur=None )#"dask_cudf"
-
-				# ========== perform the random forest ==========
-				if dftype == "pandas":
-					time,  r2, feature_imp  = skl_rf_regression(
-						X_train, X_test, y_train, y_test, col_nms, ntree, test_size, verbose=False, perm=True)
-				else:
-					time,  r2, feature_imp  = cuda_rf_regression( 
-						X_train, X_test, y_train, y_test, col_nms, ntree, test_size, dftype)
-
-				# ========== perform some zeo branch data storage ==========
-				if branch == 0:
-					# +++++ Calculate the ward hierarchy +++++
-					corr_linkage = hierarchy.ward(corr)
-					# +++++ Create a zero time deltat +++++
-					cum_time     = pd.Timedelta(0)
-					orig_clnm    = col_nms.copy()
-				else:
-					# ========== Pull out the existing total time ==========
-					cum_time = perf["Branch%02d" % (branch-1)]["TimeCumulative"]
-
-				# ========== Perform Variable selection and get new column names ==========
-				ColNm = Variable_selection(corr_linkage, branch, feature_imp, X_test, col_nms, orig_clnm)
-
-				# ========== Add the results of the different itterations to OD ==========
-				perf["Branch%02d" % branch] = ({
-					"testmethod":dftype, "dfloadtime":loadstats["loadtime"], 
-					"RFtime":time, "TimeCumulative":cum_time + (loadstats["loadtime"]+time),  
-					"R2":r2, "NumVar":loadstats["colcount"],  "SiteFraction":loadstats["fractrows"],
-					"correlated":loadstats["covariate"], "meancorr":loadstats["meancorr"],
-					})
-			
-			# ========== Pull out the features that i'm going to use on the next loop ==========
-			perf_df = pd.DataFrame(perf).T
-			for var in ["TimeCumulative", "RFtime", "dfloadtime"]:	
-				perf_df[var] = perf_df[var].astype('timedelta64[s]') / 60
-			perf_df["Iteration"] = test
-
-			# ========== Save the df with the timing and performance ===========
-			perf_df.to_csv(fnout)
-			writenames.append(fnout)
-
-	Summaryplots(writenames)
+		Summaryplots(writenames)
 	# ipdb.set_trace()
 
 def Summaryplots(writenames):
@@ -344,7 +361,8 @@ def cuda_rf_regression( X_train, X_test, y_train, y_test, col_nms, ntree, test_s
 	ipdb.set_trace()
 
 
-def skl_rf_regression( X_train, X_test, y_train, y_test, col_nms, ntree, test_size, cores=-1, verbose=True, perm=False, insamp=False):
+def skl_rf_regression( X_train, X_test, y_train, y_test, col_nms, ntree, 
+	test_size, branch, test, tmpath, maxiter, cores=-1, verbose=True, perm=False, insamp=False):
 	"""
 	This function is to test out the  speed of the random forest regressions using
 	sklearn 
@@ -418,14 +436,31 @@ def skl_rf_regression( X_train, X_test, y_train, y_test, col_nms, ntree, test_si
 	tDif = pd.Timestamp.now()-t0
 	print("The time taken to perform the random forest regression:", tDif)
 
+	# =========== Save out the results if the branch is approaching the end ==========
+	if branch == (maxiter - 1):
+
+		# =========== save the predictions of the last branch ==========
+		_predictedVSobserved(y_test, y_pred, branch, test, tmpath)
+
 	return tDif, sklMet.r2_score(y_test, y_pred), FI
 
 
+def _predictedVSobserved(y_test, y_pred, branch, test, tmpath):
+	"""
+	function to save out the predicted vs the observed values
+	"""
+	path = "./pyEWS/experiments/1.FeatureSelection/"
+	dfy  = pd.DataFrame(y_test).rename({"lagged_biomass":"Observed"}, axis=1)
+	dfy["Estimated"] = y_pred
+	
+	fnameout = path + "S02_outofsampleEST_test%02d_%02d.csv" % (test, branch)
+	print(fnameout)
+	dfy.to_csv(fnameout)
 # ==============================================================================
 # ============================== Data processing ===============================
 # ==============================================================================
 
-def df_proccessing(window, tmpath, test_size, dftype="pandas", cols_keep=None, recur=None,  iteration = 0):
+def df_proccessing(window, tmpath, test_size, branch, experiment,  dftype="pandas", cols_keep=None, recur=None,):
 	"""
 	This function opens and performs all preprocessing on the dataframes.
 	These datasets were originally made using:
@@ -441,10 +476,14 @@ def df_proccessing(window, tmpath, test_size, dftype="pandas", cols_keep=None, r
 			How to open th dataset
 		cols_keep:		list		
 			A list of columns to subest the datasett
+		branch: 	int
+			the branch number
+		experiment: 	int
+			the experiment number
+		dftype:		str
+			dataset loaded using pandas, dask or cudf
 		recur:
 			dataframe to be used in place of recursive dataset
-		iteration: 	int
-			the iteration number
 
 	"""
 	# ============ Set a timeer ============
@@ -530,17 +569,17 @@ def df_proccessing(window, tmpath, test_size, dftype="pandas", cols_keep=None, r
 	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size)
 	
 	# =========== Fnction to quicky save dataframes ==========
-	def _quicksave(dftype, tmpath, df, dfname, iteration):
+	def _quicksave(dftype, tmpath, df, dfname, branch, experiment):
 		# ========== Quickly save the CSV files of the components
 		# +++++ make a file name ++++++ 
-		fnout = tmpath + "S02tmp_%s_%s_%03d.csv" % (dftype, dfname, iteration)
+		fnout = tmpath + "S02tmp_%s_%s_%03d_exp%s.csv" % (dftype, dfname, branch, experiment)
 		# +++++ write the result ++++++ 
 		df.to_csv(fnout)
 		# +++++ return the fname ++++++
 		return fnout
 
 	# =========== save the split dataframe out so i can reload with dask as needed ============
-	fnames = {dfname:_quicksave(dftype, tmpath, df, dfname, iteration) for df, dfname in zip(
+	fnames = {dfname:_quicksave(dftype, tmpath, df, dfname, branch, experiment) for df, dfname in zip(
 		[X_train, X_test, y_train, y_test], ["X_train", "X_test", "y_train", "y_test"])}
 
 	# =========== reload the data if needed ==========
