@@ -236,7 +236,8 @@ def datasplit(experiment, version,  branch, setup, test_size=0.2, dftype="pandas
 
 	# ========== Change values in lagged biomass to classification ==========
 	warn.warn("Implement some form of classification subsitution here. Could easily do that by passing a function or similar")
-
+	if not setup["classifer"] is None:
+		breakpoint()
 		
 	# ====================================================================
 	# ======================  Branch data creation =======================
@@ -280,27 +281,40 @@ def datasplit(experiment, version,  branch, setup, test_size=0.2, dftype="pandas
 		breakpoint()
 
 	# ========== Make some simple stats ===========
-	def _simplestatus(vi_df, X, corr):
+	def _simplestatus(vi_df, X, corr, df_site):
 		statsOD = OrderedDict()
 		statsOD["totalrows"] = vi_df.shape[0]
 		statsOD["itterrows"] = X.shape[0]
 		statsOD["fractrows"] = float(X.shape[0])/float(vi_df.shape[0])
 		statsOD["colcount" ] = X.shape[1]
+		
+		# ========== create the full list of sites and regions ==========
+		df_full = vi_df.reset_index().merge(df_site.rename({"Plot_ID":"site"}, axis=1), on="site", how="left")[["index","site", "Region"]]
+		df_full.loc[df_full.Region.isnull(), "Region"] = "YT"
+		df_sub  = X.reset_index().merge(df_full, on="index", how="left")
+		
+		# ========== Count the number of sites in each region ==========
+		for region in df_full.Region.unique():
+			statsOD["%s_siteinc" % region]  = df_sub.Region.value_counts()[region] 
+			statsOD["%s_sitefrac" % region] = df_sub.Region.value_counts()[region] / float(df_full.Region.value_counts()[region])
+
 		return statsOD
 
 
-	statsOD = _simplestatus(vi_df, X, corr)
+	statsOD = _simplestatus(vi_df, X, corr, df_site)
 
 	# ========== Split the data  ==========
 	if final:
-		return X_train, X_test, y_train, y_test, cols_out, statsOD, corr
+		print("Returing the true test train set. Loading and processing the files took:",  pd.Timestamp.now()-t0)
+		return X_train, X_test, y_train, y_test, cols_out, statsOD, corr, df_site
 	else:
 		# ========== Non final Need to split the training set ==========
 		# /// This is done so that my test set is pristine when looking at final models \\\
 		X_trainRec, X_testRec, y_trainRec, y_testRec = train_test_split(X_train, y_train, test_size=test_size, random_state=branch)
 
 		# ============ Return the filtered data  ============
-		return X_trainRec, X_testRec, y_trainRec, y_testRec, cols_out, statsOD, corr
+		print("Returing the twice split test train set. Loading and processing the files took:",  pd.Timestamp.now()-t0)
+		return X_trainRec, X_testRec, y_trainRec, y_testRec, cols_out, statsOD, corr, df_site
 
 
 

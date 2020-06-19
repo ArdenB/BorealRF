@@ -77,14 +77,25 @@ def main():
 	for version in range(10):
 		# ========== Loop over the experiments ==========
 		for experiment in exper:
-			print ("\nExperiment: ", experiment, " version: ", version)
+			setup = exper[experiment].copy()
+			print ("\nExperiment:", experiment, setup["name"], " version:", version)
+			# ========== Make some file names ==========
+			# ========== Create the path ==========
+			path = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/%d/" % experiment
+			cf.pymkdir(path)
+			fn_br  = path + "Exp%03d_%s_vers%02d_BranchItteration.csv" % (experiment, setup["name"], version)
+			fn_res = path + "Exp%03d_%s_vers%02d_Results.csv" % (experiment, setup["name"], version)
+			fn_PI  = path + "Exp%03d_%s_vers%02d_PermutationImportance.csv" % (experiment, setup["name"], version)
+
+			if all([os.path.isfile(fn) for fn in [fn_br, fn_res, fn_PI]]) and not force:
+				continue
+			# ========== Setup the loop specific variables ==========
 			branch       = 0
 			final        = False
 			ColNm        = None #will be replaced as i keep adding new columns
 			corr_linkage = None # will be replaced after the 0 itteration
 			orig_clnm    = None
 			t0           = pd.Timestamp.now()
-			setup        = exper[experiment].copy()
 			# ========== Create a dictionary so i can store performance metrics ==========
 			perf  = OrderedDict()
 			# ========== Loop over the branchs ===========
@@ -95,16 +106,18 @@ def main():
 				if not (ColNm is None) and (len(ColNm) <= 35):
 					final = True
 					# setup["BranchDepth"] = branch
+				elif setup["maxitter"] is None:
+					pass
 				elif branch >= setup["maxitter"]:
 					# ========== Catch to stop infinit looping ==========
 					warn.warn("Branch reached max depth, setting final = True to stop ")
 					final = True
 					# setup["BranchDepth"] = branch
-					breakpoint
+					breakpoint()
 
 
 				# ========== load in the data ==========
-				X_train, X_test, y_train, y_test, col_nms, loadstats, corr = bf.datasplit(
+				X_train, X_test, y_train, y_test, col_nms, loadstats, corr, df_site = bf.datasplit(
 					experiment, version,  branch, setup, final=final,  cols_keep=ColNm)
 
 				# ========== Perform the Regression ==========
@@ -121,13 +134,15 @@ def main():
 
 					# ========== Add a catch to fill in the maxitter if it isn't known ==========
 					if setup["maxitter"] is None:
-						warn.warn("not implemented yet")
-						breakpoint()
+						for brch in np.arange(50):
+							# ========== Performing Clustering based on the branch level ==========
+							cluster_ids   = hierarchy.fcluster(corr_linkage, brch, criterion='distance')
+							if np.unique(cluster_ids).size <35:
+								setup["maxitter"] = brch
+								break
+					print("Max Branch is:", setup["maxitter"])
 
 
-
-				# ========== Perform Variable selection and get new column names ==========
-				ColNm = Variable_selection(corr_linkage, branch, feature_imp, col_nms, orig_clnm)
 
 				# ========== Add the results of the different itterations to OD ==========
 				perf["Branch%02d" % branch] = ({"experiment":experiment, "version":version, 
@@ -140,9 +155,50 @@ def main():
 
 				# ========== Print out branch performance ==========
 				if not final:
+					# ========== Perform Variable selection and get new column names ==========
+					ColNm = Variable_selection(corr_linkage, branch, feature_imp, col_nms, orig_clnm)
+
+					# ========== Move to next branch ==========
 					branch += 1
 					print("Branch %02d will test %d veriables" % (branch, len(ColNm)))
-			breakpoint()
+
+			# ========== Save the branch performance ==========
+			df_perf = pd.DataFrame(perf).T
+			df_perf.to_csv(fn_br)
+
+			# ////////// SAVE THE RESULTS \\\\\\\\\\
+			# ========== Save the results of the main ==========
+			res = OrderedDict()
+			res["experiment"]= experiment
+			res["version"]   = version
+			res["R2"]        = r2
+			res["TotalTime"] = pd.to_timedelta(df_perf.TimeCumulative.values[-1])
+			res["FBranch"]   = branch
+			for van in loadstats:
+				res[van] = loadstats[van]
+			df_res = pd.DataFrame(pd.Series(res), columns=["Exp%03d.%02d" % (experiment, version)])
+			df_res.to_csv(fn_res)
+
+			# ========== Save the Permutation Importance ==========
+			df_perm = pd.DataFrame(
+				pd.Series(feature_imp), columns=["PermutationImportance"]).reset_index().rename(
+				{"index":"Variable"}, axis=1)
+			df_perm.to_csv(fn_PI)
+
+			# ========== Write the metadata ==========
+			meta_fn = path + "Metadata"
+			if not os.path.isfile(meta_fn + ".txt"):
+				maininfo = "Results in this folder is written from %s (%s):%s by %s, %s" % (__title__, __file__, 
+					__version__, __author__, pd.Timestamp.now())
+				gitinfo = cf.gitmetadata()
+				cf.writemetadata(meta_fn, [maininfo, gitinfo])
+				# ========== Write the setup info ==========
+				pd.DataFrame(
+					pd.Series(setup), columns=["Exp%03d" % (experiment)]).to_csv(path+"Exp%03d_setup.csv" % (experiment))
+
+
+
+	breakpoint()
 
 # ==============================================================================
 def skl_rf_regression( 
@@ -170,7 +226,7 @@ def skl_rf_regression(
 	# ========== Setup some skl params ==========
 	skl_rf_params = ({
 		'n_estimators'     :setup["ntree"],
-		'n_jobs'           :setup["cores"]
+		'n_jobs'           :setup["cores"],
 		'max_depth'        :setup["max_depth"],
 		"max_features"     :setup["max_features"],
 		"max_depth"        :setup["max_depth"],
@@ -222,9 +278,8 @@ def skl_rf_regression(
 
 	# =========== Save out the results if the branch is approaching the end ==========
 	if final:
-		breakpoint()
 		# =========== save the predictions of the last branch ==========
-		# _predictedVSobserved(y_test, y_pred, branch, test, tmpath)
+		_predictedVSobserved(y_test, y_pred, experiment, version, branch, setup)
 		return tDif, sklMet.r2_score(y_test, y_pred), FI
 
 	else:
@@ -322,11 +377,135 @@ def experiments(ncores = -1):
 		"max_depth"        :None,
 		"min_samples_split":2,
 		"min_samples_leaf" :2,
-		"bootstrap"        :True
+		"bootstrap"        :True,
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ModVar"           :None, 
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"model"            :"SKL Random Forest Regression", 
+		"maxitter"         :10, 
+		})
+	
+	# ==========  Different LS windows ==========
+	expr[101] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :101,
+		"name"             :"OneStageRFRegression_NoLS",
+		"desc"             :"Baseline model but with no landsat data. This is a simple one stage regression",
+		"window"           :4,
+		"Nstage"           :1, 
+		"Model"            :"Scikit-learn RandomForestRegressor", 
+		# +++++ The Model setup params +++++
+		"ntree"            :500,
+		"max_features"     :'auto',
+		"max_depth"        :None,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ModVar"           :"window", 
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"model"            :"SKL Random Forest Regression", 
+		"maxitter"         :None, 
+		})
+	expr[102] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :102,
+		"name"             :"OneStageRFRegression_5yrLS",
+		"desc"             :"Baseline model but with only 5yr landsat data. This is a simple one stage regression",
+		"window"           :5,
+		"Nstage"           :1, 
+		"Model"            :"Scikit-learn RandomForestRegressor", 
+		# +++++ The Model setup params +++++
+		"ntree"            :500,
+		"max_features"     :'auto',
+		"max_depth"        :None,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ModVar"           :"window", 
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"model"            :"SKL Random Forest Regression", 
+		"maxitter"         :None, 
+		})
+	expr[103] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :103,
+		"name"             :"OneStageRFRegression_15yrLS",
+		"desc"             :"Baseline model but with only 15yr landsat data. This is a simple one stage regression",
+		"window"           :15,
+		"Nstage"           :1, 
+		"Model"            :"Scikit-learn RandomForestRegressor", 
+		# +++++ The Model setup params +++++
+		"ntree"            :500,
+		"max_features"     :'auto',
+		"max_depth"        :None,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ModVar"           :"window", 
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"model"            :"SKL Random Forest Regression", 
+		"maxitter"         :None, 
+		})
+	expr[104] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :104,
+		"name"             :"OneStageRFRegression_20yrLS",
+		"desc"             :"Baseline model but with only 20yr landsat data. This is a simple one stage regression",
+		"window"           :20,
+		"Nstage"           :1, 
+		"Model"            :"Scikit-learn RandomForestRegressor", 
+		# +++++ The Model setup params +++++
+		"ntree"            :500,
+		"max_features"     :'auto',
+		"max_depth"        :None,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ModVar"           :"window", 
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"model"            :"SKL Random Forest Regression", 
+		"maxitter"         :None, 
+		})
+	
+	# ========== Mod the RF params ==========
+	expr[110] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :110,
+		"name"             :"OneStageRFRegression_HyperPrams",
+		"desc"             :"Tweaked RF params. Changed the max_depth and the ntrees. This is a simple one stage regression",
+		"window"           :10,
+		"Nstage"           :1, 
+		"Model"            :"Scikit-learn RandomForestRegressor", 
+		# +++++ The Model setup params +++++
+		"ntree"            :1900,
+		"max_features"     :'auto',
+		"max_depth"        :80,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ModVar"           :"ntree, max_depth", 
 		"classifer"        :None, 
 		"cores"            :ncores,
 		"model"            :"SKL Random Forest Regression", 
