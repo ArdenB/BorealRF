@@ -111,7 +111,7 @@ def main():
 		"desc":"Testing variable trend leng through time",
 		"teststr":"_V3", #string to add to written files
 		# "windows":np.arange(4, 20),
-		"windows":[4, 5, 10, 15, 20],
+		"windows":[3, 4, 5, 10, 15, 20],
 		"testvariable" : "windows"
 		# "maxiter":11, # The maximum number to tests to run. determined observationally in v1
 	})
@@ -119,9 +119,11 @@ def main():
 	versions["v3"]["maxdepth"] = [_branchcal(window) for window in versions["v3"]["windows"]] #
 	print(versions["v3"]["maxdepth"])
 	# versions["v3"]["maxdepth"] = [2, 3, 4, 5, 7, 8, 10, 10, 12, 13, 14, 17, 18, 20, 22, 23]
+	# versions["v3"]["maxdepth"] = [3, 3, 4, 11, 18, 26]
 	versions["v3"]["maxiter"]  = np.max(versions["v3"]["maxdepth"])
+	versions["v3"]["maxdepth"][0] = 10
 
-	for experiment  in [0, 1, 2, 3, 4, 5]:
+	for experiment  in [0, 1, 2, 3, 4, 5, 6, 7]:
 		for vers in versions:
 			# ========== Set the max itteration ==========
 			maxiter = versions[vers]["maxiter"]
