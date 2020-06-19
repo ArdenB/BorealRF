@@ -235,8 +235,8 @@ def datasplit(experiment, version,  branch, setup, test_size=0.2, dftype="pandas
 		print("loading the files using %s took: " % dftype, pd.Timestamp.now()-t0)
 
 	# ========== Change values in lagged biomass to classification ==========
-	warn.warn("Implement some form of classification subsitution here. Could easily do that by passing a function or similar")
 	if not setup["classifer"] is None:
+		warn.warn("Implement some form of classification subsitution here. Could easily do that by passing a function or similar")
 		breakpoint()
 		
 	# ====================================================================
@@ -295,9 +295,12 @@ def datasplit(experiment, version,  branch, setup, test_size=0.2, dftype="pandas
 		
 		# ========== Count the number of sites in each region ==========
 		for region in df_full.Region.unique():
-			statsOD["%s_siteinc" % region]  = df_sub.Region.value_counts()[region] 
-			statsOD["%s_sitefrac" % region] = df_sub.Region.value_counts()[region] / float(df_full.Region.value_counts()[region])
-
+			try:
+				statsOD["%s_siteinc" % region]  = df_sub.Region.value_counts()[region] 
+				statsOD["%s_sitefrac" % region] = df_sub.Region.value_counts()[region] / float(df_full.Region.value_counts()[region])
+			except:
+				statsOD["%s_siteinc" % region]  = 0 
+				statsOD["%s_sitefrac" % region] = 0.0
 		return statsOD
 
 

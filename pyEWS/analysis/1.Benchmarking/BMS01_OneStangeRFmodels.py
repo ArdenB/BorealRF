@@ -77,10 +77,8 @@ def main():
 	for version in range(10):
 		# ========== Loop over the experiments ==========
 		for experiment in exper:
-			setup = exper[experiment].copy()
-			print ("\nExperiment:", experiment, setup["name"], " version:", version)
-			# ========== Make some file names ==========
 			# ========== Create the path ==========
+			setup = exper[experiment].copy()
 			path = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/%d/" % experiment
 			cf.pymkdir(path)
 			fn_br  = path + "Exp%03d_%s_vers%02d_BranchItteration.csv" % (experiment, setup["name"], version)
@@ -88,7 +86,10 @@ def main():
 			fn_PI  = path + "Exp%03d_%s_vers%02d_PermutationImportance.csv" % (experiment, setup["name"], version)
 
 			if all([os.path.isfile(fn) for fn in [fn_br, fn_res, fn_PI]]) and not force:
+				print ("Experiment:", experiment, setup["name"], " version:", version, "complete")
 				continue
+			else:
+				print ("\nExperiment:", experiment, setup["name"], " version:", version)
 			# ========== Setup the loop specific variables ==========
 			branch       = 0
 			final        = False
@@ -103,6 +104,7 @@ def main():
 				print("branch:", branch, pd.Timestamp.now())
 				
 				# ========== Add a check to see if this is the final round ==========
+				# Final round uses the full test train dataset 
 				if not (ColNm is None) and (len(ColNm) <= 35):
 					final = True
 					# setup["BranchDepth"] = branch
@@ -138,7 +140,7 @@ def main():
 							# ========== Performing Clustering based on the branch level ==========
 							cluster_ids   = hierarchy.fcluster(corr_linkage, brch, criterion='distance')
 							if np.unique(cluster_ids).size <35:
-								setup["maxitter"] = brch
+								setup["maxitter"] = brch +1
 								break
 					print("Max Branch is:", setup["maxitter"])
 
