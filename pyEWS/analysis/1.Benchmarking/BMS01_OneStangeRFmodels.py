@@ -90,6 +90,7 @@ def main():
 				continue
 			else:
 				print ("\nExperiment:", experiment, setup["name"], " version:", version)
+				T0 = pd.Timestamp.now()
 			# ========== Setup the loop specific variables ==========
 			branch       = 0
 			final        = False
@@ -197,6 +198,7 @@ def main():
 				# ========== Write the setup info ==========
 				pd.DataFrame(
 					pd.Series(setup), columns=["Exp%03d" % (experiment)]).to_csv(path+"Exp%03d_setup.csv" % (experiment))
+			print("Total time taken:", pd.Timestamp.now()-T0)
 
 
 

@@ -23,6 +23,7 @@ import warnings as warn
 from sklearn.model_selection import train_test_split
 import myfunctions.corefunctions as cf
 from scipy.stats import spearmanr
+import bottleneck as bn
 
 def _testtrainbuild(version, VI_fnsplit,  vi_df, test_size):
 	"""Function to make batch producing new ttsplit datasets eays"""
@@ -72,9 +73,8 @@ def _testtrainbuild(version, VI_fnsplit,  vi_df, test_size):
 	# ========== build a single df for each  ==========
 	X_train = pd.concat(ls_X_train)
 	X_test  = pd.concat(ls_X_test )
-	y_train = pd.concat(ls_y_train)
-	y_test  = pd.concat(ls_y_test )
-
+	y_train = pd.DataFrame(pd.concat(ls_y_train))
+	y_test  = pd.DataFrame(pd.concat(ls_y_test ))
 	# ========== Save them out  ==========
 	for df, fn in zip([X_train, X_test, y_train, y_test ] , VI_fnsplit):
 		df.to_csv(fn)
@@ -124,6 +124,12 @@ def _regionbuilder(region_fn, vi_df):
 		"CIPHA":"14", 
 		})
 
+	# ========== fix the missing problem ==========
+	site_df = site_df.rename({"Plot_ID":"site"}, axis=1)#.set_index("site")
+	site_vi = vi_df[["site", "lagged_biomass"]].copy()#.set_index("site")
+	site_df = site_df.merge(
+		site_vi, on="site", how="outer").drop("lagged_biomass", axis=1)
+	site_df.drop_duplicates(subset="site", keep="first", inplace = True, ignore_index=True)
 	# ============ make a region lookup ==========
 	for fncheck in raw_checks:
 		region = fncheck.split("/")[4]
@@ -144,7 +150,7 @@ def _regionbuilder(region_fn, vi_df):
 			else:
 				breakpoint()
 				return "Unknown"
-	site_df["Region"] = [site_locator(sn, sitenames, siteregions, Sitekey) for sn in site_df.Plot_ID]
+	site_df["Region"] = [site_locator(sn, sitenames, siteregions, Sitekey) for sn in site_df.site]
 
 	# ========== Make metadata infomation ========== 
 	maininfo = "All data in this folder is written from %s (%s):%s by %s, %s" % (__title__, __file__, 
@@ -158,11 +164,11 @@ def _regionbuilder(region_fn, vi_df):
 # ==============================================================================
 # The main part of the function is here
 # ==============================================================================
-def datasplit(experiment, version,  branch, setup, test_size=0.2, dftype="pandas", 
-	cols_keep=None, verbose = True, region=False,  final=False, 
+def datasplit(experiment, version,  branch, setup,  group=None, test_size=0.2, dftype="pandas", 
+	cols_keep=None, verbose = True, region=False,  final=False, RStage=True,
 	vi_fn = "./EWS_package/data/models/input_data/vi_df_all_V2.csv", 
 	folder = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/", 
-	force = False
+	force = False, y_names=None,
 	):
 	"""
 	This function opens and performs all preprocessing on the dataframes.
@@ -220,7 +226,7 @@ def datasplit(experiment, version,  branch, setup, test_size=0.2, dftype="pandas
 		X_train, X_test, y_train, y_test = [pd.read_csv( fn, index_col=0) for fn in VI_fnsplit]
 	else:
 		print("Building Test/train dataset for version: ", version, pd.Timestamp.now())
-		X_train, X_test, y_train, y_test = _testtrainbuild(version, VI_fnsplit,  vi_df, test_size)
+		X_train, X_test, y_train, y_test = _testtrainbuild(version, VI_fnsplit,  vi_df.copy(), test_size)
 
 	# ========== Look for a region file ==========
 	region_fn = folder + "TTS_sites_and_regions.csv"
@@ -228,17 +234,38 @@ def datasplit(experiment, version,  branch, setup, test_size=0.2, dftype="pandas
 		df_site = pd.read_csv(region_fn, index_col=0)
 	else:
 		df_site = _regionbuilder(region_fn, vi_df)
-	
-	
+
 	# ========== print time taken to get all the files ==========
 	if verbose:
 		print("loading the files using %s took: " % dftype, pd.Timestamp.now()-t0)
 
-	# ========== Change values in lagged biomass to classification ==========
-	if not setup["classifer"] is None:
-		warn.warn("Implement some form of classification subsitution here. Could easily do that by passing a function or similar")
-		breakpoint()
-		
+
+	# ========== Perform extra splits ==========
+	if setup['Nstage']!=1:
+		if not RStage:
+			# ///// the classification stage \\\\\\\\\\
+			# ========== Make the split filenames =========
+			VI_fnsplit2 = [folder + "TTS_vers%02d_%s_twostage.csv" % (version, sptyp) for sptyp in ["X_train", "X_test", "y_train", "y_test"]]
+
+			# ========== Check if i need to calculate the splits ==========
+			y_testCal = y_test.copy()
+			X_testCal = X_test.copy()
+			# y_train, y_test
+			# ============Check if the files already exist ============
+			if all([os.path.isfile(fn) for fn in VI_fnsplit2]) and not force:
+				# +++++ open existing files +++++
+				X_train, X_test, y_train, y_test = [pd.read_csv( fn, index_col=0) for fn in VI_fnsplit2]
+			else:
+				print("Building a two stage Test/train dataset for version: ", version, pd.Timestamp.now())
+				# X_train, X_test, y_train, y_test = _testtrainbuild(version, VI_fnsplit,  vi_df.copy(), test_size)
+				X_train, X_test, y_train, y_test = train_test_split(X_train, y_train, test_size=test_size)
+				y_train = pd.DataFrame(y_train)
+				y_test  = pd.DataFrame(y_test)
+				for df, fn in zip([X_train, X_test, y_train, y_test ] , VI_fnsplit2):
+					df.to_csv(fn)
+			# ========== Perform any classification and extra splits ==========
+			y_testCal, y_train, y_test = setup["classMethod"]([y_testCal, y_train, y_test], setup)
+			
 	# ====================================================================
 	# ======================  Branch data creation =======================
 	# ====================================================================
@@ -254,20 +281,48 @@ def datasplit(experiment, version,  branch, setup, test_size=0.2, dftype="pandas
 				# The VI datasets, check the length of window considered
 				if int(cn.split("_")[-1]) <= setup["window"]:
 					cols_keep.append(cn)
-			elif cn in ['site', 'lagged_biomass']:
+			elif cn in ['site', 'lagged_biomass', 'landsatgroup']:
 				pass
 			else:
 				cols_keep.append(cn)
 
 	# ========== Remove any nans ==========
-	try:
-		X_train = X_train[cols_keep].dropna()
-		X_train.drop(X_train.columns[X_train.std() == 0], axis=1, inplace=True)
-		X_test  =  X_test[X_train.columns].dropna()
-		y_train = pd.DataFrame(y_train["lagged_biomass"][X_train.index])
-		y_test  = pd.DataFrame(y_test["lagged_biomass"][X_test.index])
-	except :
-		breakpoint()
+	# try:
+	X_train = X_train[cols_keep].dropna()
+	X_train.drop(X_train.columns[X_train.std() == 0], axis=1, inplace=True)
+	X_test  =  X_test[X_train.columns].dropna()
+	y_train = pd.DataFrame(y_train["lagged_biomass"][X_train.index])
+	y_test  = pd.DataFrame(y_test["lagged_biomass"][X_test.index])
+	
+	# ========== Do the samee for the test datasets that a held over to the last stage ==========
+	if setup['Nstage']!=1:
+		if not RStage:
+			X_testCal = X_testCal[X_train.columns].dropna()
+			y_testCal = pd.DataFrame(y_testCal["lagged_biomass"][X_testCal.index])
+			classified = {"X_test":X_testCal, "y_test":y_testCal }
+		else:
+			# ///// the regression stage \\\\\\\\\\
+			# load in the guessed R2 values and do some form of class filtering
+			# ========== Load the data in ==========
+			y_testcat  = pd.read_csv(y_names[0], index_col=0)
+			y_traincat = pd.read_csv(y_names[1], index_col=0)
+			X_test["group"]  = y_testcat.reindex(X_test.index)
+			X_train["group"] = y_traincat.reindex(X_train.index)
+			
+			# ========== Subset the data ==========
+			X_train = (X_train[X_train["group"] == group]).drop("group", axis=1)
+			X_train.drop(X_train.columns[X_train.std() == 0], axis=1, inplace=True)
+			
+			# ///// Added to remove some weird zero variance issues \\\\\
+			X_test  = ( X_test[X_test["group"] == group]).drop("group", axis=1)
+			X_test  =  X_test[X_train.columns]
+
+			y_train = pd.DataFrame(y_train["lagged_biomass"][X_train.index])
+			y_test  = pd.DataFrame(y_test["lagged_biomass"][X_test.index])
+
+	# except Exception as er:
+	# 	print(str(er))
+	# 	breakpoint()
 	# =========== Pull out the data used for prediction ===========
 	X        = pd.concat([X_test, X_train])
 	cols_out = X.columns.values
@@ -275,7 +330,10 @@ def datasplit(experiment, version,  branch, setup, test_size=0.2, dftype="pandas
 	# ========== Build the spearmans rank correlation clusters ==========
 	# +++++ Build a spearman table +++++
 	try:
-		corr         = spearmanr(X).correlation
+		corr = spearmanr(X).correlation
+		if bn.anynan(corr):
+			warn.warn("Nan values slipped through the correlation, going interactive")
+			breakpoint()
 	except Exception as er:
 		print(str(er))
 		breakpoint()
@@ -289,8 +347,12 @@ def datasplit(experiment, version,  branch, setup, test_size=0.2, dftype="pandas
 		statsOD["colcount" ] = X.shape[1]
 		
 		# ========== create the full list of sites and regions ==========
-		df_full = vi_df.reset_index().merge(df_site.rename({"Plot_ID":"site"}, axis=1), on="site", how="left")[["index","site", "Region"]]
-		df_full.loc[df_full.Region.isnull(), "Region"] = "YT"
+		df_full = vi_df.reset_index().merge(
+			df_site, on="site", how="left")[["index","site", "Region"]].drop_duplicates(keep='first')
+		if (df_full.Region.isnull()).any():
+			warn.warn("\n\n There are areas with null values for reason unknown, going interactive. \n\n")
+			breakpoint()
+		# df_full.loc[df_full.Region.isnull(), "Region"] = "YT"
 		df_sub  = X.reset_index().merge(df_full, on="index", how="left")
 		
 		# ========== Count the number of sites in each region ==========
@@ -309,7 +371,10 @@ def datasplit(experiment, version,  branch, setup, test_size=0.2, dftype="pandas
 	# ========== Split the data  ==========
 	if final:
 		print("Returing the true test train set. Loading and processing the files took:",  pd.Timestamp.now()-t0)
-		return X_train, X_test, y_train, y_test, cols_out, statsOD, corr, df_site
+		if setup['Nstage']!=1 and not RStage:
+			return X_train, X_test, y_train, y_test, cols_out, statsOD, corr, df_site, classified
+		else:
+			return X_train, X_test, y_train, y_test, cols_out, statsOD, corr, df_site
 	else:
 		# ========== Non final Need to split the training set ==========
 		# /// This is done so that my test set is pristine when looking at final models \\\
@@ -317,7 +382,10 @@ def datasplit(experiment, version,  branch, setup, test_size=0.2, dftype="pandas
 
 		# ============ Return the filtered data  ============
 		print("Returing the twice split test train set. Loading and processing the files took:",  pd.Timestamp.now()-t0)
-		return X_trainRec, X_testRec, y_trainRec, y_testRec, cols_out, statsOD, corr, df_site
+		if setup['Nstage']!=1 and not RStage:
+			return X_trainRec, X_testRec, y_trainRec, y_testRec, cols_out, statsOD, corr, df_site, classified
+		else:
+			return X_trainRec, X_testRec, y_trainRec, y_testRec, cols_out, statsOD, corr, df_site
 
 
 
