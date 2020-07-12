@@ -161,6 +161,40 @@ def _regionbuilder(region_fn, vi_df):
 	cf.writemetadata(region_fn, [maininfo, gitinfo])
 
 	return site_df
+
+# ========== Make some simple stats ===========
+def _simplestatus(vi_df, X, df_site):
+	statsOD = OrderedDict()
+	statsOD["totalrows"] = vi_df.shape[0]
+	statsOD["itterrows"] = X.shape[0]
+	statsOD["fractrows"] = float(X.shape[0])/float(vi_df.shape[0])
+	statsOD["colcount" ] = X.shape[1]
+
+	# ========== create the full list of sites and regions ==========
+	df_full = vi_df.reset_index().merge(
+		df_site, on="site", how="left")[["index","site", "Region"]].drop_duplicates(keep='first')
+	if (df_full.Region.isnull()).any():
+		warn.warn("\n\n There are areas with null values for reason unknown, going interactive. \n\n")
+		breakpoint()
+	# df_full.loc[df_full.Region.isnull(), "Region"] = "YT"
+	df_sub  = X.reset_index().merge(df_full, on="index", how="left")
+	
+	# ========== Count the number of sites in each region ==========
+	for region in df_full.Region.unique():
+		try:
+			inc_reg = float(df_sub.Region.value_counts()[region])
+			tot_ref = float(df_full.Region.value_counts()[region])
+			if inc_reg > tot_ref:
+				print("got an insane value here")
+				breakpoint()
+			statsOD["%s_siteinc" % region]  = inc_reg
+			statsOD["%s_sitepos" % region]  = tot_ref
+			statsOD["%s_sitefrac" % region] = inc_reg/tot_ref
+		except:
+			statsOD["%s_siteinc" % region]  = 0 
+			statsOD["%s_sitepos" % region]  = df_full.Region.value_counts()[region]
+			statsOD["%s_sitefrac" % region] = 0.0
+	return statsOD
 # ==============================================================================
 # The main part of the function is here
 # ==============================================================================
@@ -168,7 +202,7 @@ def datasplit(experiment, version,  branch, setup,  group=None, test_size=0.2, d
 	cols_keep=None, verbose = True, region=False,  final=False, RStage=True,
 	vi_fn = "./EWS_package/data/models/input_data/vi_df_all_V2.csv", 
 	folder = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/", 
-	force = False, y_names=None,
+	force = False, y_names=None, sitefix = False
 	):
 	"""
 	This function opens and performs all preprocessing on the dataframes.
@@ -234,7 +268,7 @@ def datasplit(experiment, version,  branch, setup,  group=None, test_size=0.2, d
 		df_site = pd.read_csv(region_fn, index_col=0)
 	else:
 		df_site = _regionbuilder(region_fn, vi_df)
-
+	
 	# ========== print time taken to get all the files ==========
 	if verbose:
 		print("loading the files using %s took: " % dftype, pd.Timestamp.now()-t0)
@@ -295,11 +329,18 @@ def datasplit(experiment, version,  branch, setup,  group=None, test_size=0.2, d
 	y_test  = pd.DataFrame(y_test["lagged_biomass"][X_test.index])
 	
 	# ========== Do the samee for the test datasets that a held over to the last stage ==========
-	if setup['Nstage']!=1:
+	if sitefix == True:
+		# =========== Pull out the data used for prediction ===========
+		X        = pd.concat([X_test, X_train])
+		cols_out = X.columns.values
+		statsOD = _simplestatus(vi_df, X, df_site)
+		return statsOD
+
+	elif setup['Nstage']!=1:
 		if not RStage:
 			X_testCal = X_testCal[X_train.columns].dropna()
 			y_testCal = pd.DataFrame(y_testCal["lagged_biomass"][X_testCal.index])
-			classified = {"X_test":X_testCal, "y_test":y_testCal }
+			classified = {"X_test":X_testCal, "y_test":y_testCal}
 		else:
 			# ///// the regression stage \\\\\\\\\\
 			# load in the guessed R2 values and do some form of class filtering
@@ -338,35 +379,10 @@ def datasplit(experiment, version,  branch, setup,  group=None, test_size=0.2, d
 		print(str(er))
 		breakpoint()
 
-	# ========== Make some simple stats ===========
-	def _simplestatus(vi_df, X, corr, df_site):
-		statsOD = OrderedDict()
-		statsOD["totalrows"] = vi_df.shape[0]
-		statsOD["itterrows"] = X.shape[0]
-		statsOD["fractrows"] = float(X.shape[0])/float(vi_df.shape[0])
-		statsOD["colcount" ] = X.shape[1]
-		
-		# ========== create the full list of sites and regions ==========
-		df_full = vi_df.reset_index().merge(
-			df_site, on="site", how="left")[["index","site", "Region"]].drop_duplicates(keep='first')
-		if (df_full.Region.isnull()).any():
-			warn.warn("\n\n There are areas with null values for reason unknown, going interactive. \n\n")
-			breakpoint()
-		# df_full.loc[df_full.Region.isnull(), "Region"] = "YT"
-		df_sub  = X.reset_index().merge(df_full, on="index", how="left")
-		
-		# ========== Count the number of sites in each region ==========
-		for region in df_full.Region.unique():
-			try:
-				statsOD["%s_siteinc" % region]  = df_sub.Region.value_counts()[region] 
-				statsOD["%s_sitefrac" % region] = df_sub.Region.value_counts()[region] / float(df_full.Region.value_counts()[region])
-			except:
-				statsOD["%s_siteinc" % region]  = 0 
-				statsOD["%s_sitefrac" % region] = 0.0
-		return statsOD
 
 
-	statsOD = _simplestatus(vi_df, X, corr, df_site)
+
+	statsOD = _simplestatus(vi_df, X, df_site)
 
 	# ========== Split the data  ==========
 	if final:

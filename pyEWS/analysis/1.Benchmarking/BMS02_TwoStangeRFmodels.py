@@ -72,8 +72,9 @@ from scipy.cluster import hierarchy
 # ==============================================================================
 
 
-def main():
-	force       = False
+def main(args):
+	force = args.force
+	fix   = args.fix
 	# ========== Load the experiments ==========
 	exper = experiments()
 	# ========== Loop over the Versions (10 per experiment) ==========
@@ -91,21 +92,28 @@ def main():
 
 			if all([os.path.isfile(fn) for fn in [fn_br, fn_PI, fn_res]]) and not force:
 				print ("Experiment:", experiment, setup["name"], " version:", version, "complete")
+				
+				# ========== Fixing the broken site counts ==========
+				if fix:
+					Region_calculation(experiment, version, setup, path, fn_PI, fn_res)
 				continue
 
 			else:
 				print ("\nExperiment:", experiment, setup["name"], " version:", version)
 				# ========== Do the classification ==========
-				y_names = Recur_Rfclassification(experiment, version, setup, path, fn_br, fn_PI, t0)
+				if setup["classifer"]=="RandomForestClassifer":
+					y_names = Recur_Rfclassification(experiment, version, setup, path, fn_br, fn_PI, t0)
+				else:
+					y_names = setup["classifer"](experiment, version, setup, path, fn_br, fn_PI, t0)
 				# y_names = ['./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/200/Exp200_TwoStageRF_vers00_OBSvsPREDICTEDClas_y_test.csv', './pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/200/Exp200_TwoStageRF_vers00_OBSvsPREDICTEDClas_y_train.csv']
 				
 				# ========== Calculate the regression ==========
-				Recur_Rfregression(experiment, version, setup, path, fn_res, t0, y_names)
+				Recur_Rfregression(experiment, version, setup, path, fn_res, t0, y_names, fn_PI)
 	breakpoint()
 
 
 # ==============================================================================
-def Recur_Rfregression(experiment, version, setup, path, fn_res, t0, y_names):
+def Recur_Rfregression(experiment, version, setup, path, fn_res, t0, y_names, fn_PIclass):
 	"""Function to perfomr the recursive classification """
 	
 
@@ -201,17 +209,17 @@ def Recur_Rfregression(experiment, version, setup, path, fn_res, t0, y_names):
 				# ========== Move to next branch ==========
 				branch += 1
 				print("Branch %02d will test %d veriables" % (branch, len(ColNm)))
-			else:
-				# ========== Add the stats ==========
-				if group == 0:
-					# Create the different stat catogories 
-					for van in loadstats:
-						res[van] = loadstats[van]
-				else:
-					# Create the different stat catogories 
-					for van in loadstats:
-						if not van == "totalrows":
-							res[van] += loadstats[van]
+			# else:
+			# 	# ========== Add the stats ==========
+			# 	if group == 0:
+			# 		# Create the different stat catogories 
+			# 		for van in loadstats:
+			# 			res[van] = loadstats[van]
+			# 	else:
+			# 		# Create the different stat catogories 
+			# 		for van in loadstats:
+			# 			if not van == "totalrows":
+			# 				res[van] += loadstats[van]
 		# ========== Save the Permutation Importance ==========
 		fn_PI  = path + "Exp%03d_%s_vers%02d_PermutationImportance_group%d.csv" % (
 			experiment, setup["name"], version, group)
@@ -238,13 +246,20 @@ def Recur_Rfregression(experiment, version, setup, path, fn_res, t0, y_names):
 	# ========== Save the results ==========
 	res["R2"]        = sklMet.r2_score(dfy["Observed"], dfy["Estimated"])
 	res["TotalTime"] = pd.Timestamp.now()-t0
-	res["colcount"] /= setup['classNum']
-	df_res = pd.DataFrame(pd.Series(res), columns=["Exp%03d.%02d" % (experiment, version)])
-	df_res.to_csv(fn_res)
+	try:
+		Region_calculation(experiment, version, setup, path, fn_PIclass, fn_res, res=res)
+	except  Exception as er:
+		print(str(er))
+		breakpoint()
+	# res["colcount"] /= setup['classNum']
+	# df_res = pd.DataFrame(pd.Series(res), columns=["Exp%03d.%02d" % (experiment, version)])
+	# df_res.to_csv(fn_res)
 
 	# ========== Write the metadata ==========
 	meta_fn = path + "Metadata"
-	if not os.path.isfile(meta_fn + ".txt"):
+	expr_fn = path+"Exp%03d_setup.csv" % (experiment)
+	fnn    = [meta_fn + ".txt", expr_fn]
+	if not all([os.path.isfile(fnxp) for fnxp in fnn]):
 		maininfo = "Results in this folder is written from %s (%s):%s by %s, %s" % (__title__, __file__, 
 			__version__, __author__, pd.Timestamp.now())
 		gitinfo = cf.gitmetadata()
@@ -254,14 +269,69 @@ def Recur_Rfregression(experiment, version, setup, path, fn_res, t0, y_names):
 		df_summary = pd.DataFrame(pd.Series(setup), columns=["Exp%03d" % (experiment)])
 		df_summary.loc["classMethod"] = str(df_summary.loc["classMethod"].values[0]).split(" at ")[0][1:]
 		slp = ""
-		for flt in df_summary.loc["splits"].values[0].values:	
-			slp += "%.08f, " % flt
+		try:
+			for flt in df_summary.loc["splits"].values[0].values:	
+				slp += "%.08f, " % flt
+		except AttributeError:
+			for flt in df_summary.loc["splits"][0]:	
+				slp += "%.08f, " % flt
 		df_summary.loc["splits"] = slp
 
-		df_summary.to_csv(path+"Exp%03d_setup.csv" % (experiment))
+		df_summary.to_csv(expr_fn)
 	print("Total time taken:", pd.Timestamp.now()-t0, "R2 of final models:", res["R2"])
 
 
+def fake_classification(experiment, version, setup, path, fn_br, fn_PI, t0):
+	"""
+	This clasaifer exists to test only the second stage regression assuming a perfect classification
+	"""
+	# ========== Setup the loop specific variables ==========
+	branch       = 0
+	final        = True
+	ColNm        = None #will be replaced as i keep adding new columns
+	# corr_linkage = None # will be replaced after the 0 itteration
+	# orig_clnm    = None
+
+	X_train, X_test, y_train, y_test, col_nms, loadstats, corr, df_site, classified = bf.datasplit(
+		experiment, version,  branch, setup, final=final,  cols_keep=ColNm, RStage=False,)
+
+	# ========== Create a dictionary so i can store performance metrics ==========
+	perf  = OrderedDict()
+	# ========== Add the results of the different itterations to OD ==========
+	perf["Branch%02d" % branch] = ({"experiment":experiment, "version":version, 
+		"RFtime":time, "TimeCumulative":pd.Timestamp.now() -t0,  
+		"R2":pd.Timestamp.now() -t0, "accuracy_score":1, "NumVar":loadstats["colcount"],  
+		"SiteFraction":loadstats["fractrows"]
+		})
+	# ========== Save the branch performance ==========
+	df_perf = pd.DataFrame(perf).T
+	df_perf.to_csv(fn_br)
+
+	# ========== Save the Permutation Importance ==========
+	df_perm = pd.DataFrame(pd.Series(np.zeros(len(col_nms))), columns=["PermutationImportance"]).set_index(
+		col_nms).reset_index().rename({"index":"Variable"}, axis=1)
+	df_perm.to_csv(fn_PI)
+	y_names = ['./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/200/Exp200_TwoStageRF_vers00_OBSvsPREDICTEDClas_y_test.csv', './pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/200/Exp200_TwoStageRF_vers00_OBSvsPREDICTEDClas_y_train.csv']
+
+	# ========== Make the class files ==========
+	path = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/%d/" % experiment
+	names = []
+	for va, ds in zip(["y_test", "y_train"], [classified["y_test"], pd.concat([y_test, y_train])]):
+		fnameout = path + "Exp%03d_%s_vers%02d_OBSvsPREDICTEDClas_%s.csv" % (experiment, setup["name"], version, va) 
+		predict = pd.DataFrame({"class_est":ds.lagged_biomass.values}, index=ds.index)
+		predict.to_csv(fnameout)
+		names.append(fnameout)
+
+
+	return names 
+
+def ski_varselection(experiment, version, setup, path, fn_br, fn_PI, t0):
+	"""
+	This is a function where  can implement multiple different scikitlearn
+	selection approaches
+	"""
+	breakpoint()
+# ==============================================================================
 def Recur_Rfclassification(experiment, version, setup, path, fn_br, fn_PI, t0):
 	"""Function to perfomr the recursive classification """
 	# ========== Setup the loop specific variables ==========
@@ -349,9 +419,10 @@ def Recur_Rfclassification(experiment, version, setup, path, fn_br, fn_PI, t0):
 		pd.Series(feature_imp), columns=["PermutationImportance"]).reset_index().rename(
 		{"index":"Variable"}, axis=1)
 	df_perm.to_csv(fn_PI)
+
+
 	return names
 
-# ==============================================================================
 
 def skl_rf( 
 	X_train, X_test, y_train, y_test, col_nms, 
@@ -531,6 +602,50 @@ def Variable_selection(corr_linkage, branch, feature_imp, col_nms, orig_clnm):
 
 	return ColNm
 
+def Region_calculation(experiment, version, setup, path, fn_PI, fn_res, res=None):
+	"""
+	This function exists so i can repair my regions, in future this should be 
+	exported without calling this function
+	"""
+	# ========== read the permutation importance file to get the VA list ==========
+	PI = pd.read_csv(fn_PI, index_col=0)
+	ColNm = PI.Variable.values
+	# y_names = ([
+	# 	'./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/%d/Exp%d_TwoStageRF_vers%02d_OBSvsPREDICTEDClas_y_test.csv' % (experiment, experiment, version), 
+	# 	'./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/%d/Exp%d_TwoStageRF_vers%02d_OBSvsPREDICTEDClas_y_train.csv' % (experiment, experiment, version)])
+	
+	# ========== load in the data ==========
+	loadstats = bf.datasplit(experiment, version,  0, setup, final=True, cols_keep=ColNm, RStage=True, sitefix=True)
+
+	# ========== Create a new data file ==========
+	if res is None:
+		# ========== Load the original results  ==========
+		res = pd.read_csv(fn_res, index_col=0)
+		print("Fixing the site counts for:", experiment, version)
+		OD        = OrderedDict()
+
+		OD["experiment"] = int(res.loc["experiment"].values[0])
+		OD["version"]    = int(res.loc["version"].values[0])
+		OD["R2"]         = float(res.loc["R2"].values[0])
+		OD["TotalTime"]  = pd.Timedelta(res.loc["TotalTime"].values[0])
+		OD["FBranch"]    = float(res.loc["FBranch"].values[0])
+		# OD["totalrows"]  = int(res.loc["totalrows"].values[0])
+		# OD["itterrows"]  = int(res.loc["itterrows"].values[0])
+		# OD["fractrows"]  = float(res.loc["fractrows"].values[0])
+		# OD["colcount"]   = int(res.loc["colcount"].values[0])
+
+		for va in loadstats:
+			OD[va] = loadstats[va]
+
+		df_res = pd.DataFrame(pd.Series(OD), columns=["Exp%03d.%02d" % (experiment, version)])
+
+	else:
+		for va in loadstats:
+			res[va] = loadstats[va]
+		df_res = pd.DataFrame(pd.Series(res), columns=["Exp%03d.%02d" % (experiment, version)])
+		# warn.warn("this has not been tested, ")
+
+	df_res.to_csv(fn_res)
 # ==============================================================================
 # =========================== Classification Methods ===========================
 # ==============================================================================
@@ -556,7 +671,12 @@ def quantiles(Yvals, setup):
 	else:
 		breakpoint()
 	for df in Yvals:
-		df["lagged_biomass"] = pd.cut(df.lagged_biomass, setup['splits'].values, labels=np.arange(setup['classNum']))
+		try:
+			df["lagged_biomass"] = pd.cut(df.lagged_biomass, setup['splits'].values, labels=np.arange(setup['classNum']))
+		except AttributeError:
+			df["lagged_biomass"] = pd.cut(
+				df.lagged_biomass, setup['splits'], labels=np.arange(setup['classNum']))
+
 	return Yvals
 
 # ==============================================================================
@@ -619,13 +739,111 @@ def experiments(ncores = -1):
 		"classMethod"      :quantiles,
 		"splits"		   :None
 		})
-	
+	expr[202] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :202,
+		"name"             :"TwoStageRF_0split",
+		"desc"             :"Two stage. This is my version of Sols approach but with more robust stats and a split around zero",
+		"window"           :10,
+		"Nstage"           :2, 
+		"Model"            :"Scikit-learn RandomForestRegressor and RandomForestClassifer", 
+		# +++++ The Model setup params +++++
+		"ntree"            :500,
+		"max_features"     :'auto',
+		"max_depth"        :None,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ModVar"           :None, 
+		"classifer"        :"RandomForestClassifer", 
+		"cores"            :ncores,
+		"model"            :"SKL Random Forest Two stage", 
+		"maxitter"         :10, 
+		"classNum"		   :2,
+		"classMethod"      :quantiles,
+		"splits"		   :np.array([-1.000001, 0, 1.000001])
+		})
+
+	expr[203] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :203,
+		"name"             :"TwoStageRF_0splitFAKECLASS",
+		"desc"             :"Two stage. This is my version of Sols approach but with more robust stats and a split around zero",
+		"window"           :10,
+		"Nstage"           :2, 
+		"Model"            :"fake_classification and Scikit-learn RandomForestRegressor ", 
+		# +++++ The Model setup params +++++
+		"ntree"            :500,
+		"max_features"     :'auto',
+		"max_depth"        :None,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ModVar"           :None, 
+		"classifer"        :fake_classification, 
+		"cores"            :ncores,
+		"model"            :"SKL Random Forest Two stage", 
+		"maxitter"         :10, 
+		"classNum"		   :2,
+		"classMethod"      :quantiles,
+		"splits"		   :np.array([-1.000001, 0, 1.000001])
+		})
+	expr[204] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :204,
+		"name"             :"TwoStageRF_0doublesplit",
+		"desc"             :"Two stage. Split into 4 quarters based on range",
+		"window"           :10,
+		"Nstage"           :2, 
+		"Model"            :"Scikit-learn RandomForestRegressor and RandomForestClassifer", 
+		# +++++ The Model setup params +++++
+		"ntree"            :500,
+		"max_features"     :'auto',
+		"max_depth"        :None,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ModVar"           :None, 
+		"classifer"        :"RandomForestClassifer", 
+		"cores"            :ncores,
+		"model"            :"SKL Random Forest Two stage", 
+		"maxitter"         :10, 
+		"classNum"		   :4,
+		"classMethod"      :quantiles,
+		"splits"		   :np.array([-1.000001,-0.5, 0, 0.5, 1.000001])
+		})
 
 	""" Experiments to be implemented
 	1. The two stage method that is closest to what Sol implemented
 	"""
 	return expr
+
+
 # ==============================================================================
 
 if __name__ == '__main__':
-	main()
+	# ========== Set the args Description ==========
+	description='Calculate the two stange models'
+	parser = argparse.ArgumentParser(description=description)
+	
+	# ========== Add additional arguments ==========
+	parser.add_argument(
+		"-x", "--fix", action="store_true",
+		help="Fix the sites")
+	parser.add_argument(
+		"-f", "--force", action="store_true", 
+		help="Force: redo existing models")
+	args = parser.parse_args() 
+		
+	# ========== Call the main function ==========
+	main(args)
+

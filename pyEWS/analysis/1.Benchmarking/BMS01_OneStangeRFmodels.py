@@ -69,8 +69,9 @@ from scipy.stats import spearmanr
 from scipy.cluster import hierarchy
 
 # ==============================================================================
-def main():
-	force       = False
+def main(args):
+	force = args.force
+	fix   = args.fix
 	# ========== Load the experiments ==========
 	exper = experiments()
 	# ========== Loop over the Versions (10 per experiment) ==========
@@ -87,6 +88,9 @@ def main():
 
 			if all([os.path.isfile(fn) for fn in [fn_br, fn_res, fn_PI]]) and not force:
 				print ("Experiment:", experiment, setup["name"], " version:", version, "complete")
+				# ========== Fixing the broken site counts ==========
+				if fix:
+					Region_calculation(experiment, version, setup, path, fn_PI, fn_res)
 				continue
 			else:
 				print ("\nExperiment:", experiment, setup["name"], " version:", version)
@@ -177,10 +181,15 @@ def main():
 			res["R2"]        = r2
 			res["TotalTime"] = pd.to_timedelta(df_perf.TimeCumulative.values[-1])
 			res["FBranch"]   = branch
-			for van in loadstats:
-				res[van] = loadstats[van]
-			df_res = pd.DataFrame(pd.Series(res), columns=["Exp%03d.%02d" % (experiment, version)])
-			df_res.to_csv(fn_res)
+			try:
+				Region_calculation(experiment, version, setup, path, fn_PI, fn_res, res=res)
+			except  Exception as er:
+				print(str(er))
+				breakpoint()
+			# for van in loadstats:
+			# 	res[van] = loadstats[van]
+			# df_res = pd.DataFrame(pd.Series(res), columns=["Exp%03d.%02d" % (experiment, version)])
+			# df_res.to_csv(fn_res)
 
 			# ========== Save the Permutation Importance ==========
 			df_perm = pd.DataFrame(
@@ -362,6 +371,51 @@ def Variable_selection(corr_linkage, branch, feature_imp, col_nms, orig_clnm):
 	# ColNm.append("lagged_biomass")
 
 	return ColNm
+
+def Region_calculation(experiment, version, setup, path, fn_PI, fn_res, res=None):
+	"""
+	This function exists so i can repair my regions, in future this should be 
+	exported without calling this function
+	"""
+	# ========== read the permutation importance file to get the VA list ==========
+	PI = pd.read_csv(fn_PI, index_col=0)
+	ColNm = PI.Variable.values
+	# y_names = ([
+	# 	'./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/%d/Exp%d_TwoStageRF_vers%02d_OBSvsPREDICTEDClas_y_test.csv' % (experiment, experiment, version), 
+	# 	'./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/%d/Exp%d_TwoStageRF_vers%02d_OBSvsPREDICTEDClas_y_train.csv' % (experiment, experiment, version)])
+	
+	# ========== load in the data ==========
+	loadstats = bf.datasplit(experiment, version,  0, setup, final=True, cols_keep=ColNm, RStage=True, sitefix=True)
+
+	# ========== Create a new data file ==========
+	if res is None:
+		# ========== Load the original results  ==========
+		res = pd.read_csv(fn_res, index_col=0)
+		print("Fixing the site counts for:", experiment, version)
+		OD        = OrderedDict()
+
+		OD["experiment"] = int(res.loc["experiment"].values[0])
+		OD["version"]    = int(res.loc["version"].values[0])
+		OD["R2"]         = float(res.loc["R2"].values[0])
+		OD["TotalTime"]  = pd.Timedelta(res.loc["TotalTime"].values[0])
+		OD["FBranch"]    = float(res.loc["FBranch"].values[0])
+		# OD["totalrows"]  = int(res.loc["totalrows"].values[0])
+		# OD["itterrows"]  = int(res.loc["itterrows"].values[0])
+		# OD["fractrows"]  = float(res.loc["fractrows"].values[0])
+		# OD["colcount"]   = int(res.loc["colcount"].values[0])
+
+		for va in loadstats:
+			OD[va] = loadstats[va]
+
+		df_res = pd.DataFrame(pd.Series(OD), columns=["Exp%03d.%02d" % (experiment, version)])
+
+	else:
+		for va in loadstats:
+			res[va] = loadstats[va]
+		df_res = pd.DataFrame(pd.Series(res), columns=["Exp%03d.%02d" % (experiment, version)])
+		# warn.warn("this has not been tested, ")
+
+	df_res.to_csv(fn_res)
 # ==============================================================================
 def experiments(ncores = -1):
 	""" Function contains all the infomation about what experiments i'm 
@@ -522,5 +576,20 @@ def experiments(ncores = -1):
 	return expr
 # ==============================================================================
 
+
 if __name__ == '__main__':
-	main()
+	# ========== Set the args Description ==========
+	description='Calculate the One Stange Models'
+	parser = argparse.ArgumentParser(description=description)
+	
+	# ========== Add additional arguments ==========
+	parser.add_argument(
+		"-x", "--fix", action="store_true",
+		help="Fix the sites")
+	parser.add_argument(
+		"-f", "--force", action="store_true", 
+		help="Force: redo existing models")
+	args = parser.parse_args() 
+		
+	# ========== Call the main function ==========
+	main(args)

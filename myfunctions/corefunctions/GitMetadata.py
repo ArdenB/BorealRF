@@ -1,6 +1,6 @@
 """
-When a map is made, this script makes a textfile of metadata to accompany it
-
+When a map is made or a file is written this script makes a textfile of metadata 
+to accompany it
 
 """
 #==============================================================================
