@@ -115,7 +115,10 @@ def main():
 	# splts[ 0] = -1.00001
 	# splts[-1] = 1.00001
 	# confusion_plots(path, df_mres, df_setup, df_OvsP, keys, split = splts, sumtxt="Scatter", ncol = 5, zline=False)#, inc_class=True)
+	KDEplot(path, df_clest, df_mres, df_setup, df_OvsP, keys, sumtxt="Onecol", ncol = 1, experiments =[200])
+	KDEplot(path, df_clest, df_mres, df_setup, df_OvsP, keys, sumtxt="", ncol = 3)
 	# ========== Create the confusion matrix plots ==========
+
 	splts = np.arange(-1, 1.05, 0.05)
 	splts[ 0] = -1.00001
 	splts[-1] = 1.00001
@@ -129,7 +132,6 @@ def main():
 
 	Region_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 4, sumtxt="")
 
-	KDEplot(path, df_clest, df_mres, df_setup, df_OvsP, keys, sumtxt="")
 	# +++++ the estimated vs observed values +++++
 
 
@@ -139,7 +141,8 @@ def main():
 	breakpoint()
 
 # ==============================================================================
-def KDEplot(path, df_clest, df_mres, df_setup, df_OvsP, keys, ncol = 3, sumtxt=""):
+def KDEplot(path, df_clest, df_mres, df_setup, df_OvsP, 
+	keys, ncol = 3, sumtxt="", experiments = []):
 	""" Calculate a KDE"""
 	# ========== Create the figure ==========
 	plt.rcParams.update({'figure.subplot.top' : 0.97 })
@@ -153,24 +156,31 @@ def KDEplot(path, df_clest, df_mres, df_setup, df_OvsP, keys, ncol = 3, sumtxt="
 	mpl.rc('font', **font)
 	sns.set_style("whitegrid")
 	hexcbar = palettable.colorbrewer.qualitative.Set1_9.hex_colors
-	
+
+	nrows = int(np.ceil(len(experiments)/float(ncol)))
+	fw = (5*ncol+1)
+	if ncol == 1:
+		fw += 5
+	fh = (5*nrows+1)
+
 	fig= plt.figure(
-		figsize=(19,11),
+		figsize=(fw, fh),
 		num=("Normalised Confusion Matrix " + sumtxt), 
-		dpi=130)#, constrained_layout=True)figsize=(17,12),
+		dpi=130)
+
+	if experiments == []:
+		experiments = np.sort(df_clest.experiment.unique())
 
 	axs = []
 
-	for num, expn in enumerate(df_clest.experiment.unique()):
+	for num, expn in enumerate(experiments):
 		splitstr = df_setup.splits.loc["Exp%d" %expn]
 		split = []
 		for sp in splitstr.split(", "):
 			if not sp == "":
 				split.append(float(sp))
 		# print(np.ceil((num+1)/ncol).astype(int), ncol)
-		ax = fig.add_subplot(
-			np.ceil((df_clest.experiment.unique().size)/ncol).astype(int), 
-			ncol, num+1)
+		ax = fig.add_subplot(nrows, ncol, num+1)
 		plt.title(keys[expn])
 
 		ax.set_xlim(-1, 1)
@@ -185,7 +195,7 @@ def KDEplot(path, df_clest, df_mres, df_setup, df_OvsP, keys, ncol = 3, sumtxt="
 		dfM = pd.merge(dfOP.reset_index(), dfCC.reset_index(), how="inner")
 		
 		# ========== Make one per class ==========
-		for cnu, gcl in enumerate(dfCC.class_est.unique()):
+		for cnu, gcl in enumerate(np.sort(dfCC.class_est.unique())):
 				sns.kdeplot(dfM[dfM.class_est == gcl].Observed, shade=True, ax=ax, 
 					color=hexcbar[cnu], label= "Class%d:%.02f to %.02f"%(cnu,split[cnu], split[cnu+1]))
 		
@@ -222,8 +232,6 @@ def Region_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 4, sumtxt=""):
 	sns.set_style("whitegrid")
 	
 
-	warn.warn("this is very much a rushed figure to show brendan")
-	warn.warn("This is broken, have pached a temp fix that will need to be removed")
 	regions = []
 	for col in df_mres.columns:
 		if col [-4:] == "frac":
@@ -264,8 +272,8 @@ def Region_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 4, sumtxt=""):
 
 def scatter_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 4, sumtxt=""):
 	# ========== Create the figure ==========
-	plt.rcParams.update({'figure.subplot.top' : 0.97 })
-	plt.rcParams.update({'figure.subplot.bottom' : 0.03 })
+	plt.rcParams.update({'figure.subplot.top' : 0.99 })
+	plt.rcParams.update({'figure.subplot.bottom' : 0.10 })
 	plt.rcParams.update({'figure.subplot.right' : 0.85 })
 	plt.rcParams.update({'figure.subplot.left' : 0.05 })
 	plt.rcParams.update({'axes.titleweight':"bold"})
@@ -276,7 +284,7 @@ def scatter_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 4, sumtxt=""):
 	sns.set_style("whitegrid")
 
 	fig= plt.figure(
-		figsize=(19,11),
+		figsize=(19,10),
 		num=("Normalised Confusion Matrix " + sumtxt), 
 		dpi=130)#, constrained_layout=True)figsize=(17,12),
 

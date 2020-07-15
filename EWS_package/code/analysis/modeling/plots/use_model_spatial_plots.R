@@ -244,54 +244,54 @@ summary(lm(as.vector(biomass[,as.character(1991:2017)])~as.vector(biomass_predic
 #create a color palette for plotting
 # my_palette = colorRampPalette(c("red", "white","green"))(n = 299)
 my_palette = brewer.pal(10, "BrBG")
+do10y = FALSE
 
 max_ndvi = max(abs(quantile(trend_ndvi_df,c(0.01,0.99),na.rm=T)),na.rm=T)
+if (do10y){
+  #Make some 10 year plots
 
-#Make some 10 year plots
-for(y in c(1985,1995,2005,2015)){
-  print(y)
-  obs_df_year = lagged_mass_df[,as.character(y)]
-  obs_df_year = obs_df_year[!is.na(obs_df_year)]
-  pred_df_year = percent_change[,as.character(y)]
-  pred_df_year = pred_df_year[!is.na(pred_df_year)]
-  
-  if(y!=2015){
-    obs_locs = site_loc[names(obs_df_year),]
-    obs_sp = SpatialPointsDataFrame(coords = obs_locs[,2:3],data = data.frame(obs_df_year),proj4string = CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"))
-    obs_sp = spTransform(obs_sp,Ju_Masek_crs)
-    obs_rast = rasterize(obs_sp,template,field='obs_df_year',fun=mean,na.rm=T)
-    pdf(file=paste0('./EWS_package/data/plots/spatial/observed_',y,'to',y+10,'_V2.pdf'),width = 16, height = 12) 
-    plot(political,col='darkgray',main = paste0('Observed percent change ',y,' to ',y+10))
-    plot(obs_rast,col=my_palette,zlim = c(-1,1),add=T)
-    dev.off()
+  for(y in c(1985,1995,2005,2015)){
+    print(y)
+    obs_df_year = lagged_mass_df[,as.character(y)]
+    obs_df_year = obs_df_year[!is.na(obs_df_year)]
+    pred_df_year = percent_change[,as.character(y)]
+    pred_df_year = pred_df_year[!is.na(pred_df_year)]
     
-    ndvi_df_year = trend_ndvi_df[,as.character(y)]
-    names(ndvi_df_year) = sites
-    ndvi_df_year = ndvi_df_year[!is.na(ndvi_df_year)]
-    ndvi_locs = site_loc[names(ndvi_df_year),]
-    ndvi_sp = SpatialPointsDataFrame(coords = ndvi_locs[,2:3],data = data.frame(ndvi_df_year),proj4string = CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"))
-    ndvi_sp = spTransform(ndvi_sp,Ju_Masek_crs)
-    ndvi_rast = rasterize(ndvi_sp,template,field='ndvi_df_year',fun=mean,na.rm=T)
-    pdf(file=paste0('./EWS_package/data/plots/spatial/ndvi_',y,'to',y+10,'_v2.pdf'),width = 16, height = 12)
-    plot(political,col='darkgray',main = paste0('NDVI trend ',y,' to ',y+10))
-    plot(ndvi_rast,col=my_palette,zlim=c(-max_ndvi,max_ndvi),add=T)
-    dev.off()
-  }
-  if(y!=1985){
-    pred_locs = site_loc[names(pred_df_year),]
-    pred_locs["BiomassChange"]=pred_df_year
-    # pred_sp = SpatialPointsDataFrame(coords = pred_locs[,2:3],data = data.frame(pred_df_year),proj4string = CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84"))#+towgs84=0,0,0
-    pred_sp = SpatialPointsDataFrame(coords = pred_locs[,2:3],data = data.frame(pred_df_year),proj4string = CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"))
-    pred_sp = spTransform(pred_sp,Ju_Masek_crs)
-    pred_rast = rasterize(pred_sp,template,field='pred_df_year',fun=mean,na.rm=T)
-    pdf(file=paste0('./EWS_package/data/plots/spatial/predicted_',y,'to',y+10,'_V2.pdf'),width = 16, height = 12)
-    plot(political,col='#7a7a7a',main = paste0('Predicted percent change ',y,' to ',y+10))
-    plot(pred_rast,col=my_palette,zlim = c(-1,1),add=T)
-    dev.off()
-  }
-}
-browser()
-stop()
+    if(y!=2015){
+      obs_locs = site_loc[names(obs_df_year),]
+      obs_sp = SpatialPointsDataFrame(coords = obs_locs[,2:3],data = data.frame(obs_df_year),proj4string = CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"))
+      obs_sp = spTransform(obs_sp,Ju_Masek_crs)
+      obs_rast = rasterize(obs_sp,template,field='obs_df_year',fun=mean,na.rm=T)
+      pdf(file=paste0('./EWS_package/data/plots/spatial/observed_',y,'to',y+10,'_V2.pdf'),width = 16, height = 12) 
+      plot(political,col='darkgray',main = paste0('Observed percent change ',y,' to ',y+10))
+      plot(obs_rast,col=my_palette,zlim = c(-1,1),add=T)
+      dev.off()
+      
+      ndvi_df_year = trend_ndvi_df[,as.character(y)]
+      names(ndvi_df_year) = sites
+      ndvi_df_year = ndvi_df_year[!is.na(ndvi_df_year)]
+      ndvi_locs = site_loc[names(ndvi_df_year),]
+      ndvi_sp = SpatialPointsDataFrame(coords = ndvi_locs[,2:3],data = data.frame(ndvi_df_year),proj4string = CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"))
+      ndvi_sp = spTransform(ndvi_sp,Ju_Masek_crs)
+      ndvi_rast = rasterize(ndvi_sp,template,field='ndvi_df_year',fun=mean,na.rm=T)
+      pdf(file=paste0('./EWS_package/data/plots/spatial/ndvi_',y,'to',y+10,'_v2.pdf'),width = 16, height = 12)
+      plot(political,col='darkgray',main = paste0('NDVI trend ',y,' to ',y+10))
+      plot(ndvi_rast,col=my_palette,zlim=c(-max_ndvi,max_ndvi),add=T)
+      dev.off()
+    }
+    if(y!=1985){
+      pred_locs = site_loc[names(pred_df_year),]
+      pred_locs["BiomassChange"]=pred_df_year
+      # pred_sp = SpatialPointsDataFrame(coords = pred_locs[,2:3],data = data.frame(pred_df_year),proj4string = CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84"))#+towgs84=0,0,0
+      pred_sp = SpatialPointsDataFrame(coords = pred_locs[,2:3],data = data.frame(pred_df_year),proj4string = CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"))
+      pred_sp = spTransform(pred_sp,Ju_Masek_crs)
+      pred_rast = rasterize(pred_sp,template,field='pred_df_year',fun=mean,na.rm=T)
+      pdf(file=paste0('./EWS_package/data/plots/spatial/predicted_',y,'to',y+10,'_V2.pdf'),width = 16, height = 12)
+      plot(political,col='#7a7a7a',main = paste0('Predicted percent change ',y,' to ',y+10))
+      plot(pred_rast,col=my_palette,zlim = c(-1,1),add=T)
+      dev.off()
+    }
+  }}
 #Now create a predicted biomass change df for the years 1984-2012 (to match up with the Ju and Masek era)
 #What this does is takes any observed data, interpolates it and then predicts from the last year of good data
 #in all cases, if data extends past 2002, I predict from the year 2002, so we have at least on prediction for 
@@ -408,18 +408,20 @@ trend_locs = site_loc[names(trends),]
 trend_sp = SpatialPointsDataFrame(coords = trend_locs[,2:3],data = data.frame(trends),proj4string = CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"))
 trend_sp = spTransform(trend_sp,Ju_Masek_crs)
 trend_rast = rasterize(trend_sp,template,field='trends',fun=mean,na.rm=T)
-pdf(file=paste0('./EWS_package/data/plots/spatial/predicted_1984to2012.pdf'),width = 16, height = 12)
+pdf(file=paste0('./EWS_package/data/plots/spatial/predicted_1984to2012_v2.pdf'),width = 16, height = 12)
 plot(political,col='gray',main = paste0('Predicted biomass trend (Mg/ha/year) 1984 to 2012'))
 plot(trend_rast,col=my_palette,zlim = c(-2,2),add=T)
 dev.off()
 
 #Mask the Ju & Masek trends by the prediction trends so we are only looking at pixels where I have data
 Ju_Masek_masked = mask(Ju_Masek_agg,trend_rast)
-pdf(file=paste0('./EWS_package/data/plots/spatial/ndvi_1984to2012.pdf'),width = 16, height = 12)
+pdf(file=paste0('./EWS_package/data/plots/spatial/ndvi_1984to2012_v2.pdf'),width = 16, height = 12)
 plot(political,col='gray',main = paste0('NDVI trend (Ju & Masek) 1984 to 2012'))
-plot(Ju_Masek_masked,col=my_palette,add=T)
+plot(Ju_Masek_masked,col=my_palette,add=T, zlim = c(-0.01,0.01))
 dev.off()
 
+browser()
+stop()
 
 
 
