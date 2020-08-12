@@ -103,6 +103,8 @@ def main():
 				nm = "15yr LS"
 			elif cat == 104:
 				nm = "20yr LS"
+			elif cat == 120:
+				nm = "10yr XGBOOST"
 			elif cat == 200:
 				nm = "RF2 7 Quantile splits"
 			elif cat == 201:
@@ -129,29 +131,34 @@ def main():
 	gclass     = glob.glob(path + "*/Exp*_OBSvsPREDICTEDClas_y_test.csv")
 	df_clest   = pd.concat([load_OBS(mrfn) for mrfn in gclass])
 	# ========== Create the confusion matrix plots ==========
-	RegionalPerformance(path, df_mres, df_setup, df_OvsP, df_clest, keys)
 
+	twostageplots(path, df_mres, df_setup, df_OvsP, df_clest, keys, 
+		experiments=[201, 202, 204], ref=[100, 120])
 
 	confusion_plots(path, df_mres, df_setup, df_OvsP, keys, sumtxt="7Quantiles", ncol = 5, 
-		experiments=[104, 103, 100, 102, 101, 200, 201, 202, 204])
+		experiments=[104, 103, 100, 102, 101, 120, 200, 201, 202, 204])
 	
 	# breakpoint()
 	splts = np.arange(-1, 1.05, 0.050)
 	splts[ 0] = -1.00001
 	splts[-1] = 1.00001
 
-
-	confusion_plots(path, df_mres, df_setup, df_OvsP, keys, 
+	confusion_plots(path, df_mres, df_setup, df_OvsP, keys,
 		split = splts, sumtxt="JustConfusion", annot=False, 
-		experiments=[102, 103, 200, 201, 202, 204])
+		experiments=[100, 120, 200, 201, 202, 204])
+
+	confusion_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 4,
+		split = splts, sumtxt="JustConfusion1", annot=False, 
+		experiments=[102, 103, 120, 200, 201, 202, 204])
 
 	twostageplots(path, df_mres, df_setup, df_OvsP, df_clest, keys, 
-		experiments=[201, 202, 204], ref=100, )
+		experiments=[201, 202, 204], ref=[100])
 
 
 	confusion_plots(path, df_mres, df_setup, df_OvsP, keys, 
 		split = splts, sumtxt="SplitEqualDist", annot=False, plttyp = ["bplot"])
 
+	RegionalPerformance(path, df_mres, df_setup, df_OvsP, df_clest, keys)
 
 # ==============================================================================
 def RegionalPerformance(path, df_mres, df_setup, df_OvsP, df_clest, keys, ncol = 3, 
@@ -307,7 +314,7 @@ def twostageplots(path, df_mres, df_setup, df_OvsP, df_clest, keys, ncol = 3,
 
 	dflist = []
 	ks = []
-	for expn in experiments+ [ref]:
+	for expn in experiments+ ref:
 		# breakpoint()
 		dfs = df_OvsP[df_OvsP.experiment == expn]
 		dfs["experiment"] =  keys[expn]
@@ -546,6 +553,7 @@ def confusion_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 3,
 		# breakpoint()np.ceil( len(expr) / ncol).astype(int)
 		ax = fig.add_subplot(nrows, ncol, num+1, label=exp)
 		axs.append(ax)
+
 			# sharex=True, sharey=True, label =exp)
 		# ========== Pull out the data for each experiment ==========
 		if (exp % 1) == 0.:
@@ -553,6 +561,10 @@ def confusion_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 3,
 		else: 
 			df_c = cl_on[exp]
 		
+		if any(df_c["Estimated"].isnull()):
+			warn.warn(str(df_c["Estimated"].isnull().sum())+ " of the estimated Values were NaN")
+			df_c = df_c[~df_c.Estimated.isnull()]
+
 		print(exp, num, sklMet.accuracy_score(df_c["Observed"], df_c["Estimated"]))
 		
 		# ========== Calculate the confusion matrix ==========

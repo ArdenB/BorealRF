@@ -53,6 +53,7 @@ import matplotlib.pyplot as plt
 from collections import OrderedDict, defaultdict
 import seaborn as sns
 import palettable
+from numba import jit
 
 
 # ========== Import my dunctions ==========
@@ -110,14 +111,6 @@ def main():
 	df_clest   = pd.concat([load_OBS(mrfn) for mrfn in gclass])
 	
 
-	# scatter_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 4, sumtxt="")
-	# splts = np.arange(-1, 1.005, 0.005)
-	# splts[ 0] = -1.00001
-	# splts[-1] = 1.00001
-	# confusion_plots(path, df_mres, df_setup, df_OvsP, keys, split = splts, sumtxt="Scatter", ncol = 5, zline=False)#, inc_class=True)
-	KDEplot(path, df_clest, df_mres, df_setup, df_OvsP, keys, sumtxt="Onecol", ncol = 1, experiments =[200])
-	KDEplot(path, df_clest, df_mres, df_setup, df_OvsP, keys, sumtxt="", ncol = 3)
-	# ========== Create the confusion matrix plots ==========
 
 	splts = np.arange(-1, 1.05, 0.05)
 	splts[ 0] = -1.00001
@@ -136,6 +129,14 @@ def main():
 
 
 	Main_plots(path, df_mres, df_setup, df_OvsP, keys)
+	# scatter_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 4, sumtxt="")
+	# splts = np.arange(-1, 1.005, 0.005)
+	# splts[ 0] = -1.00001
+	# splts[-1] = 1.00001
+	# confusion_plots(path, df_mres, df_setup, df_OvsP, keys, split = splts, sumtxt="Scatter", ncol = 5, zline=False)#, inc_class=True)
+	KDEplot(path, df_clest, df_mres, df_setup, df_OvsP, keys, sumtxt="Onecol", ncol = 1, experiments =[200])
+	KDEplot(path, df_clest, df_mres, df_setup, df_OvsP, keys, sumtxt="", ncol = 3)
+	# ========== Create the confusion matrix plots ==========
 
 	warn.warn("To do: Implement some form of variable importance plots")
 	breakpoint()
@@ -408,7 +409,12 @@ def confusion_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 4,
 		else: 
 			df_c = cl_on[exp]
 		
+		if any(df_c["Estimated"].isnull()):
+			warn.warn(str(df_c["Estimated"].isnull().sum())+ " of the estimated Values were NaN")
+			df_c = df_c[~df_c.Estimated.isnull()]
+		
 		print(exp, sklMet.accuracy_score(df_c["Observed"], df_c["Estimated"]))
+			# breakpoint()
 		
 		# ========== Calculate the confusion matrix ==========
 		cMat  = sklMet.confusion_matrix(df_c["Observed"], df_c["Estimated"]).astype(float)

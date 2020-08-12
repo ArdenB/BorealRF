@@ -67,6 +67,8 @@ from sklearn import metrics as sklMet
 from sklearn.utils import shuffle
 from scipy.stats import spearmanr
 from scipy.cluster import hierarchy
+import xgboost as xgb
+
 
 # ==============================================================================
 def main(args):
@@ -128,9 +130,13 @@ def main(args):
 					experiment, version,  branch, setup, final=final,  cols_keep=ColNm)
 
 				# ========== Perform the Regression ==========
+				# time,  r2, feature_imp  = XGBoost_regression( 
+				# 	X_train, X_test, y_train, y_test, col_nms, 
+				# 	experiment, version, branch, setup, verbose=True, perm=True, final = False)
 				time,  r2, feature_imp  = skl_rf_regression(
 					X_train, X_test, y_train, y_test, col_nms, experiment, 
 					version, branch,  setup, verbose=False, final=final)
+
 
 				# ========== perform some zeo branch data storage ==========
 				if branch == 0:
@@ -181,11 +187,6 @@ def main(args):
 			res["R2"]        = r2
 			res["TotalTime"] = pd.to_timedelta(df_perf.TimeCumulative.values[-1])
 			res["FBranch"]   = branch
-			try:
-				Region_calculation(experiment, version, setup, path, fn_PI, fn_res, res=res)
-			except  Exception as er:
-				print(str(er))
-				breakpoint()
 			# for van in loadstats:
 			# 	res[van] = loadstats[van]
 			# df_res = pd.DataFrame(pd.Series(res), columns=["Exp%03d.%02d" % (experiment, version)])
@@ -196,6 +197,11 @@ def main(args):
 				pd.Series(feature_imp), columns=["PermutationImportance"]).reset_index().rename(
 				{"index":"Variable"}, axis=1)
 			df_perm.to_csv(fn_PI)
+			try:
+				Region_calculation(experiment, version, setup, path, fn_PI, fn_res, res=res)
+			except  Exception as er:
+				print(str(er))
+				breakpoint()
 
 			# ========== Write the metadata ==========
 			meta_fn = path + "Metadata"
@@ -214,6 +220,66 @@ def main(args):
 	breakpoint()
 
 # ==============================================================================
+def XGBoost_regression( 
+	X_train, X_test, y_train, y_test, col_nms, 
+	experiment, version, branch, setup, verbose=True, perm=True, final = False):
+	"""
+	XGBoosted Regression
+	"""
+	# ========== Convert the data to xgb format =========
+	warn.warn("I'm implementing some cheating datasebsetting here for testing")
+
+	# Convert input data from numpy to XGBoost format
+	# dtrain = xgb.DMatrix(X_train.values, label=np.squeeze(y_train.values))
+	# dtest  = xgb.DMatrix(X_test.values, label=np.squeeze(y_test))
+	
+
+	# Specify sufficient boosting iterations to reach a minimum
+	num_round = 500
+
+	# Leave most parameters as default
+	# param = ({'objective':'reg:squarederror', # Specify multiclass classification
+	# 			# 'tree_method': 'gpu_hist', # Use GPU accelerated algorithm
+	# 			'tree_method': 'hist',
+	# 			'max_depth':setup["max_depth"]
+	# 	})
+
+	xg_reg = xgb.XGBRegressor(objective ='reg:squarederror', tree_method='hist', colsample_bytree = 0.3, learning_rate = 0.1,
+	                max_depth = 10, n_estimators = num_round)#, num_parallel_tree=10)
+
+	eval_set = [(X_test.values, y_test.values.ravel())]
+
+	xg_reg.fit(X_train.values, y_train.values.ravel(), early_stopping_rounds=10, eval_set=eval_set, verbose=True)
+	y_pred = xg_reg.predict(X_test.values)
+
+
+	# ========== Convert Feature importance to a dictionary ==========
+	FI = OrderedDict()
+
+	# +++++ use permutation importance +++++
+	print("starting sklearn permutation importance calculation at:", pd.Timestamp.now())
+	result = permutation_importance(xg_reg, X_test.values, y_test.values.ravel(), n_repeats=5) #n_jobs=cores
+	
+	for fname, f_imp in zip(X_train.columns , result.importances_mean): 
+		FI[fname] = f_imp
+
+	print('r squared score:',         sklMet.r2_score(y_test, y_pred))
+	breakpoint()
+	# # y_pred = xg_reg.predict(X_test)
+
+	# gpu_res = {} # Store accuracy result
+	# # tmp = time.time()
+	# # Train model
+	# bst =  xgb.train(param, dtrain, num_round, evals=[(dtest, 'test')], evals_result=gpu_res, early_stopping_rounds=20)
+
+	# y_pred = bst.predict(X_test)
+	# print("GPU Training Time: %s seconds" % (str(time.time() - tmp)))
+
+	breakpoint()
+
+
+
+
 def skl_rf_regression( 
 	X_train, X_test, y_train, y_test, col_nms, 
 	experiment, version, branch, setup, verbose=True, perm=True, final = False):
@@ -234,31 +300,48 @@ def skl_rf_regression(
 		perm:		bool
 			Use the permutation importance rather than feature importance
 	"""
-
-
-	# ========== Setup some skl params ==========
-	skl_rf_params = ({
-		'n_estimators'     :setup["ntree"],
-		'n_jobs'           :setup["cores"],
-		'max_depth'        :setup["max_depth"],
-		"max_features"     :setup["max_features"],
-		"max_depth"        :setup["max_depth"],
-		"min_samples_split":setup["min_samples_split"],
-		"min_samples_leaf" :setup["min_samples_leaf"],
-		"bootstrap"        :setup["bootstrap"],
-		})
-
 	# ========== Start timing  ==========
 	t0 = pd.Timestamp.now()
 	print("starting sklearn random forest regression at:", t0)
 
-	# ========== Do the RF regression training ==========
-	regressor = RandomForestRegressor(**skl_rf_params)
-	regressor.fit(X_train, y_train.values.ravel())
+	if setup["model"]  == "SKL Random Forest Regression":
+		# ========== Setup some skl params ==========
+		skl_rf_params = ({
+			'n_estimators'     :setup["ntree"],
+			'n_jobs'           :setup["cores"],
+			'max_depth'        :setup["max_depth"],
+			"max_features"     :setup["max_features"],
+			"max_depth"        :setup["max_depth"],
+			"min_samples_split":setup["min_samples_split"],
+			"min_samples_leaf" :setup["min_samples_leaf"],
+			"bootstrap"        :setup["bootstrap"],
+			})
 
-	# ========== Testing out of prediction ==========
-	print("starting sklearn random forest prediction at:", pd.Timestamp.now())
-	y_pred = regressor.predict(X_test)
+
+		# ========== Do the RF regression training ==========
+		regressor = RandomForestRegressor(**skl_rf_params)
+		regressor.fit(X_train, y_train.values.ravel())
+
+
+		# ========== Testing out of prediction ==========
+		print("starting regression prediction at:", pd.Timestamp.now())
+		y_pred = regressor.predict(X_test)
+
+	
+	elif setup["model"] == "XGBoost":
+
+		# ========== convert the values ==========\
+		regressor = xgb.XGBRegressor(objective ='reg:squarederror', tree_method='hist', colsample_bytree = 0.3, learning_rate = 0.1,
+		                max_depth = setup['max_depth'], n_estimators = setup["ntree"])#, num_parallel_tree=10)
+
+		eval_set = [(X_test.values, y_test.values.ravel())]
+		regressor.fit(X_train.values, y_train.values.ravel(), early_stopping_rounds=15, verbose=True, eval_set=eval_set)
+		# breakpoint()
+
+
+		# ========== Testing out of prediction ==========
+		print("starting regression prediction at:", pd.Timestamp.now())
+		y_pred = regressor.predict(X_test.values)
 	
 	# ========== make a list of names ==========
 	clnames = X_train.columns.values
@@ -279,7 +362,7 @@ def skl_rf_regression(
 
 	# +++++ use permutation importance +++++
 	print("starting sklearn permutation importance calculation at:", pd.Timestamp.now())
-	result = permutation_importance(regressor, X_test, y_test, n_repeats=5) #n_jobs=cores
+	result = permutation_importance(regressor, X_test.values, y_test.values.ravel(), n_repeats=5) #n_jobs=cores
 	
 	for fname, f_imp in zip(clnames, result.importances_mean): 
 		FI[fname] = f_imp
@@ -567,6 +650,30 @@ def experiments(ncores = -1):
 		"classifer"        :None, 
 		"cores"            :ncores,
 		"model"            :"SKL Random Forest Regression", 
+		"maxitter"         :10, 
+		})
+	expr[120] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :120,
+		"name"             :"OneStageXGBOOST",
+		"desc"             :"Gradient boosted regression in place of Random Forest",
+		"window"           :10,
+		"Nstage"           :1, 
+		"Model"            :"Scikit-learn RandomForestRegressor", 
+		# +++++ The Model setup params +++++
+		"ntree"            :500,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ModVar"           :"ntree, max_depth", 
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		})
 

@@ -150,6 +150,7 @@ def _regionbuilder(region_fn, vi_df):
 			else:
 				breakpoint()
 				return "Unknown"
+	
 	site_df["Region"] = [site_locator(sn, sitenames, siteregions, Sitekey) for sn in site_df.site]
 
 	# ========== Make metadata infomation ========== 
