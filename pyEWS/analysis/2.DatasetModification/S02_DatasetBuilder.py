@@ -123,16 +123,19 @@ def biomass_extractor(biomass, regions, df_SD, info):
 	Function to pull out the biomass and site level infomation 
 	"""
 	# ========== Pull out the relevant columns ==========
-	filter_col = [col for col in biomass.columns if col.startswith('live_mass') or col.startswith("live_N_t")]
+	Bfilter_col = [col for col in biomass.columns if col.startswith('live_mass')]
+	Tfilter_col = [col for col in biomass.columns if col.startswith("live_N_t")]
 	
 	# ========== Setup containeers for new infomation ==========
 	bmchange = OrderedDict()
 	Sinfo    = []
 
 	# ========== iterate through the rows ==========
-	for index, row in biomass[filter_col].iterrows():
+	for index, row in biomass.iterrows():
 		# ========== pull out the relevant data ==========
 		re   = (regions[regions.Plot_ID == index]).copy()#.rest_index(drop=True)
+		bio  = row[Bfilter_col]
+		stem = row[Tfilter_col]
 		surv = df_SD.loc[index].values
 
 		if info["infillingMethod"] is None:
@@ -148,13 +151,14 @@ def biomass_extractor(biomass, regions, df_SD, info):
 				continue
 			# +++++ the locations +++++
 			for I2, I1 in loc:
-				bio_orig = row.iloc[I1]
-				bio_delt = row.iloc[I2]
+				bio_orig = bio.iloc[I1]
+				bio_delt = bio.iloc[I2]
 				year = surv[I1]
 				bmchange[len(bmchange)] = ({
 					"site":index, 
 					"biomass":bio_orig,
 					"lagged_biomass": ((bio_delt - bio_orig)/(bio_delt+bio_orig)),
+					"stem_density":stem.iloc[I1],
 					"year":year
 					})
 				# ========== This is where i bring in all the other params ==========
