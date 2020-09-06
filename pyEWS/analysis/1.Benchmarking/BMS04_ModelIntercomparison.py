@@ -89,21 +89,22 @@ def main():
 	mres_fnames = glob.glob(path + "*/Exp*_Results.csv")
 	df_mres = pd.concat([fix_results(mrfn) for mrfn in mres_fnames])
 	df_mres["TotalTime"]  = df_mres.TotalTime / pd.to_timedelta(1, unit='m')
-	keys = {}
-	for cat in df_mres["experiment"].unique():
-		# =========== Setup the names ============
-		try:
-			nm = "%d.%s" % (cat, df_setup[df_setup.Code.astype(int) == int(cat)].name.values[0])
-		except Exception as er:
-			print(str(er))
-			breakpoint()
-		keys[cat] = nm
-		df_mres["experiment"].replace({cat:nm}, inplace=True)
+	df_mres, keys = Experiment_name(df_mres, df_setup, var = "experiment")
+	# keys = {}
+	# for cat in df_mres["experiment"].unique():
+	# 	# =========== Setup the names ============
+	# 	try:
+	# 		nm = "%d.%s" % (cat, df_setup[df_setup.Code.astype(int) == int(cat)].name.values[0])
+	# 	except Exception as er:
+	# 		print(str(er))
+	# 		breakpoint()
+	# 	keys[cat] = nm
+	# 	df_mres["experiment"].replace({cat:nm}, inplace=True)
 
 	df_mres["experiment"] = df_mres["experiment"].astype('category')
 
 
-
+	# ========= Load in the observations
 	OvP_fnames = glob.glob(path + "*/Exp*_OBSvsPREDICTED.csv")
 	df_OvsP    = pd.concat([load_OBS(ofn) for ofn in OvP_fnames])
 	
@@ -115,20 +116,31 @@ def main():
 	splts = np.arange(-1, 1.05, 0.05)
 	splts[ 0] = -1.00001
 	splts[-1] = 1.00001
-	confusion_plots(path, df_mres, df_setup, df_OvsP, keys, 
-		split = splts, sumtxt="SplitEqualDist", annot=False, ncol = 5)
+	# ========== Make a list of experiment groups ==========
+	threeHunExp = df_setup[df_setup.Code.astype(int) >= 300]["Code"].astype(int).values
+	NanExp = [300, 320, 321, 322, 323]
+	for experiments, ncols, gpnm in zip([NanExp, threeHunExp, None], [5, 5, 7], ["NaNexp","DtMod", ""]):
+		# breakpoint()
+		confusion_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=experiments,
+			split = splts, sumtxt=f"SplitEqualDist{gpnm}", annot=False, ncol = ncols)
 
-	confusion_plots(path, df_mres, df_setup, df_OvsP, keys, sumtxt="7Quantiles", ncol = 5)#, inc_class=True)
+		confusion_plots(path, df_mres, df_setup, df_OvsP, keys,
+			experiments=experiments, sumtxt=f"7Quantiles{gpnm}", ncol = ncols)
+		#, inc_class=True)
 
-	confusion_plots(path, df_mres, df_setup, df_OvsP, keys, 
-		split = [-1.00001, 0.0, 1.00001], sumtxt="SplitatO", zline=False, ncol = 5)
+		confusion_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=experiments,
+			split = [-1.00001, 0.0, 1.00001], sumtxt=f"SplitatO{gpnm}", zline=False, ncol = ncols)
 
-	Region_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 4, sumtxt="")
+		Region_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=experiments, ncol = 4, sumtxt=gpnm)
+		
+		Main_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=experiments, sumtxt=gpnm)
+		
+	breakpoint()
+
 
 	# +++++ the estimated vs observed values +++++
 
 
-	Main_plots(path, df_mres, df_setup, df_OvsP, keys)
 	# scatter_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 4, sumtxt="")
 	# splts = np.arange(-1, 1.005, 0.005)
 	# splts[ 0] = -1.00001
@@ -142,6 +154,178 @@ def main():
 	breakpoint()
 
 # ==============================================================================
+
+def confusion_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=None,  ncol = 4, 
+	inc_class=False, split=None, sumtxt="", annot=True, zline=True):
+	"""Function to create and plot the confusion matrix"""
+	# ========== Look to see if experiments have been passed ==========
+	# This it to allow only a subset to be looked at 
+	if experiments is None:
+		experiments = df_OvsP.experiment.unique() #all experiments
+	# ========== Check if i needed to pull out the splits ==========
+	if split is None:
+		splitstr = df_setup.splits.loc["Exp200"]
+		split = []
+		for sp in splitstr.split(", "):
+			if not sp == "":
+				split.append(float(sp))
+
+	# ========== Get the observed values ==========
+	df_class = df_OvsP.copy()
+	expsize  = len(split) -1 # df_class.experiment.unique().size
+	df_class["Observed"]  =  pd.cut(df_class["Observed"], split, labels=np.arange(expsize))
+	df_class["Estimated"] =  pd.cut(df_class["Estimated"], split, labels=np.arange(expsize))
+
+	# ========== Pull out the classification only accuracy ==========
+	expr   = OrderedDict()
+	cl_on  = OrderedDict() #dict to hold the classification only 
+	for num, expn in enumerate(experiments):
+		if expn // 100 == 1 or expn // 100 == 3:
+			expr[expn] = keys[expn]
+		elif expn // 100 == 2:
+			expr[expn] = keys[expn]
+			if inc_class:
+
+				# +++++ load in the classification only +++++
+				OvP_fn = glob.glob(path + "%d/Exp%d*_OBSvsPREDICTEDClas_y_test.csv"% (expn,  expn))
+				df_OvP  = pd.concat([load_OBS(ofn) for ofn in OvP_fn])
+
+				df_F =  df_class[df_class.experiment == expn].copy()
+				for vr in df_F.version.unique():
+					dfe = (df_OvP[df_OvP.version == vr]).reindex(df_F[df_F.version==vr].index)
+					df_F.loc[df_F.version==vr, "Estimated"] = dfe.class_est
+				# +++++ Check and see i haven't added any null vals +++++
+				if (df_F.isnull()).any().any():
+					breakpoint()
+				# +++++ Store the values +++++
+				cl_on[expn+0.1] = df_F
+				expr[ expn+0.1] = keys[expn]+"_Class"
+		else:
+			breakpoint()
+	# ========== Create the figure ==========
+	plt.rcParams.update({'figure.subplot.top' : 0.90 })
+	plt.rcParams.update({'figure.subplot.bottom' : 0.10 })
+	plt.rcParams.update({'figure.subplot.right' : 0.95 })
+	plt.rcParams.update({'figure.subplot.left' : 0.05 })
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':8})
+	font = {'family' : 'normal',
+	        'weight' : 'bold', #,
+	        'size'   : 8}
+	mpl.rc('font', **font)
+	sns.set_style("whitegrid")
+	try:
+		sptsze = split.size
+	except:
+		sptsze = len(split)
+
+	fig= plt.figure(
+		figsize=(19,11),
+		num=("Normalised Confusion Matrix " + sumtxt), 
+		dpi=130)#, constrained_layout=True)figsize=(17,12),
+
+	# fig, axes = plt.subplots(np.ceil( expsize / ncol).astype(int), ncol, 
+	#  	figsize=(16,9),sharex=True, sharey=True,	num=("Normalised Confusion Matrix "), dpi=130)
+	# for ax, exp in zip(axes.flat, df_class.experiment.unique()):
+	axs = []
+
+
+	# ========== Loop over ach experiment ==========
+	for num, exp in enumerate(expr):
+		ax = fig.add_subplot(np.ceil( len(expr) / ncol).astype(int), ncol, num+1, label=exp)
+			# sharex=True, sharey=True, label =exp)
+		# ========== Pull out the data for each experiment ==========
+		if (exp % 1) == 0.:
+			df_c = df_class[df_class.experiment == exp]
+		else: 
+			df_c = cl_on[exp]
+		
+		if any(df_c["Estimated"].isnull()):
+			# warn.warn(str(df_c["Estimated"].isnull().sum())+ " of the estimated Values were NaN")
+			df_c = df_c[~df_c.Estimated.isnull()]
+		
+		df_c.sort_values("Observed", axis=0, ascending=True, inplace=True)
+		print(exp, sklMet.accuracy_score(df_c["Observed"], df_c["Estimated"]))
+			# breakpoint()
+		
+		# ========== Calculate the confusion matrix ==========
+		try:
+			cMat  = sklMet.confusion_matrix(
+				df_c["Observed"], df_c["Estimated"], 
+				labels=df_c["Observed"].cat.categories).astype(int) 
+			cCor  = np.tile(df_c.groupby("Observed").count()["Estimated"].values.astype(float), (cMat.shape[0], 1)).T
+			# breakpoint()
+			# print(cMat.shape)
+			conM =  ( cMat/cCor).T
+			conM[np.logical_and((cCor == 0), (cMat==0)).T] = 0.
+			# if (np.isnan(conM)).any():
+			# 	breakpoint()
+			df_cm = pd.DataFrame(conM, index = [int(i) for i in np.arange(expsize)],
+			                  columns = [int(i) for i in np.arange(expsize)])
+		except Exception as er:
+			print(str(er))
+			breakpoint()
+		# breakpoint()
+		if annot:
+			ann = df_cm.round(3)
+		else:
+			ann = False
+		sns.heatmap(df_cm, annot=ann, vmin=0, vmax=1, ax = ax, cbar=False,  square=True)
+		ax.plot(np.arange(expsize+1), np.arange(expsize+1), "w", alpha=0.5)
+		plt.title(expr[exp])
+		# ========== fix the labels +++++
+		if (sptsze > 10):
+			# +++++ The location of the ticks +++++
+			interval = int(np.floor(sptsze/10))
+			location = np.arange(0, sptsze, interval)
+			# +++++ The new values +++++
+			values = np.round(np.linspace(-1., 1, location.size), 2)
+			ax.set_xticks(location)
+			ax.set_xticklabels(values)
+			ax.set_yticks(location)
+			ax.set_yticklabels(values)
+			# ========== Add the cross hairs ==========
+			if zline:
+
+				ax.axvline(location[values == 0][0], alpha =0.25, linestyle="--", c="grey")
+				ax.axhline(location[values == 0][0], alpha =0.25, linestyle="--", c="grey")
+		else:
+			# ========== Calculate the zero lines ==========
+			if zline:
+				# ========== Calculate the zero line location ==========
+				((x0),) = np.where(np.array(split) < 0)
+				x0a = x0[-1]
+				((x1),) = np.where(np.array(split) >=0)
+				x1a = x1[0]
+				zeroP =  x0a + (0.-split[x0a])/(split[x1a]-split[x0a])
+				# ========== Add the cross hairs ==========
+				ax.axvline(x=zeroP, ymin=0.1, alpha =0.25, linestyle="--", c="w")
+				ax.axhline(y=zeroP, xmax=0.9, alpha =0.25, linestyle="--", c="w")
+
+			# +++++ fix the values +++++
+			location = np.arange(0, sptsze+1)
+			location[ 0] += 0.00001
+			location[-1] -= 0.00001
+			ax.set_xticks(location)
+			ax.set_xticklabels(np.round(split, 2), rotation=90)
+			ax.set_yticks(location)
+			ax.set_yticklabels(np.round(split, 2), rotation=0)
+
+
+
+	plt.tight_layout()
+
+	# ========== Save tthe plot ==========
+	print("starting save at:", pd.Timestamp.now())
+	fnout = path+ "plots/BM03_Normalised_Confusion_Matrix_" + sumtxt
+	for ext in [".pdf", ".png"]:
+		plt.savefig(fnout+ext, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+
 def KDEplot(path, df_clest, df_mres, df_setup, df_OvsP, 
 	keys, ncol = 3, sumtxt="", experiments = []):
 	""" Calculate a KDE"""
@@ -219,7 +403,7 @@ def KDEplot(path, df_clest, df_mres, df_setup, df_OvsP,
 	cf.writemetadata(fnout, [plotinfo, gitinfo])
 	plt.show()
 
-def Region_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 4, sumtxt=""):
+def Region_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=None,  ncol = 4, sumtxt=""):
 	# ========== Create the figure ==========
 	plt.rcParams.update({'figure.subplot.top' : 0.97 })
 	plt.rcParams.update({'figure.subplot.bottom' : 0.15 })
@@ -231,14 +415,21 @@ def Region_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 4, sumtxt=""):
 	        'size'   : 6}
 	mpl.rc('font', **font)
 	sns.set_style("whitegrid")
-	
+	# ========== Subset the data if i need an experiment name ==========
+	if experiments is None:
+		df_set = df_mres.copy()
+	else:
+		exp_names = [keys[expn] for expn in experiments]
+		df_set    = df_mres[df_mres.experiment.isin(exp_names)].copy()
+		df_set["experiment"].cat.remove_unused_categories(inplace=True)
+
 
 	regions = []
-	for col in df_mres.columns:
+	for col in df_set.columns:
 		if col [-4:] == "frac":
 			re = col[:2]
 			# ========== This is a temp fix I will need to recalculate the values ==========
-			dfc           = df_mres[["experiment", col]].reset_index(drop=True).rename(
+			dfc           = df_set[["experiment", col]].reset_index(drop=True).rename(
 				{col:"SitePer"}, axis=1)
 			
 			dfc["Region"] = re
@@ -255,7 +446,7 @@ def Region_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 4, sumtxt=""):
 	sns.barplot(x="experiment", y="SitePer", hue="Region", data=df, ax=ax, palette=sns.color_palette("Paired"))
 	ax.set_xlabel("")
 	ax.set_ylabel("% of sites")
-	ax.set_xticklabels(ax.get_xticklabels(), rotation=45, horizontalalignment='right')
+	ax.set_xticklabels(ax.get_xticklabels(), rotation=30, horizontalalignment='right')
 	# plt.tight_layout()
 
 	# ========== Save the plot ==========
@@ -329,171 +520,16 @@ def scatter_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 4, sumtxt=""):
 	plt.show()
 
 
-def confusion_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 4, 
-	inc_class=False, split=None, sumtxt="", annot=True, zline=True):
-	"""Function to create and plot the confusion matrix"""
-	
-	# ========== Check if i needed to pull out the splits ==========
-	if split is None:
-		splitstr = df_setup.splits.loc["Exp200"]
-		split = []
-		for sp in splitstr.split(", "):
-			if not sp == "":
-				split.append(float(sp))
-
-	# ========== Get the observed values ==========
-	df_class = df_OvsP.copy()
-	expsize  = len(split) -1 # df_class.experiment.unique().size
-	df_class["Observed"]  =  pd.cut(df_class["Observed"], split, labels=np.arange(expsize))
-	df_class["Estimated"] =  pd.cut(df_class["Estimated"], split, labels=np.arange(expsize))
-
-	# ========== Pull out the classification only accuracy ==========
-	expr   = OrderedDict()
-	cl_on  = OrderedDict() #dict to hold the classification only 
-	for num, expn in enumerate(df_class.experiment.unique()):
-		if expn // 100 == 1:
-			expr[expn] = keys[expn]
-		else:
-			expr[expn] = keys[expn]
-			if inc_class:
-
-				# +++++ load in the classification only +++++
-				OvP_fn = glob.glob(path + "%d/Exp%d*_OBSvsPREDICTEDClas_y_test.csv"% (expn,  expn))
-				df_OvP  = pd.concat([load_OBS(ofn) for ofn in OvP_fn])
-
-				df_F =  df_class[df_class.experiment == expn].copy()
-				for vr in df_F.version.unique():
-					dfe = (df_OvP[df_OvP.version == vr]).reindex(df_F[df_F.version==vr].index)
-					df_F.loc[df_F.version==vr, "Estimated"] = dfe.class_est
-				# +++++ Check and see i haven't added any null vals +++++
-				if (df_F.isnull()).any().any():
-					breakpoint()
-				# +++++ Store the values +++++
-				cl_on[expn+0.1] = df_F
-				expr[ expn+0.1] = keys[expn]+"_Class"
-	
-	# ========== Create the figure ==========
-	plt.rcParams.update({'figure.subplot.top' : 0.90 })
-	plt.rcParams.update({'figure.subplot.bottom' : 0.10 })
-	plt.rcParams.update({'figure.subplot.right' : 0.95 })
-	plt.rcParams.update({'figure.subplot.left' : 0.05 })
-	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':8})
-	font = {'family' : 'normal',
-	        'weight' : 'bold', #,
-	        'size'   : 8}
-	mpl.rc('font', **font)
-	sns.set_style("whitegrid")
-	try:
-		sptsze = split.size
-	except:
-		sptsze = len(split)
-
-	fig= plt.figure(
-		figsize=(19,11),
-		num=("Normalised Confusion Matrix " + sumtxt), 
-		dpi=130)#, constrained_layout=True)figsize=(17,12),
-
-	# fig, axes = plt.subplots(np.ceil( expsize / ncol).astype(int), ncol, 
-	#  	figsize=(16,9),sharex=True, sharey=True,	num=("Normalised Confusion Matrix "), dpi=130)
-	# for ax, exp in zip(axes.flat, df_class.experiment.unique()):
-	axs = []
-
-
-	# ========== Loop over ach experiment ==========
-	for num, exp in enumerate(expr):
-		ax = fig.add_subplot(np.ceil( len(expr) / ncol).astype(int), ncol, num+1, label=exp)
-			# sharex=True, sharey=True, label =exp)
-		# ========== Pull out the data for each experiment ==========
-		if (exp % 1) == 0.:
-			df_c = df_class[df_class.experiment == exp]
-		else: 
-			df_c = cl_on[exp]
-		
-		if any(df_c["Estimated"].isnull()):
-			warn.warn(str(df_c["Estimated"].isnull().sum())+ " of the estimated Values were NaN")
-			df_c = df_c[~df_c.Estimated.isnull()]
-		
-		print(exp, sklMet.accuracy_score(df_c["Observed"], df_c["Estimated"]))
-			# breakpoint()
-		
-		# ========== Calculate the confusion matrix ==========
-		cMat  = sklMet.confusion_matrix(df_c["Observed"], df_c["Estimated"]).astype(float)
-		cCor  = np.tile(df_c.groupby("Observed").count()["Estimated"].values.astype(float), (cMat.shape[0], 1)).T
-		conM =  ( cMat/cCor).T
-		df_cm = pd.DataFrame(conM, index = [int(i) for i in np.arange(expsize)],
-		                  columns = [int(i) for i in np.arange(expsize)])
-		# breakpoint()
-		if annot:
-			ann = df_cm.round(3)
-		else:
-			ann = False
-		sns.heatmap(df_cm, annot=ann, vmin=0, vmax=1, ax = ax, cbar=False,  square=True)
-		ax.plot(np.arange(expsize+1), np.arange(expsize+1), "w", alpha=0.5)
-		plt.title(expr[exp])
-		# ========== fix the labels +++++
-		if (sptsze > 10):
-			# +++++ The location of the ticks +++++
-			interval = int(np.floor(sptsze/10))
-			location = np.arange(0, sptsze, interval)
-			# +++++ The new values +++++
-			values = np.round(np.linspace(-1., 1, location.size), 2)
-			ax.set_xticks(location)
-			ax.set_xticklabels(values)
-			ax.set_yticks(location)
-			ax.set_yticklabels(values)
-			# ========== Add the cross hairs ==========
-			if zline:
-
-				ax.axvline(location[values == 0][0], alpha =0.25, linestyle="--", c="grey")
-				ax.axhline(location[values == 0][0], alpha =0.25, linestyle="--", c="grey")
-		else:
-			# ========== Calculate the zero lines ==========
-			if zline:
-				# ========== Calculate the zero line location ==========
-				((x0),) = np.where(np.array(split) < 0)
-				x0a = x0[-1]
-				((x1),) = np.where(np.array(split) >=0)
-				x1a = x1[0]
-				zeroP =  x0a + (0.-split[x0a])/(split[x1a]-split[x0a])
-				# ========== Add the cross hairs ==========
-				ax.axvline(x=zeroP, ymin=0.1, alpha =0.25, linestyle="--", c="w")
-				ax.axhline(y=zeroP, xmax=0.9, alpha =0.25, linestyle="--", c="w")
-
-			# +++++ fix the values +++++
-			location = np.arange(0, sptsze+1)
-			location[ 0] += 0.00001
-			location[-1] -= 0.00001
-			ax.set_xticks(location)
-			ax.set_xticklabels(np.round(split, 2), rotation=90)
-			ax.set_yticks(location)
-			ax.set_yticklabels(np.round(split, 2), rotation=0)
-
-
-
-	plt.tight_layout()
-
-	# ========== Save tthe plot ==========
-	print("starting save at:", pd.Timestamp.now())
-	fnout = path+ "plots/BM03_Normalised_Confusion_Matrix_" + sumtxt
-	for ext in [".pdf", ".png"]:
-		plt.savefig(fnout+ext, dpi=130)
-	
-	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
-		__title__, __version__,  __author__, pd.Timestamp.now())
-	gitinfo = cf.gitmetadata()
-	cf.writemetadata(fnout, [plotinfo, gitinfo])
-	plt.show()
-
-def Main_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 4, sumtxt=""):
+def Main_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=None,  ncol = 4, sumtxt=""):
 	"""
 	function to produce some basic performance plots 
 	"""
 	font = ({
 		'family' : 'normal',
 		'weight' : 'bold', 
-		'size'   : 11})
+		'size'   : 9})
 	axes = ({
-		'titlesize':11,
+		'titlesize':9,
 		'labelweight':'bold'
 		})
 
@@ -502,27 +538,43 @@ def Main_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 4, sumtxt=""):
 	mpl.rc('font', **font)
 	mpl.rc('axes', **axes)
 
+	# ========== Subset the data if i need an experiment name ==========
+	if experiments is None:
+		df_set = df_mres.copy()
+		# breakpoint()
+		exp_names = [vl for vl in keys.values()]
+	else:
+		exp_names = [keys[expn] for expn in experiments]
+		df_set    = df_mres[df_mres.experiment.isin(exp_names)].copy()
+		df_set["experiment"].cat.remove_unused_categories(inplace=True)
+
 	# ========== Plot Broad summary  ==========
-	fig, (ax1, ax2, ax3) = plt.subplots(
-		1, 3, figsize=(20,8),num=("General Summary"), dpi=130)
+	fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(
+		2, 2, figsize=(15,10),num=("General Summary"), dpi=130)
 	# +++++ R2 plot +++++
-	sns.barplot(y="R2", x="experiment", data=df_mres, ci="sd", ax=ax1)
+	sns.barplot(y="R2", x="experiment", data=df_set, ci="sd", ax=ax1, order=exp_names)
 	ax1.set_xlabel("")
 	ax1.set_ylabel(r"$R^{2}$")
-	ax1.set_xticklabels(ax1.get_xticklabels(), rotation=45, horizontalalignment='right')
+	ax1.set_xticklabels(ax1.get_xticklabels(), rotation=30, horizontalalignment='right')
 	ax1.set(ylim=(0., 1.))
 	# +++++ time taken plot +++++
-	sns.barplot(y="TotalTime", x="experiment", data=df_mres, ci="sd", ax=ax2)
+	sns.barplot(y="TotalTime", x="experiment", data=df_set, ci="sd", ax=ax2, order=exp_names)
 	ax2.set_xlabel("")
 	ax2.set_ylabel(r"$\Delta$t (min)")
-	ax2.set_xticklabels(ax2.get_xticklabels(), rotation=45, horizontalalignment='right')
-	# +++++ R2 plot +++++
-	sns.barplot(y="fractrows", x="experiment", data=df_mres, ci="sd", ax=ax3)
+	ax2.set_xticklabels(ax2.get_xticklabels(), rotation=30, horizontalalignment='right')
+	# +++++ site fraction plot +++++
+	sns.barplot(y="fractrows", x="experiment", data=df_set, ci="sd", ax=ax3, order=exp_names)
 	ax3.set_xlabel("")
 	ax3.set_ylabel("% of sites")
-	ax3.set_xticklabels(ax3.get_xticklabels(), rotation=45, horizontalalignment='right')
+	ax3.set_xticklabels(ax3.get_xticklabels(), rotation=30, horizontalalignment='right')
 	ax3.set(ylim=(0., 1.))
 	
+	# +++++ site fraction plot +++++
+	sns.barplot(y="itterrows", x="experiment", data=df_set, ci="sd", ax=ax4, order=exp_names)
+	ax4.set_xlabel("")
+	ax4.set_ylabel("No. of sites")
+	ax4.set_xticklabels(ax3.get_xticklabels(), rotation=30, horizontalalignment='right')
+	ax4.set(ylim=(0., np.ceil(df_set.itterrows.max()/1000)*1000))
 	plt.tight_layout()
 	# ========== Save tthe plot ==========
 	print("starting save at:", pd.Timestamp.now())
@@ -539,21 +591,65 @@ def Main_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 4, sumtxt=""):
 	# .tick_params(axis='x', labelrotation= )
 	breakpoint()
 	# sns.boxplot(y="R2", x="experiment", data=df_mres)
-	sns.swarmplot(y="R2", x="experiment", data=df_mres)
-	plt.show()
+	# sns.swarmplot(y="R2", x="experiment", data=df_set)
+	# plt.show()
 
-	sns.scatterplot(y="TotalTime", x="R2", hue="experiment", data=df_mres)
-	plt.show()
+	# sns.scatterplot(y="TotalTime", x="R2", hue="experiment", data=df_set)
+	# plt.show()
 
-	sns.scatterplot(y="R2", x="version", hue="experiment", data=df_mres)
-	plt.show()
+	# sns.scatterplot(y="R2", x="version", hue="experiment", data=df_set)
+	# plt.show()
 
-	sns.lineplot(y="R2", x="version", hue="experiment", data=df_mres)
-	plt.show()
+	# sns.lineplot(y="R2", x="version", hue="experiment", data=df_set)
+	# plt.show()
 
-	breakpoint()
 
 # ==============================================================================
+def Experiment_name(df, df_setup, var = "experiment"):
+	keys = {}
+	for cat in df["experiment"].unique():
+		# =========== Setup the names ============
+		try:
+			if cat == 100:
+				nm = "10yr LS"
+			elif cat == 101:
+				nm = "No LS"
+			elif cat == 102:
+				nm = "5yr LS"
+			elif cat == 103:
+				nm = "15yr LS"
+			elif cat == 104:
+				nm = "20yr LS"
+			elif cat == 120:
+				nm = "10yr XGBOOST"
+			elif cat == 200:
+				nm = "RF2 7 Quantile splits"
+			elif cat == 201:
+				nm = "RF2 3 Quantile splits"
+			elif cat == 202:
+				nm = "RF2 2 Interval splits"
+			elif cat == 204:
+				nm = "RF2 4 Interval splits"
+			# elif cat == 300:
+			# 	breakpoint()
+			elif cat // 100 == 3.:
+				pred  = df_setup[df_setup.Code.astype(int) == cat]["predictwindow"][0]
+				lswin = df_setup[df_setup.Code.astype(int) == cat]["window"][0]
+				if cat < 320:
+					nm = f"DataMOD_{pred}yrPred_{lswin}yrLS"
+				else:
+					NAfrac = int(float(df_setup[df_setup.Code.astype(int) == cat]["DropNAN"][0]) *100)
+					nm = f"DataMOD_{pred}yrPred_{lswin}yrLS_{NAfrac}percNA"
+
+			else:
+				nm = "%d.%s" % (cat, df_setup[df_setup.Code.astype(int) == int(cat)].name.values[0])
+		except Exception as er:
+			print(str(er))
+			breakpoint()
+		keys[cat] = nm
+		df[var].replace({cat:nm}, inplace=True)
+	return df, keys
+
 def load_OBS(ofn):
 	df_in = pd.read_csv(ofn, index_col=0)
 	df_in["experiment"] = int(ofn.split("/")[-2])

@@ -172,8 +172,12 @@ def _simplestatus(vi_df, X, df_site):
 	statsOD["colcount" ] = X.shape[1]
 
 	# ========== create the full list of sites and regions ==========
-	df_full = vi_df.reset_index().merge(
-		df_site, on="site", how="left")[["index","site", "Region"]].drop_duplicates(keep='first')
+	if "Region" in df_site.columns:
+		# +++++ This is the new column values +++++
+		df_full = df_site.reset_index()
+	else:
+		df_full = vi_df.reset_index().merge(
+			df_site, on="site", how="left")[["index","site", "Region"]].drop_duplicates(keep='first')
 	if (df_full.Region.isnull()).any():
 		warn.warn("\n\n There are areas with null values for reason unknown, going interactive. \n\n")
 		breakpoint()
@@ -202,8 +206,9 @@ def _simplestatus(vi_df, X, df_site):
 def datasplit(experiment, version,  branch, setup,  group=None, test_size=0.2, dftype="pandas", 
 	cols_keep=None, verbose = True, region=False,  final=False, RStage=True,
 	vi_fn = "./EWS_package/data/models/input_data/vi_df_all_V2.csv", 
+	region_fn=None,
 	folder = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/", 
-	force = False, y_names=None, sitefix = False
+	force = False, y_names=None, sitefix = False, basestr="TTS"
 	):
 	"""
 	This function opens and performs all preprocessing on the dataframes.
@@ -252,8 +257,19 @@ def datasplit(experiment, version,  branch, setup,  group=None, test_size=0.2, d
 		print("loading the files using %s at:" % dftype, t0)
 
 	# ============ Setup the file names ============
-	VI_fnsplit = [folder + "TTS_vers%02d_%s.csv" % (version, sptyp) for sptyp in ["X_train", "X_test", "y_train", "y_test"]]
+	VI_fnsplit = [folder + "%s_vers%02d_%s.csv" % (basestr,version, sptyp) for sptyp in ["X_train", "X_test", "y_train", "y_test"]]
 	vi_df  = pd.read_csv( vi_fn, index_col=0)
+
+	# ========== Look for a region file ==========
+	if region_fn is None:
+		region_fn = folder + "TTS_sites_and_regions.csv"
+		if os.path.isfile(region_fn) and not force:
+			df_site = pd.read_csv(region_fn, index_col=0)
+		else:
+			df_site = _regionbuilder(region_fn, vi_df)
+	else:
+		df_site = pd.read_csv(region_fn, index_col=0)
+		df_site.rename({"Plot_ID":"site"}, axis=1, inplace=True)
 
 	# ============Check if the files already exist ============
 	if all([os.path.isfile(fn) for fn in VI_fnsplit]) and not force:
@@ -263,13 +279,6 @@ def datasplit(experiment, version,  branch, setup,  group=None, test_size=0.2, d
 		print("Building Test/train dataset for version: ", version, pd.Timestamp.now())
 		X_train, X_test, y_train, y_test = _testtrainbuild(version, VI_fnsplit,  vi_df.copy(), test_size)
 
-	# ========== Look for a region file ==========
-	region_fn = folder + "TTS_sites_and_regions.csv"
-	if os.path.isfile(region_fn) and not force:
-		df_site = pd.read_csv(region_fn, index_col=0)
-	else:
-		df_site = _regionbuilder(region_fn, vi_df)
-	
 	# ========== print time taken to get all the files ==========
 	if verbose:
 		print("loading the files using %s took: " % dftype, pd.Timestamp.now()-t0)
@@ -280,7 +289,7 @@ def datasplit(experiment, version,  branch, setup,  group=None, test_size=0.2, d
 		if not RStage:
 			# ///// the classification stage \\\\\\\\\\
 			# ========== Make the split filenames =========
-			VI_fnsplit2 = [folder + "TTS_vers%02d_%s_twostage.csv" % (version, sptyp) for sptyp in ["X_train", "X_test", "y_train", "y_test"]]
+			VI_fnsplit2 = [folder + "%s_vers%02d_%s_twostage.csv" % (basestr,version, sptyp) for sptyp in ["X_train", "X_test", "y_train", "y_test"]]
 
 			# ========== Check if i need to calculate the splits ==========
 			y_testCal = y_test.copy()
@@ -305,6 +314,9 @@ def datasplit(experiment, version,  branch, setup,  group=None, test_size=0.2, d
 	# ======================  Branch data creation =======================
 	# ====================================================================
 	
+	# ========== Droplist for columns ========== 
+	droplist = ['site', "year",  'lagged_biomass', 'landsatgroup']
+	
 	# ============ Filter the rows ============
 	if cols_keep is None:
 		# +++++ A container to hold the kept columns  +++++ 
@@ -316,18 +328,49 @@ def datasplit(experiment, version,  branch, setup,  group=None, test_size=0.2, d
 				# The VI datasets, check the length of window considered
 				if int(cn.split("_")[-1]) <= setup["window"]:
 					cols_keep.append(cn)
-			elif cn in ['site', 'lagged_biomass', 'landsatgroup']:
+			elif cn in droplist:
 				pass
 			else:
 				cols_keep.append(cn)
 
-	# ========== Remove any nans ==========
 	# try:
-	X_train = X_train[cols_keep].dropna()
-	X_train.drop(X_train.columns[X_train.std() == 0], axis=1, inplace=True)
-	X_test  =  X_test[X_train.columns].dropna()
-	y_train = pd.DataFrame(y_train["lagged_biomass"][X_train.index])
-	y_test  = pd.DataFrame(y_test["lagged_biomass"][X_test.index])
+	# ========== Drop disturbed sites ==========
+	if 'DropDist' in setup.keys():
+		if setup['DropDist']:
+			X_train = X_train[df_site.loc[X_train.index.values]["DistPassed"] == 1]
+			X_test  = X_test[df_site.loc[X_test.index.values]["DistPassed"] == 1]
+			y_train = y_train[df_site.loc[y_train.index.values]["DistPassed"] == 1]
+			y_test  = y_test[df_site.loc[y_test.index.values]["DistPassed"] == 1]
+
+		else:
+			# ========== Add additional columns here ==========
+			breakpoint()
+	
+	# ========== Check sites with NaNs ==========
+	if 'DropNAN' in setup.keys() and not setup["DropNAN"] == 0:
+		# ========== Leave the NaNs in up to a specific value ==========
+		X_train = X_train.loc[X_train[cols_keep].isnull().mean(axis=1) <= setup["DropNAN"], cols_keep]
+		X_train.drop(X_train.columns[X_train.std() == 0], axis=1, inplace=True)
+		# =========== Get rid of columnns with les that 1% of value ===========
+		# /// This is to solve a nan correllation problem. 
+		X_train.drop(X_train.columns[(
+			np.sum(~np.logical_or(
+				X_train.values == 0, 
+				np.isnan(X_train.values)), axis=0) /  X_train.values.shape[0]) < 0.01],axis=1,inplace=True)
+
+		X_test  =  X_test.loc[X_test[X_train.columns].isnull().mean(axis=1) <= setup["DropNAN"], X_train.columns]
+		
+		y_train = pd.DataFrame(y_train["lagged_biomass"][X_train.index])
+		y_test  = pd.DataFrame(y_test["lagged_biomass"][X_test.index])
+	else:
+		# ========== Remove any nans ==========
+
+		X_train = X_train[cols_keep].dropna()
+		X_train.drop(X_train.columns[X_train.std() == 0], axis=1, inplace=True)
+		X_test  =  X_test[X_train.columns].dropna()
+
+		y_train = pd.DataFrame(y_train["lagged_biomass"][X_train.index])
+		y_test  = pd.DataFrame(y_test["lagged_biomass"][X_test.index])
 	
 	# ========== Do the samee for the test datasets that a held over to the last stage ==========
 	if sitefix == True:
@@ -372,16 +415,18 @@ def datasplit(experiment, version,  branch, setup,  group=None, test_size=0.2, d
 	# ========== Build the spearmans rank correlation clusters ==========
 	# +++++ Build a spearman table +++++
 	try:
-		corr = spearmanr(X).correlation
+		if 'DropNAN' in setup.keys() and not setup["DropNAN"] == 0:
+			Xa = X.copy().dropna()
+			corr = spearmanr(Xa).correlation	
+		else:
+			corr = spearmanr(X).correlation
+		
 		if bn.anynan(corr):
 			warn.warn("Nan values slipped through the correlation, going interactive")
 			breakpoint()
 	except Exception as er:
 		print(str(er))
 		breakpoint()
-
-
-
 
 	statsOD = _simplestatus(vi_df, X, df_site)
 
