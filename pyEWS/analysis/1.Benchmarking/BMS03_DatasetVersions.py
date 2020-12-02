@@ -86,13 +86,14 @@ def main(args):
 			fn_res = path + "Exp%03d_%s_vers%02d_Results.csv" % (experiment, setup["name"], version)
 			fn_PI  = path + "Exp%03d_%s_vers%02d_PermutationImportance.csv" % (experiment, setup["name"], version)
 			
-			if not {setup['predictwindow']} is None:
+			if setup['predictwindow'] is None:
+				fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears.csv"
+				sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears.csv"
+			else:
 				fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_{setup['predictwindow']}years.csv"
 				sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_{setup['predictwindow']}years.csv"
-			else:
-	 			fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_{setup['predictwindow']}years.csv"
-	 			sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_{setup['predictwindow']}years.csv"
-
+			# if experiment == 310:
+			# 	breakpoint()
 			# ========== load in the data ==========
 			if all([os.path.isfile(fn) for fn in [fn_br, fn_res, fn_PI]]) and not force:
 				print ("Experiment:", experiment, setup["name"], " version:", version, "complete")
@@ -131,7 +132,7 @@ def main(args):
 					breakpoint()
 
 
-				if not {setup['predictwindow']} is None:
+				if not setup['predictwindow'] is None:
 					bsestr = f"TTS_VI_df_{setup['predictwindow']}years"
 				else:
 					bsestr = f"TTS_VI_df_AllSampleyears" 
@@ -423,7 +424,7 @@ def Region_calculation(experiment, version, setup, path, fn_PI, fn_res,fnamein, 
 	
 	# ========== load in the data ==========
 	 # bf.datasplit(experiment, version,  0, setup, final=True, cols_keep=ColNm, 
-	if not {setup['predictwindow']} is None:
+	if not setup['predictwindow'] is None:
 		bsestr = f"TTS_VI_df_{setup['predictwindow']}years"
 	else:
 		bsestr = f"TTS_VI_df_AllSampleyears" 
