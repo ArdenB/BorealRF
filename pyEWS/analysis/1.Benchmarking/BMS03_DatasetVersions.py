@@ -87,8 +87,12 @@ def main(args):
 			fn_res = path + "Exp%03d_%s_vers%02d_Results.csv" % (experiment, setup["name"], version)
 			fn_PI  = path + "Exp%03d_%s_vers%02d_PermutationImportance.csv" % (experiment, setup["name"], version)
 			
-			fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_{setup['predictwindow']}years.csv"
-			sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_{setup['predictwindow']}years.csv"
+			if not {setup['predictwindow']} is None:
+				fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_{setup['predictwindow']}years.csv"
+				sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_{setup['predictwindow']}years.csv"
+	 		else:
+	 			fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_{setup['predictwindow']}years.csv"
+				sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_{setup['predictwindow']}years.csv"
 
 			if all([os.path.isfile(fn) for fn in [fn_br, fn_res, fn_PI]]) and not force:
 				print ("Experiment:", experiment, setup["name"], " version:", version, "complete")
@@ -127,10 +131,14 @@ def main(args):
 					breakpoint()
 
 
-				
+				if not {setup['predictwindow']} is None:
+					bsestr = f"TTS_VI_df_{setup['predictwindow']}years"
+				else:
+					bsestr = f"TTS_VI_df_AllSampleyears" 
+
 				X_train, X_test, y_train, y_test, col_nms, loadstats, corr, df_site = bf.datasplit(
 					experiment, version,  branch, setup, final=final,  cols_keep=ColNm, #force=True,
-					vi_fn=fnamein, region_fn=sfnamein, basestr=f"TTS_VI_df_{setup['predictwindow']}years")
+					vi_fn=fnamein, region_fn=sfnamein, basestr=bsestr)
 
 				# ========== Perform the Regression ==========
 				# time,  r2, feature_imp  = XGBoost_regression( 
@@ -415,8 +423,12 @@ def Region_calculation(experiment, version, setup, path, fn_PI, fn_res,fnamein, 
 	
 	# ========== load in the data ==========
 	 # bf.datasplit(experiment, version,  0, setup, final=True, cols_keep=ColNm, 
+	 if not {setup['predictwindow']} is None:
+	 	bsestr = f"TTS_VI_df_{setup['predictwindow']}years"
+	 else:
+	 	bsestr = f"TTS_VI_df_AllSampleyears" 
 	loadstats = bf.datasplit(experiment, version,  0, setup, final=True,  cols_keep=ColNm, 
-		RStage=True, sitefix=True, 	vi_fn=fnamein, region_fn=sfnamein, basestr=f"TTS_VI_df_{setup['predictwindow']}years")
+		RStage=True, sitefix=True, 	vi_fn=fnamein, region_fn=sfnamein, basestr=bsestr)
 
 	# ========== Create a new data file ==========
 	if res is None:
@@ -601,6 +613,34 @@ def experiments(ncores = -1):
 		"desc"             :"Gradient boosted regression in place of Random Forest with a 5 year prediction window",
 		"window"           :15,
 		"predictwindow"    :10,
+		"Nstage"           :1, 
+		"Model"            :"XGBoost", 
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"model"            :"XGBoost", 
+		"maxitter"         :10, 
+		"DropNAN"          :0.0, 
+		"DropDist"         :True
+		})
+	expr[310] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :310,
+		"name"             :"OneStageXGBOOST_AllGap",
+		"desc"             :"Gradient boosted regression in place of Random Forest with a 5 year prediction window",
+		"window"           :5,
+		"predictwindow"    :None,
 		"Nstage"           :1, 
 		"Model"            :"XGBoost", 
 		# +++++ The Model setup params +++++
