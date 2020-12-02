@@ -168,7 +168,11 @@ def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, pe
 				dif = np.where(dif>0, dif, np.NaN)
 
 			# =========== Find the indexs that match the survey interval ==========
-			loc = np.argwhere(dif == info['PredictInt']) 
+			if not info['PredictInt'] is None:
+				loc = np.argwhere(dif == info['PredictInt']) 
+			else:
+				# print("This has yet to be implemented yet")
+				loc = np.argwhere(~np.isnan(dif))
 			# +++++ skip if empty +++++
 			if loc.size==0:
 				continue
@@ -184,17 +188,23 @@ def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, pe
 				
 				if np.isnan(lagged_biomass):
 					# Pull out places with bad values
-					breakpoint()
+					# print 
+					# breakpoint()
 					continue
 
 
-				bmchange[len(bmchange)] = ({
+				outdict = OrderedDict({
 					"site":index, 
 					"year":year,
 					"biomass":bio_orig,
 					"lagged_biomass": lagged_biomass,
 					"stem_density":stem.iloc[I1],
 					})
+				# add the prediction lag when i'm assessing multiple indexes
+				if info['PredictInt'] is None:
+					outdict["ObsGap"] = dif[I2, I1]
+				bmchange[len(bmchange)] = outdict
+
 				# ========== This is where i bring in all the other params ==========
 				# +++++ Disturbance +++++
 				yrsD  = np.max([1926, year-damage_win]) # THis has been included to deal with issues abbout indexing befo32 1932
@@ -234,6 +244,7 @@ def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, pe
 	print("\n Building dataframes")
 	sites  = pd.concat(Sinfo)
 	df_exp = pd.DataFrame(bmchange).T
+	# breakpoint()
 
 	# ========== Add the VI's ==========
 	df_exp = info['RSveg'](sites, df_exp, info)
@@ -261,9 +272,13 @@ def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, pe
 
 	# ========== Write the file out ==========
 	fpath  = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/"
-	fnameS = fpath + f"SiteInfo_{info['PredictInt']}years.csv"
+	if not info['PredictInt'] is None:
+		fnameS = fpath + f"SiteInfo_{info['PredictInt']}years.csv"
+		fnameV = fpath + f"VI_df_{info['PredictInt']}years.csv"
+	else:
+		fnameS = fpath + f"SiteInfo_AllSampleyears.csv"
+		fnameV = fpath + f"VI_df_AllSampleyears.csv"
 	sites.to_csv(fnameS)
-	fnameV = fpath + f"VI_df_{info['PredictInt']}years.csv"
 	df_exp.to_csv(fnameV)
 	# breakpoint()
 
@@ -474,6 +489,18 @@ def setup_experiements():
 	"""
 
 	dsmod = OrderedDict()
+	dsmod[3] = ({
+		"desc":"This version has a new prediction interval",
+		"PredictInt": None, # the interval of time to use to predict biomass into the future
+		"RSveg":sol_VI_extractor, # the source of the data to be used to calculate vegetation metrics 
+		"VIs":['ndvi','psri','ndii','ndvsi','msi','nirv','ndwi','nbr','satvi','tvfc'],
+		"Clim": "climateNA", # the climate dataset to use
+		"SiteData":SolSiteParms,
+		"StandAge": None, # add any stand age data
+		"CO2": None, # add any data
+		"infillingMethod":None, # function to use for infilling
+		"Norm": True,  # Also produce a normalised version
+		})
 	dsmod[0] = ({
 		"desc":"This version is to see if infilling might be impacting results",
 		"PredictInt": 5, # the interval of time to use to predict biomass into the future

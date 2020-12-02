@@ -302,7 +302,7 @@ def confusion_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=None,  n
 				ax.axhline(y=zeroP, xmax=0.9, alpha =0.25, linestyle="--", c="w")
 
 			# +++++ fix the values +++++
-			location = np.arange(0, sptsze+1)
+			location = np.arange(0., sptsze)#+1
 			location[ 0] += 0.00001
 			location[-1] -= 0.00001
 			ax.set_xticks(location)
