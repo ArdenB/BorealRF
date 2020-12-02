@@ -78,7 +78,6 @@ def main(args):
 	for version in range(10):
 		# ========== Loop over the experiments ==========
 		for experiment in exper:
-			# ========== load in the data ==========
 			# ========== Create the path ==========
 			setup = exper[experiment].copy()
 			path = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/%d/" % experiment
@@ -90,10 +89,11 @@ def main(args):
 			if not {setup['predictwindow']} is None:
 				fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_{setup['predictwindow']}years.csv"
 				sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_{setup['predictwindow']}years.csv"
-	 		else:
+			else:
 	 			fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_{setup['predictwindow']}years.csv"
-				sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_{setup['predictwindow']}years.csv"
+	 			sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_{setup['predictwindow']}years.csv"
 
+			# ========== load in the data ==========
 			if all([os.path.isfile(fn) for fn in [fn_br, fn_res, fn_PI]]) and not force:
 				print ("Experiment:", experiment, setup["name"], " version:", version, "complete")
 				# ========== Fixing the broken site counts ==========
@@ -423,10 +423,10 @@ def Region_calculation(experiment, version, setup, path, fn_PI, fn_res,fnamein, 
 	
 	# ========== load in the data ==========
 	 # bf.datasplit(experiment, version,  0, setup, final=True, cols_keep=ColNm, 
-	 if not {setup['predictwindow']} is None:
-	 	bsestr = f"TTS_VI_df_{setup['predictwindow']}years"
-	 else:
-	 	bsestr = f"TTS_VI_df_AllSampleyears" 
+	if not {setup['predictwindow']} is None:
+		bsestr = f"TTS_VI_df_{setup['predictwindow']}years"
+	else:
+		bsestr = f"TTS_VI_df_AllSampleyears" 
 	loadstats = bf.datasplit(experiment, version,  0, setup, final=True,  cols_keep=ColNm, 
 		RStage=True, sitefix=True, 	vi_fn=fnamein, region_fn=sfnamein, basestr=bsestr)
 
