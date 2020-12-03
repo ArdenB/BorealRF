@@ -634,6 +634,8 @@ def Experiment_name(df, df_setup, var = "experiment"):
 			# 	breakpoint()
 			elif cat // 100 == 3.:
 				pred  = df_setup[df_setup.Code.astype(int) == cat]["predictwindow"][0]
+				if pred is None:
+					breakpoint()
 				lswin = df_setup[df_setup.Code.astype(int) == cat]["window"][0]
 				if cat < 320:
 					nm = f"DataMOD_{pred}yrPred_{lswin}yrLS"
