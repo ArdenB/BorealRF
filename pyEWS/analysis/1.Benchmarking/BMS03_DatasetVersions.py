@@ -888,6 +888,34 @@ def experiments(ncores = -1):
 		"DropNAN"          :0.5, 
 		"DropDist"         :True
 		})
+	expr[331] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :331,
+		"name"             :"OneStageXGBOOST_AllGap_100perNA",
+		"desc"             :"Gradient boosted regression in place of Random Forest with variable prediction window and a nan fraction",
+		"window"           :5,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"Model"            :"XGBoost", 
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"model"            :"XGBoost", 
+		"maxitter"         :10, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :True
+		})
 	return expr
 # ==============================================================================
 
