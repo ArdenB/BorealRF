@@ -913,7 +913,7 @@ def experiments(ncores = -1):
 		"cores"            :ncores,
 		"model"            :"XGBoost", 
 		"maxitter"         :10, 
-		"DropNAN"          :0.5, 
+		"DropNAN"          :1.0, 
 		"DropDist"         :True
 		})
 	return expr
