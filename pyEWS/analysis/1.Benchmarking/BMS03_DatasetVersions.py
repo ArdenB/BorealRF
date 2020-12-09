@@ -76,6 +76,8 @@ def main(args):
 	exper = experiments()
 	# ========== Loop over the Versions (10 per experiment) ==========
 	for version in range(10):
+		# if version < 4:
+		# 	continue
 		# ========== Loop over the experiments ==========
 		for experiment in exper:
 			# ========== Create the path ==========
