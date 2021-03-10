@@ -103,9 +103,14 @@ def main():
 	permafrost = _fix_burn_index(permafrost)
 	permafrost.fillna(0, inplace=True)
 
-	for ds_set in dsmod:
+	# Stand age 
+	df_StandAge = pd.read_csv(fpath+"stand_origin_years_v1.csv").rename({"Unnamed: 0":"Plot_ID","x":"StandAge"}, axis=1)
+	df_StandAge = _fix_burn_index(df_StandAge)
+	# Remotly sensed stand age 
 
-		biomass_extractor(biomass, regions, df_SD, dsmod[ds_set], df_dam, df_burn, soils, permafrost)
+
+	for ds_set in dsmod:
+		biomass_extractor(biomass, regions, df_SD, dsmod[ds_set], df_dam, df_burn, soils, permafrost, df_StandAge)
 
 		# ============ Add data normalisation
 	breakpoint()
@@ -116,9 +121,6 @@ def main():
 	# - Site info data
 	# 	- Site name, region, gps, year
 
-	# Stand age 
-	# StandAge = pd.read_csv(fpath+"stand_origin_years_v1.csv", index_col=0).rename({"x":"StandAge"}, axis=1)
-	# Remotly sensed stand age 
 
 	# =========== Apply a value conversion function ===========
 	# tfv = np.vectorize(_timefix)
@@ -135,7 +137,7 @@ def main():
 
 # ==============================================================================
 
-def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, permafrost,
+def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, permafrost, df_StandAge,
 	damage_win = 50, t0=pd.Timestamp.now()):
 	"""
 	Function to pull out the biomass and site level infomation 
@@ -210,27 +212,51 @@ def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, pe
 				yrsD  = np.max([1926, year-damage_win]) # THis has been included to deal with issues abbout indexing befo32 1932
 				if index in df_dam.index:
 					dist = df_dam.loc[index, np.arange(yrsD, year).astype(int).astype(str)].sum()*100.
+					# Find the disturbance gap
+					if (df_dam.loc[index, np.arange(1926, year).astype(int).astype(str)] > 0).any():
+						dist_year = (df_dam.loc[index, np.arange(1926, year).astype(int).astype(str)] > 0).reset_index().rename({"index":"year"}, axis=1)
+						dgap = year - np.max((dist_year.loc[dist_year[index], "year"]).astype(int).values)
+					else:
+						dgap = np.NaN
 				else:
 					dist = np.NaN
+					dgap = np.NaN
 
 				# +++++ fires +++++
 				yrsF  = np.max([1917, year-damage_win])
 				if index in df_burn.index:
 					burn = df_burn.loc[index, np.arange(yrsF, year).astype(int).astype(str)].sum()
-
+					# check for a burn gap
+					if (df_burn.loc[index, np.arange(1917, year).astype(int).astype(str)]>0).any():
+						burn_years = (df_burn.loc[index, np.arange(1917, year).astype(int).astype(str)]>0).reset_index().rename({"index":"year"}, axis=1)
+						bgap = year - np.max((burn_years.loc[burn_years[index], "year"]).astype(int).values)
+					else:
+						bgap = np.NaN
 				elif index.startswith("11_"):
+					# Error in indexing
 					breakpoint()
 				else:
 					burn = np.NaN
+					bgap = np.NaN
+
+
+				# ++++++++++ StandAge ++++++++++
+				if index in df_StandAge.index:
+					standage = year - df_StandAge.loc[index, "StandAge"]
+				else:
+					standage = np.NaN
 
 				# ========== Add the site infomation ==========
 				# breakpoint()
 				re2 = re.copy(deep=True)
-				re2["year"]        = year
-				re2["index"]       = [len(Sinfo)]
-				re2["Disturbance"] = dist
-				re2["Burn"]        = burn
-				re2["DistPassed"]  = float((dist+burn) <= 0.1)
+				re2["year"]           = year
+				re2["index"]          = [len(Sinfo)]
+				re2["Disturbance"]    = dist
+				re2["DisturbanceGap"] = dgap
+				re2["Burn"]           = burn
+				re2["BurnGap"]        = bgap
+				re2["StandAge"]	      = standage
+				re2["DistPassed"]     = float((dist+burn) <= 0.1)
 				re2.set_index("index", inplace=True, drop=True)
 				Sinfo.append(re2)
 				# if loc.shape[0]>1:
@@ -244,7 +270,6 @@ def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, pe
 	print("\n Building dataframes")
 	sites  = pd.concat(Sinfo)
 	df_exp = pd.DataFrame(bmchange).T
-	# breakpoint()
 
 	# ========== Add the VI's ==========
 	df_exp = info['RSveg'](sites, df_exp, info)
@@ -278,6 +303,8 @@ def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, pe
 	else:
 		fnameS = fpath + f"SiteInfo_AllSampleyears.csv"
 		fnameV = fpath + f"VI_df_AllSampleyears.csv"
+	# breakpoint()
+	
 	sites.to_csv(fnameS)
 	df_exp.to_csv(fnameV)
 	# breakpoint()
@@ -489,6 +516,18 @@ def setup_experiements():
 	"""
 
 	dsmod = OrderedDict()
+	# dsmod[3] = ({
+	# 	"desc":"This version has a new prediction interval",
+	# 	"PredictInt": None, # the interval of time to use to predict biomass into the future
+	# 	"RSveg":sol_VI_extractor, # the source of the data to be used to calculate vegetation metrics 
+	# 	"VIs":['ndvi','psri','ndii','ndvsi','msi','nirv','ndwi','nbr','satvi','tvfc'],
+	# 	"Clim": "climateNA", # the climate dataset to use
+	# 	"SiteData":SolSiteParms,
+	# 	"StandAge": None, # add any stand age data
+	# 	"CO2": None, # add any data
+	# 	"infillingMethod":None, # function to use for infilling
+	# 	"Norm": True,  # Also produce a normalised version
+	# 	})
 	dsmod[3] = ({
 		"desc":"This version has a new prediction interval",
 		"PredictInt": None, # the interval of time to use to predict biomass into the future
@@ -496,7 +535,7 @@ def setup_experiements():
 		"VIs":['ndvi','psri','ndii','ndvsi','msi','nirv','ndwi','nbr','satvi','tvfc'],
 		"Clim": "climateNA", # the climate dataset to use
 		"SiteData":SolSiteParms,
-		"StandAge": None, # add any stand age data
+		"StandAge": True, # add any stand age data
 		"CO2": None, # add any data
 		"infillingMethod":None, # function to use for infilling
 		"Norm": True,  # Also produce a normalised version

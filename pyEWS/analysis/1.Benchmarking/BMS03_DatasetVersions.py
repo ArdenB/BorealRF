@@ -139,6 +139,7 @@ def main(args):
 					bsestr = f"TTS_VI_df_{setup['predictwindow']}years"
 				else:
 					bsestr = f"TTS_VI_df_AllSampleyears" 
+				# breakpoint()
 
 				X_train, X_test, y_train, y_test, col_nms, loadstats, corr, df_site = bf.datasplit(
 					experiment, version,  branch, setup, final=final,  cols_keep=ColNm, #force=True,
@@ -495,7 +496,7 @@ def experiments(ncores = -1):
 		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :0.0, 
-		"DropDist"         :True
+		"DropDist"         :True,
 		})
 	expr[301] = ({
 		# +++++ The experiment name and summary +++++
@@ -523,7 +524,7 @@ def experiments(ncores = -1):
 		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :0.0, 
-		"DropDist"         :True
+		"DropDist"         :True,
 		})
 	expr[302] = ({
 		# +++++ The experiment name and summary +++++
@@ -551,7 +552,7 @@ def experiments(ncores = -1):
 		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :0.0, 
-		"DropDist"         :True
+		"DropDist"         :True,
 		})
 
 	expr[303] = ({
@@ -580,7 +581,7 @@ def experiments(ncores = -1):
 		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :0.0, 
-		"DropDist"         :True
+		"DropDist"         :True,
 		})
 	expr[304] = ({
 		# +++++ The experiment name and summary +++++
@@ -608,7 +609,7 @@ def experiments(ncores = -1):
 		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :0.0, 
-		"DropDist"         :True
+		"DropDist"         :True,
 		})
 	expr[305] = ({
 		# +++++ The experiment name and summary +++++
@@ -636,7 +637,7 @@ def experiments(ncores = -1):
 		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :0.0, 
-		"DropDist"         :True
+		"DropDist"         :True,
 		})
 	expr[310] = ({
 		# +++++ The experiment name and summary +++++
@@ -664,7 +665,7 @@ def experiments(ncores = -1):
 		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :0.0, 
-		"DropDist"         :True
+		"DropDist"         :True,
 		})
 	# expr[306] = ({
 	# 	# +++++ The experiment name and summary +++++
@@ -692,7 +693,7 @@ def experiments(ncores = -1):
 	# 	"model"            :"XGBoost", 
 	# 	"maxitter"         :10, 
 	# 	"DropNAN"          :0.0, 
-	# 	"DropDist"         :True
+	# 	"DropDist"         :True,
 	# 	})
 	# expr[307] = ({
 	# 	# +++++ The experiment name and summary +++++
@@ -720,7 +721,7 @@ def experiments(ncores = -1):
 	# 	"model"            :"XGBoost", 
 	# 	"maxitter"         :10, 
 	# 	"DropNAN"          :0.0, 
-	# 	"DropDist"         :True
+	# 	"DropDist"         :True,
 	# 	})
 	# expr[308] = ({
 	# 	# +++++ The experiment name and summary +++++
@@ -748,7 +749,7 @@ def experiments(ncores = -1):
 	# 	"model"            :"XGBoost", 
 	# 	"maxitter"         :10, 
 	# 	"DropNAN"          :0.0, 
-	# 	"DropDist"         :True
+	# 	"DropDist"         :True,
 	# 	})
 	expr[320] = ({
 		# +++++ The experiment name and summary +++++
@@ -776,7 +777,7 @@ def experiments(ncores = -1):
 		"model"            :"XGBoost", 
 		"maxitter"         :20, 
 		"DropNAN"          :0.25, 
-		"DropDist"         :True
+		"DropDist"         :True,
 		})
 	expr[321] = ({
 		# +++++ The experiment name and summary +++++
@@ -804,7 +805,7 @@ def experiments(ncores = -1):
 		"model"            :"XGBoost", 
 		"maxitter"         :20, 
 		"DropNAN"          :0.50, 
-		"DropDist"         :True
+		"DropDist"         :True,
 		})
 	expr[322] = ({
 		# +++++ The experiment name and summary +++++
@@ -832,7 +833,7 @@ def experiments(ncores = -1):
 		"model"            :"XGBoost", 
 		"maxitter"         :20, 
 		"DropNAN"          :0.75, 
-		"DropDist"         :True
+		"DropDist"         :True,
 		})
 	expr[323] = ({
 		# +++++ The experiment name and summary +++++
@@ -860,7 +861,7 @@ def experiments(ncores = -1):
 		"model"            :"XGBoost", 
 		"maxitter"         :20, 
 		"DropNAN"          :1.0, 
-		"DropDist"         :True
+		"DropDist"         :True,
 		})
 	expr[330] = ({
 		# +++++ The experiment name and summary +++++
@@ -888,7 +889,7 @@ def experiments(ncores = -1):
 		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :0.5, 
-		"DropDist"         :True
+		"DropDist"         :True,
 		})
 	expr[331] = ({
 		# +++++ The experiment name and summary +++++
@@ -916,7 +917,35 @@ def experiments(ncores = -1):
 		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :1.0, 
-		"DropDist"         :True
+		"DropDist"         :True,
+		})
+	expr[332] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :332,
+		"name"             :"OneStageXGBOOST_AllGap_50perNA_Disturbance",
+		"desc"             :"Gradient boosted regression in place of Random Forest with variable prediction window, a nan fraction and stand age",
+		"window"           :5,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"Model"            :"XGBoost", 
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"model"            :"XGBoost", 
+		"maxitter"         :10, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :False,
 		})
 	return expr
 # ==============================================================================

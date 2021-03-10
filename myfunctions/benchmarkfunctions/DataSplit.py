@@ -333,7 +333,6 @@ def datasplit(experiment, version,  branch, setup,  group=None, test_size=0.2, d
 			else:
 				cols_keep.append(cn)
 
-	# try:
 	# ========== Drop disturbed sites ==========
 	if 'DropDist' in setup.keys():
 		if setup['DropDist']:
@@ -343,8 +342,14 @@ def datasplit(experiment, version,  branch, setup,  group=None, test_size=0.2, d
 			y_test  = y_test[df_site.loc[y_test.index.values]["DistPassed"] == 1]
 
 		else:
+			print(f"Adding distance columns at: {pd.Timestamp.now()}")
+			distcols = ["Disturbance",  "DisturbanceGap",   "Burn",  "BurnGap",  "StandAge"]
 			# ========== Add additional columns here ==========
-			breakpoint()
+			X_train =  pd.concat([X_train, df_site.loc[X_train.index, distcols]], axis=1)
+			X_test  =  pd.concat([X_test,  df_site.loc[X_test.index, distcols]], axis=1)
+			y_train =  pd.concat([y_train, df_site.loc[y_train.index, distcols]], axis=1)
+			y_test  =  pd.concat([y_test,  df_site.loc[y_test.index, distcols]], axis=1)
+			# breakpoint()
 	
 	# ========== Check sites with NaNs ==========
 	if 'DropNAN' in setup.keys() and not setup["DropNAN"] == 0:

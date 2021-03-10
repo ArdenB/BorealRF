@@ -109,6 +109,7 @@ def main():
 	
 	# ========== Setup the experiment for temporal ==========
 	experiments = [310, 330, 331]
+	MLmethod_performance(path, experiments, df_setup, df_mres, formats, vi_df, keys, ncol = 4)
 	Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df)
 	
 	# ========== Experiments for ML methods ==========
