@@ -86,7 +86,7 @@ def main(args):
 			cf.pymkdir(path)
 			fn_br  = path + "Exp%03d_%s_vers%02d_BranchItteration.csv" % (experiment, setup["name"], version)
 			fn_res = path + "Exp%03d_%s_vers%02d_Results.csv" % (experiment, setup["name"], version)
-			fn_PI  = path + "Exp%03d_%s_vers%02d_PermutationImportance.csv" % (experiment, setup["name"], version)
+			fn_PI  = path + "Exp%03d_%s_vers%02d_%sImportance.csv" % (experiment, setup["name"], version, setup["ImportanceMet"])
 			
 			if setup['predictwindow'] is None:
 				fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears.csv"
@@ -320,10 +320,17 @@ def ml_regression(
 	FI = OrderedDict()
 
 	# +++++ use permutation importance +++++
-	print("starting sklearn permutation importance calculation at:", pd.Timestamp.now())
-	result = permutation_importance(regressor, X_test.values, y_test.values.ravel(), n_repeats=5) #n_jobs=cores
+	if setup["ImportanceMet"] == "Permutation":
+		print("starting sklearn permutation importance calculation at:", pd.Timestamp.now())
+		result = permutation_importance(regressor, X_test.values, y_test.values.ravel(), n_repeats=5) #n_jobs=cores
+		impMet = result.importances_mean
+	elif setup["ImportanceMet"] =="Feature":
+		print("starting XGBoost Feature importance calculation at:", pd.Timestamp.now())
+		impMet = regressor.feature_importances_
+	else:
+		breakpoint()
 	
-	for fname, f_imp in zip(clnames, result.importances_mean): 
+	for fname, f_imp in zip(clnames, impMet): 
 		FI[fname] = f_imp
 
 
@@ -339,6 +346,7 @@ def ml_regression(
 
 	else:
 		return tDif, sklMet.r2_score(y_test, y_pred), FI
+
 
 def _predictedVSobserved(y_test, y_pred, experiment, version, branch, setup):
 	"""
@@ -490,6 +498,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation"
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -518,6 +527,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation"
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -546,6 +556,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation"
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -575,6 +586,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation"
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -603,6 +615,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation"
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -631,6 +644,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation"
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -659,6 +673,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation"
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -667,90 +682,7 @@ def experiments(ncores = -1):
 		"DropNAN"          :0.0, 
 		"DropDist"         :True,
 		})
-	# expr[306] = ({
-	# 	# +++++ The experiment name and summary +++++
-	# 	"Code"             :306,
-	# 	"name"             :"OneStageXGBOOST_15ypred_5yrLS",
-	# 	"desc"             :"Gradient boosted regression in place of Random Forest with a 5 year prediction window",
-	# 	"window"           :5,
-	# 	"predictwindow"    :15,
-	# 	"Nstage"           :1, 
-	# 	"Model"            :"XGBoost", 
-	# 	# +++++ The Model setup params +++++
-	# 	"ntree"            :10,
-	# 	"nbranch"          :2000,
-	# 	"max_features"     :'auto',
-	# 	"max_depth"        :5,
-	# 	"min_samples_split":2,
-	# 	"min_samples_leaf" :2,
-	# 	"bootstrap"        :True,
-	# 	# +++++ The experiment details +++++
-	# 	"test_size"        :0.2, 
-	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
-	# 	"ModVar"           :"ntree, max_depth", "dataset"
-	# 	"classifer"        :None, 
-	# 	"cores"            :ncores,
-	# 	"model"            :"XGBoost", 
-	# 	"maxitter"         :10, 
-	# 	"DropNAN"          :0.0, 
-	# 	"DropDist"         :True,
-	# 	})
-	# expr[307] = ({
-	# 	# +++++ The experiment name and summary +++++
-	# 	"Code"             :307,
-	# 	"name"             :"OneStageXGBOOST_15ypred_10yrLS",
-	# 	"desc"             :"Gradient boosted regression in place of Random Forest with a 5 year prediction window",
-	# 	"window"           :10,
-	# 	"predictwindow"    :15,
-	# 	"Nstage"           :1, 
-	# 	"Model"            :"XGBoost", 
-	# 	# +++++ The Model setup params +++++
-	# 	"ntree"            :10,
-	# 	"nbranch"          :2000,
-	# 	"max_features"     :'auto',
-	# 	"max_depth"        :5,
-	# 	"min_samples_split":2,
-	# 	"min_samples_leaf" :2,
-	# 	"bootstrap"        :True,
-	# 	# +++++ The experiment details +++++
-	# 	"test_size"        :0.2, 
-	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
-	# 	"ModVar"           :"ntree, max_depth", "dataset"
-	# 	"classifer"        :None, 
-	# 	"cores"            :ncores,
-	# 	"model"            :"XGBoost", 
-	# 	"maxitter"         :10, 
-	# 	"DropNAN"          :0.0, 
-	# 	"DropDist"         :True,
-	# 	})
-	# expr[308] = ({
-	# 	# +++++ The experiment name and summary +++++
-	# 	"Code"             :308,
-	# 	"name"             :"OneStageXGBOOST_15ypred_15yrLS",
-	# 	"desc"             :"Gradient boosted regression in place of Random Forest with a 5 year prediction window",
-	# 	"window"           :15,
-	# 	"predictwindow"    :15,
-	# 	"Nstage"           :1, 
-	# 	"Model"            :"XGBoost", 
-	# 	# +++++ The Model setup params +++++
-	# 	"ntree"            :10,
-	# 	"nbranch"          :2000,
-	# 	"max_features"     :'auto',
-	# 	"max_depth"        :5,
-	# 	"min_samples_split":2,
-	# 	"min_samples_leaf" :2,
-	# 	"bootstrap"        :True,
-	# 	# +++++ The experiment details +++++
-	# 	"test_size"        :0.2, 
-	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
-	# 	"ModVar"           :"ntree, max_depth", "dataset"
-	# 	"classifer"        :None, 
-	# 	"cores"            :ncores,
-	# 	"model"            :"XGBoost", 
-	# 	"maxitter"         :10, 
-	# 	"DropNAN"          :0.0, 
-	# 	"DropDist"         :True,
-	# 	})
+
 	expr[320] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :320,
@@ -771,6 +703,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation"
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -799,6 +732,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation"
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -827,6 +761,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation"
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -855,6 +790,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation"
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -883,6 +819,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation"
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -911,6 +848,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation"
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -939,6 +877,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation"
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -946,6 +885,35 @@ def experiments(ncores = -1):
 		"maxitter"         :10, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :False,
+		})
+	expr[333] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :333,
+		"name"             :"OneStageXGBOOST_AllGap_50perNA_FeatureImp",
+		"desc"             :"Gradient boosted regression with variable prediction window, a nan fraction and Feature Importance",
+		"window"           :5,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"Model"            :"XGBoost", 
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Feature"
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"model"            :"XGBoost", 
+		"maxitter"         :10, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :True,
 		})
 	return expr
 # ==============================================================================
