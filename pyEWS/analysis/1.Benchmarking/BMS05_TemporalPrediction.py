@@ -106,7 +106,12 @@ def main():
 	# ========== Nan Tollerance =========== 
 	# NanExp = [300, 320, 321, 322, 323]
 	# NanTol_performance(path, NanExp, df_setup, df_mres.copy(), formats, vi_df, keys)
-	
+	experiments = [330, 333, 333]
+	MLmethod_performance(path, experiments, df_setup, df_mres, formats, vi_df, keys, ncol = 4)
+
+	breakpoint()
+	Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df)
+
 	# ========== Setup the experiment for temporal ==========
 	experiments = [310, 330, 331]
 	MLmethod_performance(path, experiments, df_setup, df_mres, formats, vi_df, keys, ncol = 4)
@@ -439,6 +444,11 @@ def Experiment_name(df, df_setup, var = "experiment"):
 				else:
 					NAfrac = int(float(df_setup[df_setup.Code.astype(int) == cat]["DropNAN"][0]) *100)
 					nm = f"DataMOD_{pred if not np.isnan(float(pred)) else 'AllSample' }yrPred_{lswin}yrLS_{NAfrac}percNA"
+					if cat == 332:
+						nm += "_disturbance"
+					elif cat == 333:
+						nm += "_FeatureSel"
+
 
 			else:
 				nm = "%d.%s" % (cat, df_setup[df_setup.Code.astype(int) == int(cat)].name.values[0])

@@ -83,11 +83,11 @@ def main():
 
 	# +++++ the model Infomation +++++
 	setup_fnames = glob.glob(path + "*/Exp*_setup.csv")
-	df_setup     = pd.concat([pd.read_csv(sfn, index_col=0).T for sfn in setup_fnames])
+	df_setup     = pd.concat([pd.read_csv(sfn, index_col=0).T for sfn in setup_fnames], sort=True)
 	
 	# +++++ the final model results +++++
 	mres_fnames = glob.glob(path + "*/Exp*_Results.csv")
-	df_mres = pd.concat([fix_results(mrfn) for mrfn in mres_fnames])
+	df_mres = pd.concat([fix_results(mrfn) for mrfn in mres_fnames], sort=True)
 	df_mres["TotalTime"]  = df_mres.TotalTime / pd.to_timedelta(1, unit='m')
 	df_mres, keys = Experiment_name(df_mres, df_setup, var = "experiment")
 	# keys = {}
@@ -106,10 +106,14 @@ def main():
 
 	# ========= Load in the observations
 	OvP_fnames = glob.glob(path + "*/Exp*_OBSvsPREDICTED.csv")
-	df_OvsP    = pd.concat([load_OBS(ofn) for ofn in OvP_fnames])
+	df_OvsP    = pd.concat([load_OBS(ofn) for ofn in OvP_fnames], sort=True)
 	
 	gclass     = glob.glob(path + "*/Exp*_OBSvsPREDICTEDClas_y_test.csv")
-	df_clest   = pd.concat([load_OBS(mrfn) for mrfn in gclass])
+	df_clest   = pd.concat([load_OBS(mrfn) for mrfn in gclass], sort=True)
+
+	branch     = glob.glob(path + "*/Exp*_BranchItteration.csv")
+	df_branch  = pd.concat([load_OBS(mrfn) for mrfn in branch], sort=True)
+	# breakpoint()
 	
 
 
@@ -119,7 +123,9 @@ def main():
 	# ========== Make a list of experiment groups ==========
 	threeHunExp = df_setup[df_setup.Code.astype(int) >= 300]["Code"].astype(int).values
 	NanExp = [300, 320, 321, 322, 323]
-	for experiments, ncols, gpnm in zip([NanExp, threeHunExp, None], [5, 5, 7], ["NaNexp","DtMod", ""]):
+	ModExp = [330, 332, 333]
+	for experiments, ncols, gpnm in zip([ModExp, NanExp, threeHunExp, None], [3, 5, 5, 7], ["SetupExp","NaNexp","DtMod", ""]):
+		Main_plots(path, df_mres, df_setup, df_OvsP, df_branch, keys, experiments=experiments, sumtxt=gpnm)
 		# breakpoint()
 		confusion_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=experiments,
 			split = splts, sumtxt=f"SplitEqualDist{gpnm}", annot=False, ncol = ncols)
@@ -133,8 +139,7 @@ def main():
 
 		Region_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=experiments, ncol = 4, sumtxt=gpnm)
 		
-		Main_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=experiments, sumtxt=gpnm)
-		
+		breakpoint()
 	breakpoint()
 
 
@@ -520,7 +525,7 @@ def scatter_plots(path, df_mres, df_setup, df_OvsP, keys, ncol = 4, sumtxt=""):
 	plt.show()
 
 
-def Main_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=None,  ncol = 4, sumtxt=""):
+def Main_plots(path, df_mres, df_setup, df_OvsP, df_branch, keys, experiments=None,  ncol = 4, sumtxt=""):
 	"""
 	function to produce some basic performance plots 
 	"""
@@ -547,6 +552,8 @@ def Main_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=None,  ncol =
 		exp_names = [keys[expn] for expn in experiments]
 		df_set    = df_mres[df_mres.experiment.isin(exp_names)].copy()
 		df_set["experiment"].cat.remove_unused_categories(inplace=True)
+
+		df_bn = df_branch[df_branch.experiment.isin(experiments)].copy()
 
 	# ========== Plot Broad summary  ==========
 	fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(
@@ -589,12 +596,13 @@ def Main_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=None,  ncol =
 	plt.show()
 
 	# .tick_params(axis='x', labelrotation= )
+	sns.scatterplot(x="NumVar", y="R2", hue="experiment", data=df_bn)
+	plt.show()
 	breakpoint()
 	# sns.boxplot(y="R2", x="experiment", data=df_mres)
 	# sns.swarmplot(y="R2", x="experiment", data=df_set)
 	# plt.show()
 
-	# sns.scatterplot(y="TotalTime", x="R2", hue="experiment", data=df_set)
 	# plt.show()
 
 	# sns.scatterplot(y="R2", x="version", hue="experiment", data=df_set)
@@ -641,7 +649,11 @@ def Experiment_name(df, df_setup, var = "experiment"):
 					nm = f"DataMOD_{pred}yrPred_{lswin}yrLS"
 				else:
 					NAfrac = int(float(df_setup[df_setup.Code.astype(int) == cat]["DropNAN"][0]) *100)
-					nm = f"DataMOD_{pred}yrPred_{lswin}yrLS_{NAfrac}percNA"
+					nm = f"DataMOD_{pred if not np.isnan(float(pred)) else 'AllSample' }yrPred_{lswin}yrLS_{NAfrac}percNA"
+					if cat == 332:
+						nm += "_disturbance"
+					elif cat == 333:
+						nm += "_FeatureSel"
 
 			else:
 				nm = "%d.%s" % (cat, df_setup[df_setup.Code.astype(int) == int(cat)].name.values[0])

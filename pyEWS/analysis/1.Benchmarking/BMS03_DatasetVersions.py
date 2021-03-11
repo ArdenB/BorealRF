@@ -260,7 +260,7 @@ def ml_regression(
 	"""
 	# ========== Start timing  ==========
 	t0 = pd.Timestamp.now()
-	print("starting sklearn random forest regression at:", t0)
+	print(f"starting {setup['model']} regression at:", t0)
 
 	if setup["model"]  == "SKL Random Forest Regression":
 		# ========== Setup some skl params ==========
@@ -327,16 +327,16 @@ def ml_regression(
 	elif setup["ImportanceMet"] =="Feature":
 		print("starting XGBoost Feature importance calculation at:", pd.Timestamp.now())
 		impMet = regressor.feature_importances_
+		# breakpoint()
 	else:
 		breakpoint()
 	
-	for fname, f_imp in zip(clnames, impMet): 
-		FI[fname] = f_imp
+	for fname, f_imp in zip(clnames, impMet): FI[fname] = f_imp
 
 
 	# ========== Print the time taken ==========
 	tDif = pd.Timestamp.now()-t0
-	print("The time taken to perform the random forest regression:", tDif)
+	print(f"The time taken to perform {setup['model']} regression:", tDif)
 
 	# =========== Save out the results if the branch is approaching the end ==========
 	if final:
@@ -472,7 +472,9 @@ def Region_calculation(experiment, version, setup, path, fn_PI, fn_res,fnamein, 
 		# warn.warn("this has not been tested, ")
 
 	df_res.to_csv(fn_res)
+
 # ==============================================================================
+
 def experiments(ncores = -1):
 	""" Function contains all the infomation about what experiments i'm 
 	performing """
@@ -498,7 +500,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Permutation"
+		"ImportanceMet"    :"Permutation",
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -527,7 +529,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Permutation"
+		"ImportanceMet"    :"Permutation",
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -556,7 +558,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Permutation"
+		"ImportanceMet"    :"Permutation",
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -586,7 +588,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Permutation"
+		"ImportanceMet"    :"Permutation",
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -615,7 +617,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Permutation"
+		"ImportanceMet"    :"Permutation",
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -644,7 +646,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Permutation"
+		"ImportanceMet"    :"Permutation",
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -673,7 +675,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Permutation"
+		"ImportanceMet"    :"Permutation",
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -703,7 +705,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Permutation"
+		"ImportanceMet"    :"Permutation",
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -732,7 +734,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Permutation"
+		"ImportanceMet"    :"Permutation",
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -761,7 +763,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Permutation"
+		"ImportanceMet"    :"Permutation",
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -790,7 +792,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Permutation"
+		"ImportanceMet"    :"Permutation",
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -819,7 +821,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Permutation"
+		"ImportanceMet"    :"Permutation",
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -848,7 +850,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Permutation"
+		"ImportanceMet"    :"Permutation",
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -877,7 +879,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Permutation"
+		"ImportanceMet"    :"Permutation",
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -906,7 +908,7 @@ def experiments(ncores = -1):
 		# +++++ The experiment details +++++
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Feature"
+		"ImportanceMet"    :"Feature",
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -916,6 +918,7 @@ def experiments(ncores = -1):
 		"DropDist"         :True,
 		})
 	return expr
+
 # ==============================================================================
 
 
