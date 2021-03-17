@@ -336,7 +336,7 @@ def ml_regression(
 		eval_set = [(X_test.values, y_test.values.ravel())]
 
 		if setup["AltMethod"] == "RFECV" and final:
-			selector = RFECV(regressor, step=5, cv=3, verbose=1)#, n_jobs=-1
+			selector = RFECV(regressor, step=25, cv=2, verbose=1, scoring='neg_mean_absolute_error')#, n_jobs=-1
 			selector.fit(X_train.values, y_train.values.ravel())
 			breakpoint()
 		else:
