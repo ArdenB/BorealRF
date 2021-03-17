@@ -99,6 +99,7 @@ def main(args):
 				sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_{setup['predictwindow']}years.csv"
 			if version > 1 and experiment > 335:
 				warn.warn("Skipping this one so everything else can finish")
+				continue
 			# 	breakpoint()
 			# ========== load in the data ==========
 			if all([os.path.isfile(fn) for fn in [fn_br, fn_res, fn_PI]]) and not force:
