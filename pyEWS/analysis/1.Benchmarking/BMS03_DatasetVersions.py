@@ -89,14 +89,16 @@ def main(args):
 			fn_br  = path + "Exp%03d_%s_vers%02d_BranchItteration.csv" % (experiment, setup["name"], version)
 			fn_res = path + "Exp%03d_%s_vers%02d_Results.csv" % (experiment, setup["name"], version)
 			fn_PI  = path + "Exp%03d_%s_vers%02d_%sImportance.csv" % (experiment, setup["name"], version, setup["ImportanceMet"])
-			
+			fn_RFE =  path + "Exp%03d_%s_vers%02d_%sImportance_RFECVfeature.csv" % (experiment, setup["name"], version, setup["ImportanceMet"])
+			fn_RCV =  path + "Exp%03d_%s_vers%02d_%sImportance_RFECVsteps.csv" % (experiment, setup["name"], version, setup["ImportanceMet"])
 			if setup['predictwindow'] is None:
 				fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears.csv"
 				sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears.csv"
 			else:
 				fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_{setup['predictwindow']}years.csv"
 				sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_{setup['predictwindow']}years.csv"
-			# if experiment == 310:
+			if version > 1 and experiment > 335:
+				warn.warn("Skipping this one so everything else can finish")
 			# 	breakpoint()
 			# ========== load in the data ==========
 			if all([os.path.isfile(fn) for fn in [fn_br, fn_res, fn_PI]]) and not force:
@@ -174,7 +176,7 @@ def main(args):
 				# ========== Perform the Regression ==========
 				time,  r2, feature_imp, ColNm  = ml_regression(
 					X_train, X_test, y_train, y_test, col_nms, orig_clnm, experiment, 
-					version, branch,  setup, corr_linkage,  verbose=False, final=final)
+					version, branch,  setup, corr_linkage,fn_RFE, fn_RCV,  verbose=False, final=final)
 
 
 				# ========== Add the results of the different itterations to OD ==========
@@ -239,6 +241,7 @@ def main(args):
 			res["R2"]        = r2
 			res["TotalTime"] = pd.to_timedelta(df_perf.TimeCumulative.values[-1])
 			res["FBranch"]   = branch
+			res["Computer"]  = os.uname()[1]
 			# for van in loadstats:
 			# 	res[van] = loadstats[van]
 			# df_res = pd.DataFrame(pd.Series(res), columns=["Exp%03d.%02d" % (experiment, version)])
@@ -276,7 +279,7 @@ def main(args):
 
 def ml_regression( 
 	X_train, X_test, y_train, y_test, col_nms, orig_clnm, 
-	experiment, version, branch, setup, corr_linkage, verbose=True, perm=True, final = False):
+	experiment, version, branch, setup, corr_linkage, fn_RFE, fn_RCV, verbose=True, perm=True, final = False):
 	"""
 	This function is to test out the  speed of the random forest regressions using
 	sklearn 
@@ -329,19 +332,39 @@ def ml_regression(
 	elif setup["model"] == "XGBoost":
 
 		# ========== convert the values ==========\
-		regressor = xgb.XGBRegressor(objective ='reg:squarederror', tree_method='hist', colsample_bytree = 0.3, learning_rate = 0.1,
-		                max_depth = setup['max_depth'], n_estimators =setup['nbranch'], 
-		                num_parallel_tree=setup["ntree"])
+		reg = xgb.XGBRegressor(objective ='reg:squarederror', tree_method='hist', colsample_bytree = 0.3, learning_rate = 0.1, max_depth = setup['max_depth'], n_estimators =setup['nbranch'],  num_parallel_tree=setup["ntree"])
 
-		eval_set = [(X_test.values, y_test.values.ravel())]
 
 		if setup["AltMethod"] == "RFECV" and final:
-			selector = RFECV(regressor, step=25, cv=2, verbose=1, scoring='neg_mean_absolute_error')#, n_jobs=-1
+			print(f"Start RFECV at: {pd.Timestamp.now()}")
+			selector = RFECV(regressor, step=5, cv=5, verbose=1)#, scoring='neg_mean_absolute_error')#, n_jobs=-1
 			selector.fit(X_train.values, y_train.values.ravel())
-			breakpoint()
+
+			# Build a table about the features
+			feat = OrderedDict()
+			for nm, rank, infinal in zip(col_nms, selector.ranking_, selector.support_):
+				feat[nm]={"rank":rank, "InFinal":infinal}
+			df_feat = pd.DataFrame(feat).T
+			df_feat.to_csv(fn_RFE)
+
+			# build a grid score table
+			itp = OrderedDict()
+			for nx, score in enumerate(selector.grid_scores_):	itp[nx] = { "score":score, "N_features":selector.n_features_in_-(nx*selector.step)}
+			df_itt = pd.DataFrame(itp).T
+			df_itt["N_features"][df_itt.N_features <1] = 1
+			df_itt.to_csv(fn_RCV)
+
+			col_nms = col_nms[selector.support_]
+			X_train =  X_train[col_nms]#selector.transform(X_train)
+			X_test  =  X_test[col_nms]#selector.transform(X_test)
+			
+			# ==========  pull the regressor out ==========
+			regressor = selector.estimator_
 		else:
+			
+			eval_set = [(X_test.values, y_test.values.ravel())]
+			regressor = reg
 			regressor.fit(X_train.values, y_train.values.ravel(), early_stopping_rounds=15, verbose=True, eval_set=eval_set)
-		# breakpoint()
 
 
 		# ========== Testing out of prediction ==========
@@ -1094,72 +1117,72 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"AltMethod"        :"BackStep" # alternate method to use after slowdown point is reached
 		})
-	# expr[336] = ({
-	# 	# +++++ The experiment name and summary +++++
-	# 	"Code"             :336,
-	# 	"name"             :"OneStageXGBOOST_AllGap_50perNA_PermutationImp_RFECV",
-	# 	"desc"             :"After the slow down point the model switches to RFECV to do feature selection",
-	# 	"window"           :5,
-	# 	"predictwindow"    :None,
-	# 	"Nstage"           :1, 
-	# 	"Model"            :"XGBoost", 
-	# 	# +++++ The Model setup params +++++
-	# 	"ntree"            :10,
-	# 	"nbranch"          :2000,
-	# 	"max_features"     :'auto',
-	# 	"max_depth"        :5,
-	# 	"min_samples_split":2,
-	# 	"min_samples_leaf" :2,
-	# 	"bootstrap"        :True,
-	# 	# +++++ The experiment details +++++
-	# 	"test_size"        :0.2, 
-	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
-	# 	"ImportanceMet"    :"Permutation",
-	# 	"ModVar"           :"ntree, max_depth", "dataset"
-	# 	"classifer"        :None, 
-	# 	"cores"            :ncores,
-	# 	"model"            :"XGBoost", 
-	# 	"maxitter"         :10, 
-	# 	"DropNAN"          :0.5, 
-	# 	"DropDist"         :True,
-	# 	"StopPoint"        :5,
-	# 	"SlowPoint"        :150, # The point i start to slow down feature selection and allow a different method
-	# 	"maxR2drop"        :0.01,
-	# 	"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
-	# 	})
-	# expr[337] = ({
-	# 	# +++++ The experiment name and summary +++++
-	# 	"Code"             :337,
-	# 	"name"             :"OneStageXGBOOST_AllGap_50perNA_FeatureImp_RFECV",
-	# 	"desc"             :"After the slow down point the model switches to RFECV to do feature selection",
-	# 	"window"           :5,
-	# 	"predictwindow"    :None,
-	# 	"Nstage"           :1, 
-	# 	"Model"            :"XGBoost", 
-	# 	# +++++ The Model setup params +++++
-	# 	"ntree"            :10,
-	# 	"nbranch"          :2000,
-	# 	"max_features"     :'auto',
-	# 	"max_depth"        :5,
-	# 	"min_samples_split":2,
-	# 	"min_samples_leaf" :2,
-	# 	"bootstrap"        :True,
-	# 	# +++++ The experiment details +++++
-	# 	"test_size"        :0.2, 
-	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
-	# 	"ImportanceMet"    :"Feature",
-	# 	"ModVar"           :"ntree, max_depth", "dataset"
-	# 	"classifer"        :None, 
-	# 	"cores"            :ncores,
-	# 	"model"            :"XGBoost", 
-	# 	"maxitter"         :10, 
-	# 	"DropNAN"          :0.5, 
-	# 	"DropDist"         :True,
-	# 	"StopPoint"        :5,
-	# 	"SlowPoint"        :150, # The point i start to slow down feature selection and allow a different method
-	# 	"maxR2drop"        :0.01,
-	# 	"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
-	# 	})
+	expr[336] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :336,
+		"name"             :"OneStageXGBOOST_AllGap_50perNA_PermutationImp_RFECV",
+		"desc"             :"After the slow down point the model switches to RFECV to do feature selection",
+		"window"           :5,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"Model"            :"XGBoost", 
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation",
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"model"            :"XGBoost", 
+		"maxitter"         :10, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :True,
+		"StopPoint"        :5,
+		"SlowPoint"        :150, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
+		})
+	expr[337] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :337,
+		"name"             :"OneStageXGBOOST_AllGap_50perNA_FeatureImp_RFECV",
+		"desc"             :"After the slow down point the model switches to RFECV to do feature selection",
+		"window"           :5,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"Model"            :"XGBoost", 
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Feature",
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"model"            :"XGBoost", 
+		"maxitter"         :10, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :True,
+		"StopPoint"        :5,
+		"SlowPoint"        :150, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
+		})
 	return expr
 
 # ==============================================================================
