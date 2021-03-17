@@ -97,10 +97,17 @@ def main(args):
 			else:
 				fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_{setup['predictwindow']}years.csv"
 				sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_{setup['predictwindow']}years.csv"
-			if version > 1 and experiment > 335:
+			
+
+
+			# ========== Allow for version skipping ==========
+			if version > 2 and experiment > 335:
 				warn.warn("Skipping this one so everything else can finish")
 				continue
-			# 	breakpoint()
+			
+
+
+
 			# ========== load in the data ==========
 			if all([os.path.isfile(fn) for fn in [fn_br, fn_res, fn_PI]]) and not force:
 				print ("Experiment:", experiment, setup["name"], " version:", version, "complete")
