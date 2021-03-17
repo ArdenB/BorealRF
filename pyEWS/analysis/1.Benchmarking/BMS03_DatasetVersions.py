@@ -70,6 +70,7 @@ import xgboost as xgb
 
 # ==============================================================================
 def main(args):
+	warn.warn("Add a method to save the model out at the end with package version numbers for all relevant packages")
 	force = args.force
 	fix   = args.fix
 	# ========== Load the experiments ==========
@@ -111,8 +112,12 @@ def main(args):
 			final        = False
 			ColNm        = None #will be replaced as i keep adding new columns
 			corr_linkage = None # will be replaced after the 0 itteration
-			orig_clnm    = None
+			orig_clnm    = None # Original Column names
+			RequestFinal = False # a way to request final if i'm using REECV
+			BackStepOD   = OrderedDict() # Container to allow stepback
+
 			t0           = pd.Timestamp.now()
+			# ////// To do, ad a way to record when a feature falls out \\\\\\
 			# ========== Create a dictionary so i can store performance metrics ==========
 			perf  = OrderedDict()
 			# ========== Loop over the branchs ===========
@@ -121,7 +126,9 @@ def main(args):
 				
 				# ========== Add a check to see if this is the final round ==========
 				# Final round uses the full test train dataset 
-				if not (ColNm is None) and (len(ColNm) <= 35):
+				if RequestFinal:
+					final = True
+				elif not (ColNm is None) and (len(ColNm) <= setup['StopPoint']):
 					final = True
 					# setup["BranchDepth"] = branch
 				elif setup["maxitter"] is None:
@@ -145,16 +152,8 @@ def main(args):
 					experiment, version,  branch, setup, final=final,  cols_keep=ColNm, #force=True,
 					vi_fn=fnamein, region_fn=sfnamein, basestr=bsestr)
 
-				# ========== Perform the Regression ==========
-				# time,  r2, feature_imp  = XGBoost_regression( 
-				# 	X_train, X_test, y_train, y_test, col_nms, 
-				# 	experiment, version, branch, setup, verbose=True, perm=True, final = False)
-				time,  r2, feature_imp  = ml_regression(
-					X_train, X_test, y_train, y_test, col_nms, experiment, 
-					version, branch,  setup, verbose=False, final=final)
-
-
 				# ========== perform some zeo branch data storage ==========
+				# breakpoint()
 				if branch == 0:
 					# +++++ Calculate the ward hierarchy +++++
 					corr_linkage = hierarchy.ward(corr)
@@ -171,6 +170,10 @@ def main(args):
 								break
 					print("Max Branch is:", setup["maxitter"])
 
+				# ========== Perform the Regression ==========
+				time,  r2, feature_imp, ColNm  = ml_regression(
+					X_train, X_test, y_train, y_test, col_nms, orig_clnm, experiment, 
+					version, branch,  setup, corr_linkage,  verbose=False, final=final)
 
 
 				# ========== Add the results of the different itterations to OD ==========
@@ -182,14 +185,45 @@ def main(args):
 				# ========== Print out branch performance ==========
 				print("Branch %02d had %d veriables and an R2 of " % (branch, len(col_nms)), r2)
 
+				# breakpoint()
+
 				# ========== Print out branch performance ==========
 				if not final:
+					# ========== deal feature selection slow dowwn mode ==========
+					if len(ColNm) <=  setup['SlowPoint']:
+						# ========== Implement some fancy stopping here ==========
+						if setup["AltMethod"] == "BackStep":
+							# Check and see if the performance has degraded too much
+							indx = len(BackStepOD)
+							BackStepOD[indx] = {"R2":r2, "FI":feature_imp.copy(), "ColNm":ColNm.copy()}
+							if len(BackStepOD) > 1:
+								if r2 > BackStepOD[0]["R2"]:
+									#  if the model is better store that, This removes the OD and puts the reslt in it place
+									BackStepOD   = OrderedDict()
+									BackStepOD[len(BackStepOD)] = {"R2":r2, "FI":feature_imp.copy(), "ColNm":col_nms.copy()}
+								elif (BackStepOD[0]["R2"] - r2) > setup["maxR2drop"]:
+									# its unacceptably worse backtrack, the threshold is 0.025
+
+									feature_imp  = BackStepOD[indx-1]["FI"]
+									ColNm        = BackStepOD[indx-1]["ColNm"]
+									RequestFinal = True
+								else:
+									# if its acceptably worse store that
+									pass
+						elif setup["AltMethod"] == "RFECV":
+							# +++++ Set of rules +++++
+							RequestFinal = True
+							print("This may get removed if i RFECV is super slow")
+							breakpoint()
+
 					# ========== Perform Variable selection and get new column names ==========
-					ColNm = Variable_selection(corr_linkage, branch, feature_imp, col_nms, orig_clnm)
+					# ColNm = Variable_selection(corr_linkage, branch, feature_imp, col_nms, orig_clnm)
 
 					# ========== Move to next branch ==========
 					branch += 1
 					print("Branch %02d will test %d veriables" % (branch, len(ColNm)))
+
+
 
 			# ========== Save the branch performance ==========
 			df_perf = pd.DataFrame(perf).T
@@ -239,8 +273,8 @@ def main(args):
 
 
 def ml_regression( 
-	X_train, X_test, y_train, y_test, col_nms, 
-	experiment, version, branch, setup, verbose=True, perm=True, final = False):
+	X_train, X_test, y_train, y_test, col_nms, orig_clnm, 
+	experiment, version, branch, setup, corr_linkage, verbose=True, perm=True, final = False):
 	"""
 	This function is to test out the  speed of the random forest regressions using
 	sklearn 
@@ -278,7 +312,11 @@ def ml_regression(
 
 		# ========== Do the RF regression training ==========
 		regressor = RandomForestRegressor(**skl_rf_params)
-		regressor.fit(X_train, y_train.values.ravel())
+		if setup["AltMethod"] == "RFECV" and final:
+			#This should be the same as the 
+			breakpoint()
+		else:
+			regressor.fit(X_train, y_train.values.ravel())
 
 
 		# ========== Testing out of prediction ==========
@@ -294,7 +332,11 @@ def ml_regression(
 		                num_parallel_tree=setup["ntree"])
 
 		eval_set = [(X_test.values, y_test.values.ravel())]
-		regressor.fit(X_train.values, y_train.values.ravel(), early_stopping_rounds=15, verbose=True, eval_set=eval_set)
+
+		if setup["AltMethod"] == "RFECV" and final:
+			breakpoint()
+		else:
+			regressor.fit(X_train.values, y_train.values.ravel(), early_stopping_rounds=15, verbose=True, eval_set=eval_set)
 		# breakpoint()
 
 
@@ -329,6 +371,7 @@ def ml_regression(
 		impMet = regressor.feature_importances_
 		# breakpoint()
 	else:
+		print("Not implemented yet")
 		breakpoint()
 	
 	for fname, f_imp in zip(clnames, impMet): FI[fname] = f_imp
@@ -342,10 +385,14 @@ def ml_regression(
 	if final:
 		# =========== save the predictions of the last branch ==========
 		_predictedVSobserved(y_test, y_pred, experiment, version, branch, setup)
-		return tDif, sklMet.r2_score(y_test, y_pred), FI
+		return tDif, sklMet.r2_score(y_test, y_pred), FI, None
 
 	else:
-		return tDif, sklMet.r2_score(y_test, y_pred), FI
+		ColNm = Variable_selection(corr_linkage, branch, FI, col_nms, orig_clnm)
+		# if len(ColNm) <=  setup['SlowPoint']:
+		# 	# ========== Implement some fof stopping here ==========
+		# 	breakpoint()
+		return tDif, sklMet.r2_score(y_test, y_pred), FI, ColNm
 
 
 def _predictedVSobserved(y_test, y_pred, experiment, version, branch, setup):
@@ -508,6 +555,10 @@ def experiments(ncores = -1):
 		"maxitter"         :10, 
 		"DropNAN"          :0.0, 
 		"DropDist"         :True,
+		"StopPoint"        :35,
+		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[301] = ({
 		# +++++ The experiment name and summary +++++
@@ -537,6 +588,10 @@ def experiments(ncores = -1):
 		"maxitter"         :10, 
 		"DropNAN"          :0.0, 
 		"DropDist"         :True,
+		"StopPoint"        :35,
+		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[302] = ({
 		# +++++ The experiment name and summary +++++
@@ -566,6 +621,10 @@ def experiments(ncores = -1):
 		"maxitter"         :10, 
 		"DropNAN"          :0.0, 
 		"DropDist"         :True,
+		"StopPoint"        :35,
+		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 
 	expr[303] = ({
@@ -596,6 +655,10 @@ def experiments(ncores = -1):
 		"maxitter"         :10, 
 		"DropNAN"          :0.0, 
 		"DropDist"         :True,
+		"StopPoint"        :35,
+		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[304] = ({
 		# +++++ The experiment name and summary +++++
@@ -625,6 +688,10 @@ def experiments(ncores = -1):
 		"maxitter"         :10, 
 		"DropNAN"          :0.0, 
 		"DropDist"         :True,
+		"StopPoint"        :35,
+		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[305] = ({
 		# +++++ The experiment name and summary +++++
@@ -654,6 +721,10 @@ def experiments(ncores = -1):
 		"maxitter"         :10, 
 		"DropNAN"          :0.0, 
 		"DropDist"         :True,
+		"StopPoint"        :35,
+		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[310] = ({
 		# +++++ The experiment name and summary +++++
@@ -683,6 +754,10 @@ def experiments(ncores = -1):
 		"maxitter"         :10, 
 		"DropNAN"          :0.0, 
 		"DropDist"         :True,
+		"StopPoint"        :35,
+		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 
 	expr[320] = ({
@@ -713,6 +788,10 @@ def experiments(ncores = -1):
 		"maxitter"         :20, 
 		"DropNAN"          :0.25, 
 		"DropDist"         :True,
+		"StopPoint"        :35,
+		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[321] = ({
 		# +++++ The experiment name and summary +++++
@@ -742,6 +821,10 @@ def experiments(ncores = -1):
 		"maxitter"         :20, 
 		"DropNAN"          :0.50, 
 		"DropDist"         :True,
+		"StopPoint"        :35,
+		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[322] = ({
 		# +++++ The experiment name and summary +++++
@@ -771,6 +854,10 @@ def experiments(ncores = -1):
 		"maxitter"         :20, 
 		"DropNAN"          :0.75, 
 		"DropDist"         :True,
+		"StopPoint"        :35,
+		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[323] = ({
 		# +++++ The experiment name and summary +++++
@@ -800,6 +887,10 @@ def experiments(ncores = -1):
 		"maxitter"         :20, 
 		"DropNAN"          :1.0, 
 		"DropDist"         :True,
+		"StopPoint"        :35,
+		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[330] = ({
 		# +++++ The experiment name and summary +++++
@@ -829,6 +920,10 @@ def experiments(ncores = -1):
 		"maxitter"         :10, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :True,
+		"StopPoint"        :35,
+		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[331] = ({
 		# +++++ The experiment name and summary +++++
@@ -858,6 +953,10 @@ def experiments(ncores = -1):
 		"maxitter"         :10, 
 		"DropNAN"          :1.0, 
 		"DropDist"         :True,
+		"StopPoint"        :35,
+		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[332] = ({
 		# +++++ The experiment name and summary +++++
@@ -887,6 +986,10 @@ def experiments(ncores = -1):
 		"maxitter"         :10, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :False,
+		"StopPoint"        :35,
+		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[333] = ({
 		# +++++ The experiment name and summary +++++
@@ -916,6 +1019,142 @@ def experiments(ncores = -1):
 		"maxitter"         :10, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :True,
+		"StopPoint"        :5,
+		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"AltMethod"        :None # alternate method to use after slowdown point is reached
+		})
+	# expr[334] = ({
+	# 	# +++++ The experiment name and summary +++++
+	# 	"Code"             :334,
+	# 	"name"             :"OneStageXGBOOST_AllGap_50perNA_Permutation_backstep",
+	# 	"desc"             :"After the slow down point the model can backtrack if performance degrades too much",
+	# 	"window"           :5,
+	# 	"predictwindow"    :None,
+	# 	"Nstage"           :1, 
+	# 	"Model"            :"XGBoost", 
+	# 	# +++++ The Model setup params +++++
+	# 	"ntree"            :10,
+	# 	"nbranch"          :2000,
+	# 	"max_features"     :'auto',
+	# 	"max_depth"        :5,
+	# 	"min_samples_split":2,
+	# 	"min_samples_leaf" :2,
+	# 	"bootstrap"        :True,
+	# 	# +++++ The experiment details +++++
+	# 	"test_size"        :0.2, 
+	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
+	# 	"ImportanceMet"    :"Permutation",
+	# 	"ModVar"           :"ntree, max_depth", "dataset"
+	# 	"classifer"        :None, 
+	# 	"cores"            :ncores,
+	# 	"model"            :"XGBoost", 
+	# 	"maxitter"         :10, 
+	# 	"DropNAN"          :0.5, 
+	# 	"DropDist"         :True,
+	# 	"StopPoint"        :5,
+	# 	"SlowPoint"        :150, # The point i start to slow down feature selection and allow a different method
+	# "maxR2drop"        :0.025,
+	# 	"AltMethod"        :"BackStep" # alternate method to use after slowdown point is reached
+	# 	})
+	expr[335] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :335,
+		"name"             :"OneStageXGBOOST_AllGap_50perNA_FeatureImp_backstep",
+		"desc"             :"After the slow down point the model can backtrack if performance degrades too much",
+		"window"           :5,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"Model"            :"XGBoost", 
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Feature",
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"model"            :"XGBoost", 
+		"maxitter"         :10, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :True,
+		"StopPoint"        :5,
+		"SlowPoint"        :150, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"AltMethod"        :"BackStep" # alternate method to use after slowdown point is reached
+		})
+	# expr[336] = ({
+	# 	# +++++ The experiment name and summary +++++
+	# 	"Code"             :336,
+	# 	"name"             :"OneStageXGBOOST_AllGap_50perNA_PermutationImp_RFECV",
+	# 	"desc"             :"After the slow down point the model switches to RFECV to do feature selection",
+	# 	"window"           :5,
+	# 	"predictwindow"    :None,
+	# 	"Nstage"           :1, 
+	# 	"Model"            :"XGBoost", 
+	# 	# +++++ The Model setup params +++++
+	# 	"ntree"            :10,
+	# 	"nbranch"          :2000,
+	# 	"max_features"     :'auto',
+	# 	"max_depth"        :5,
+	# 	"min_samples_split":2,
+	# 	"min_samples_leaf" :2,
+	# 	"bootstrap"        :True,
+	# 	# +++++ The experiment details +++++
+	# 	"test_size"        :0.2, 
+	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
+	# 	"ImportanceMet"    :"Permutation",
+	# 	"ModVar"           :"ntree, max_depth", "dataset"
+	# 	"classifer"        :None, 
+	# 	"cores"            :ncores,
+	# 	"model"            :"XGBoost", 
+	# 	"maxitter"         :10, 
+	# 	"DropNAN"          :0.5, 
+	# 	"DropDist"         :True,
+	# 	"StopPoint"        :5,
+	# 	"SlowPoint"        :150, # The point i start to slow down feature selection and allow a different method
+	# 	"maxR2drop"        :0.01,
+	# 	"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
+		# })
+	expr[337] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :337,
+		"name"             :"OneStageXGBOOST_AllGap_50perNA_FeatureImp_RFECV",
+		"desc"             :"After the slow down point the model switches to RFECV to do feature selection",
+		"window"           :5,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"Model"            :"XGBoost", 
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Feature",
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"model"            :"XGBoost", 
+		"maxitter"         :10, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :True,
+		"StopPoint"        :5,
+		"SlowPoint"        :150, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.01,
+		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
 		})
 	return expr
 
