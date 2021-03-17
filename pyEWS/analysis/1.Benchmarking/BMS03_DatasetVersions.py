@@ -319,6 +319,7 @@ def ml_regression(
 		regressor = RandomForestRegressor(**skl_rf_params)
 		if setup["AltMethod"] == "RFECV" and final:
 			#This should be the same as the 
+			warn.warn("Not Implemented yet")
 			breakpoint()
 		else:
 			regressor.fit(X_train, y_train.values.ravel())
@@ -370,7 +371,10 @@ def ml_regression(
 		# ========== Testing out of prediction ==========
 		print("starting regression prediction at:", pd.Timestamp.now())
 		y_pred = regressor.predict(X_test.values)
-	
+	else:
+		warn.warn("Method Not Implemented")
+		breakpoint()
+		raise ValueError
 	# ========== make a list of names ==========
 	clnames = X_train.columns.values
 	
@@ -653,7 +657,6 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
-
 	expr[303] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :303,
@@ -1081,7 +1084,7 @@ def experiments(ncores = -1):
 		"DropDist"         :True,
 		"StopPoint"        :5,
 		"SlowPoint"        :150, # The point i start to slow down feature selection and allow a different method
-	"maxR2drop"        :0.025,
+		"maxR2drop"        :0.025,
 		"AltMethod"        :"BackStep" # alternate method to use after slowdown point is reached
 		})
 	expr[335] = ({
