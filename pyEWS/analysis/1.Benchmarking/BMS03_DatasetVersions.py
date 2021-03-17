@@ -339,7 +339,7 @@ def ml_regression(
 
 		if setup["AltMethod"] == "RFECV" and final:
 			print(f"Start RFECV at: {pd.Timestamp.now()}")
-			selector = RFECV(regressor, step=5, cv=5, verbose=1)#, scoring='neg_mean_absolute_error')#, n_jobs=-1
+			selector = RFECV(reg, step=5, cv=5, verbose=1)#, scoring='neg_mean_absolute_error')#, n_jobs=-1
 			selector.fit(X_train.values, y_train.values.ravel())
 
 			# Build a table about the features
@@ -364,7 +364,7 @@ def ml_regression(
 			regressor = selector.estimator_
 		else:
 			
-			eval_set = [(X_test.values, y_test.values.ravel())]
+			eval_set  = [(X_test.values, y_test.values.ravel())]
 			regressor = reg
 			regressor.fit(X_train.values, y_train.values.ravel(), early_stopping_rounds=15, verbose=True, eval_set=eval_set)
 
@@ -1022,139 +1022,139 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
-	expr[333] = ({
-		# +++++ The experiment name and summary +++++
-		"Code"             :333,
-		"name"             :"OneStageXGBOOST_AllGap_50perNA_FeatureImp",
-		"desc"             :"Gradient boosted regression with variable prediction window, a nan fraction and Feature Importance",
-		"window"           :5,
-		"predictwindow"    :None,
-		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
-		# +++++ The Model setup params +++++
-		"ntree"            :10,
-		"nbranch"          :2000,
-		"max_features"     :'auto',
-		"max_depth"        :5,
-		"min_samples_split":2,
-		"min_samples_leaf" :2,
-		"bootstrap"        :True,
-		# +++++ The experiment details +++++
-		"test_size"        :0.2, 
-		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Feature",
-		"ModVar"           :"ntree, max_depth", "dataset"
-		"classifer"        :None, 
-		"cores"            :ncores,
-		"model"            :"XGBoost", 
-		"maxitter"         :10, 
-		"DropNAN"          :0.5, 
-		"DropDist"         :True,
-		"StopPoint"        :5,
-		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
-		"maxR2drop"        :0.025,
-		"AltMethod"        :None # alternate method to use after slowdown point is reached
-		})
+	# expr[333] = ({
+	# 	# +++++ The experiment name and summary +++++
+	# 	"Code"             :333,
+	# 	"name"             :"OneStageXGBOOST_AllGap_50perNA_FeatureImp",
+	# 	"desc"             :"Gradient boosted regression with variable prediction window, a nan fraction and Feature Importance",
+	# 	"window"           :5,
+	# 	"predictwindow"    :None,
+	# 	"Nstage"           :1, 
+	# 	"Model"            :"XGBoost", 
+	# 	# +++++ The Model setup params +++++
+	# 	"ntree"            :10,
+	# 	"nbranch"          :2000,
+	# 	"max_features"     :'auto',
+	# 	"max_depth"        :5,
+	# 	"min_samples_split":2,
+	# 	"min_samples_leaf" :2,
+	# 	"bootstrap"        :True,
+	# 	# +++++ The experiment details +++++
+	# 	"test_size"        :0.2, 
+	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
+	# 	"ImportanceMet"    :"Feature",
+	# 	"ModVar"           :"ntree, max_depth", "dataset"
+	# 	"classifer"        :None, 
+	# 	"cores"            :ncores,
+	# 	"model"            :"XGBoost", 
+	# 	"maxitter"         :10, 
+	# 	"DropNAN"          :0.5, 
+	# 	"DropDist"         :True,
+	# 	"StopPoint"        :5,
+	# 	"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
+	# 	"maxR2drop"        :0.025,
+	# 	"AltMethod"        :None # alternate method to use after slowdown point is reached
+	# 	})
 	
-	expr[334] = ({
-		# +++++ The experiment name and summary +++++
-		"Code"             :334,
-		"name"             :"OneStageXGBOOST_AllGap_50perNA_Permutation_backstep",
-		"desc"             :"After the slow down point the model can backtrack if performance degrades too much",
-		"window"           :5,
-		"predictwindow"    :None,
-		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
-		# +++++ The Model setup params +++++
-		"ntree"            :10,
-		"nbranch"          :2000,
-		"max_features"     :'auto',
-		"max_depth"        :5,
-		"min_samples_split":2,
-		"min_samples_leaf" :2,
-		"bootstrap"        :True,
-		# +++++ The experiment details +++++
-		"test_size"        :0.2, 
-		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Permutation",
-		"ModVar"           :"ntree, max_depth", "dataset"
-		"classifer"        :None, 
-		"cores"            :ncores,
-		"model"            :"XGBoost", 
-		"maxitter"         :10, 
-		"DropNAN"          :0.5, 
-		"DropDist"         :True,
-		"StopPoint"        :5,
-		"SlowPoint"        :150, # The point i start to slow down feature selection and allow a different method
-		"maxR2drop"        :0.025,
-		"AltMethod"        :"BackStep" # alternate method to use after slowdown point is reached
-		})
-	expr[335] = ({
-		# +++++ The experiment name and summary +++++
-		"Code"             :335,
-		"name"             :"OneStageXGBOOST_AllGap_50perNA_FeatureImp_backstep",
-		"desc"             :"After the slow down point the model can backtrack if performance degrades too much",
-		"window"           :5,
-		"predictwindow"    :None,
-		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
-		# +++++ The Model setup params +++++
-		"ntree"            :10,
-		"nbranch"          :2000,
-		"max_features"     :'auto',
-		"max_depth"        :5,
-		"min_samples_split":2,
-		"min_samples_leaf" :2,
-		"bootstrap"        :True,
-		# +++++ The experiment details +++++
-		"test_size"        :0.2, 
-		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Feature",
-		"ModVar"           :"ntree, max_depth", "dataset"
-		"classifer"        :None, 
-		"cores"            :ncores,
-		"model"            :"XGBoost", 
-		"maxitter"         :10, 
-		"DropNAN"          :0.5, 
-		"DropDist"         :True,
-		"StopPoint"        :5,
-		"SlowPoint"        :150, # The point i start to slow down feature selection and allow a different method
-		"maxR2drop"        :0.025,
-		"AltMethod"        :"BackStep" # alternate method to use after slowdown point is reached
-		})
-	expr[336] = ({
-		# +++++ The experiment name and summary +++++
-		"Code"             :336,
-		"name"             :"OneStageXGBOOST_AllGap_50perNA_PermutationImp_RFECV",
-		"desc"             :"After the slow down point the model switches to RFECV to do feature selection",
-		"window"           :5,
-		"predictwindow"    :None,
-		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
-		# +++++ The Model setup params +++++
-		"ntree"            :10,
-		"nbranch"          :2000,
-		"max_features"     :'auto',
-		"max_depth"        :5,
-		"min_samples_split":2,
-		"min_samples_leaf" :2,
-		"bootstrap"        :True,
-		# +++++ The experiment details +++++
-		"test_size"        :0.2, 
-		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Permutation",
-		"ModVar"           :"ntree, max_depth", "dataset"
-		"classifer"        :None, 
-		"cores"            :ncores,
-		"model"            :"XGBoost", 
-		"maxitter"         :10, 
-		"DropNAN"          :0.5, 
-		"DropDist"         :True,
-		"StopPoint"        :5,
-		"SlowPoint"        :150, # The point i start to slow down feature selection and allow a different method
-		"maxR2drop"        :0.025,
-		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
-		})
+	# expr[334] = ({
+	# 	# +++++ The experiment name and summary +++++
+	# 	"Code"             :334,
+	# 	"name"             :"OneStageXGBOOST_AllGap_50perNA_Permutation_backstep",
+	# 	"desc"             :"After the slow down point the model can backtrack if performance degrades too much",
+	# 	"window"           :5,
+	# 	"predictwindow"    :None,
+	# 	"Nstage"           :1, 
+	# 	"Model"            :"XGBoost", 
+	# 	# +++++ The Model setup params +++++
+	# 	"ntree"            :10,
+	# 	"nbranch"          :2000,
+	# 	"max_features"     :'auto',
+	# 	"max_depth"        :5,
+	# 	"min_samples_split":2,
+	# 	"min_samples_leaf" :2,
+	# 	"bootstrap"        :True,
+	# 	# +++++ The experiment details +++++
+	# 	"test_size"        :0.2, 
+	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
+	# 	"ImportanceMet"    :"Permutation",
+	# 	"ModVar"           :"ntree, max_depth", "dataset"
+	# 	"classifer"        :None, 
+	# 	"cores"            :ncores,
+	# 	"model"            :"XGBoost", 
+	# 	"maxitter"         :10, 
+	# 	"DropNAN"          :0.5, 
+	# 	"DropDist"         :True,
+	# 	"StopPoint"        :5,
+	# 	"SlowPoint"        :150, # The point i start to slow down feature selection and allow a different method
+	# 	"maxR2drop"        :0.025,
+	# 	"AltMethod"        :"BackStep" # alternate method to use after slowdown point is reached
+	# 	})
+	# expr[335] = ({
+	# 	# +++++ The experiment name and summary +++++
+	# 	"Code"             :335,
+	# 	"name"             :"OneStageXGBOOST_AllGap_50perNA_FeatureImp_backstep",
+	# 	"desc"             :"After the slow down point the model can backtrack if performance degrades too much",
+	# 	"window"           :5,
+	# 	"predictwindow"    :None,
+	# 	"Nstage"           :1, 
+	# 	"Model"            :"XGBoost", 
+	# 	# +++++ The Model setup params +++++
+	# 	"ntree"            :10,
+	# 	"nbranch"          :2000,
+	# 	"max_features"     :'auto',
+	# 	"max_depth"        :5,
+	# 	"min_samples_split":2,
+	# 	"min_samples_leaf" :2,
+	# 	"bootstrap"        :True,
+	# 	# +++++ The experiment details +++++
+	# 	"test_size"        :0.2, 
+	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
+	# 	"ImportanceMet"    :"Feature",
+	# 	"ModVar"           :"ntree, max_depth", "dataset"
+	# 	"classifer"        :None, 
+	# 	"cores"            :ncores,
+	# 	"model"            :"XGBoost", 
+	# 	"maxitter"         :10, 
+	# 	"DropNAN"          :0.5, 
+	# 	"DropDist"         :True,
+	# 	"StopPoint"        :5,
+	# 	"SlowPoint"        :150, # The point i start to slow down feature selection and allow a different method
+	# 	"maxR2drop"        :0.025,
+	# 	"AltMethod"        :"BackStep" # alternate method to use after slowdown point is reached
+	# 	})
+	# expr[336] = ({
+	# 	# +++++ The experiment name and summary +++++
+	# 	"Code"             :336,
+	# 	"name"             :"OneStageXGBOOST_AllGap_50perNA_PermutationImp_RFECV",
+	# 	"desc"             :"After the slow down point the model switches to RFECV to do feature selection",
+	# 	"window"           :5,
+	# 	"predictwindow"    :None,
+	# 	"Nstage"           :1, 
+	# 	"Model"            :"XGBoost", 
+	# 	# +++++ The Model setup params +++++
+	# 	"ntree"            :10,
+	# 	"nbranch"          :2000,
+	# 	"max_features"     :'auto',
+	# 	"max_depth"        :5,
+	# 	"min_samples_split":2,
+	# 	"min_samples_leaf" :2,
+	# 	"bootstrap"        :True,
+	# 	# +++++ The experiment details +++++
+	# 	"test_size"        :0.2, 
+	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
+	# 	"ImportanceMet"    :"Permutation",
+	# 	"ModVar"           :"ntree, max_depth", "dataset"
+	# 	"classifer"        :None, 
+	# 	"cores"            :ncores,
+	# 	"model"            :"XGBoost", 
+	# 	"maxitter"         :10, 
+	# 	"DropNAN"          :0.5, 
+	# 	"DropDist"         :True,
+	# 	"StopPoint"        :5,
+	# 	"SlowPoint"        :150, # The point i start to slow down feature selection and allow a different method
+	# 	"maxR2drop"        :0.025,
+	# 	"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
+	# 	})
 	expr[337] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :337,
