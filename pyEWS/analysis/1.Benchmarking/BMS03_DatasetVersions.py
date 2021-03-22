@@ -101,7 +101,7 @@ def main(args):
 
 
 			# ========== Allow for version skipping ==========
-			if version > 2 and experiment > 335:
+			if version > 3 and experiment > 335:
 				warn.warn("Skipping this one so everything else can finish")
 				continue
 			
@@ -147,9 +147,9 @@ def main(args):
 				elif branch >= setup["maxitter"]:
 					# ========== Catch to stop infinit looping ==========
 					warn.warn("Branch reached max depth, setting final = True to stop ")
+					breakpoint()
 					final = True
 					# setup["BranchDepth"] = branch
-					breakpoint()
 					
 
 
@@ -186,19 +186,22 @@ def main(args):
 					X_train, X_test, y_train, y_test, col_nms, orig_clnm, experiment, 
 					version, branch,  setup, corr_linkage,fn_RFE, fn_RCV,  verbose=False, final=final)
 
+				if setup["AltMethod"] in ["BackStep", "RFECV"]:
+					NV = len(ColNm)
+				else:
+					NV = loadstats["colcount"]
 
 				# ========== Add the results of the different itterations to OD ==========
 				perf["Branch%02d" % branch] = ({"experiment":experiment, "version":version, 
 					"RFtime":time, "TimeCumulative":pd.Timestamp.now() -t0,  
-					"R2":r2, "NumVar":loadstats["colcount"],  "SiteFraction":loadstats["fractrows"]
+					"R2":r2, "NumVar":NV,  "SiteFraction":loadstats["fractrows"]
 					})
 				
 				# ========== Print out branch performance ==========
 				print("Branch %02d had %d veriables and an R2 of " % (branch, len(col_nms)), r2)
 
-				# breakpoint()
-
 				# ========== Print out branch performance ==========
+
 				if not final:
 					# ========== deal feature selection slow dowwn mode ==========
 					if len(ColNm) <=  setup['SlowPoint']:
@@ -218,15 +221,10 @@ def main(args):
 									feature_imp  = BackStepOD[indx-1]["FI"]
 									ColNm        = BackStepOD[indx-1]["ColNm"]
 									RequestFinal = True
-									# breakpoint()
+									breakpoint()
 								else:
 									# if its acceptably worse store that
 									pass
-						# elif setup["AltMethod"] == "RFECV":
-						# 	# +++++ Set of rules +++++
-						# 	RequestFinal = True
-						# 	print("This may get removed if i RFECV is super slow")
-						# 	breakpoint()
 
 					# ========== Perform Variable selection and get new column names ==========
 					# ColNm = Variable_selection(corr_linkage, branch, feature_imp, col_nms, orig_clnm)
@@ -424,7 +422,7 @@ def ml_regression(
 	if final:
 		# =========== save the predictions of the last branch ==========
 		_predictedVSobserved(y_test, y_pred, experiment, version, branch, setup)
-		return tDif, sklMet.r2_score(y_test, y_pred), FI, None
+		return tDif, sklMet.r2_score(y_test, y_pred), FI, col_nms
 
 	else:
 		ColNm = Variable_selection(corr_linkage, branch, FI, col_nms, orig_clnm)
@@ -1130,8 +1128,7 @@ def experiments(ncores = -1):
 		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
 		})
 	
-	return expr
-	
+
 	expr[336] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :336,
@@ -1199,6 +1196,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"AltMethod"        :"BackStep" # alternate method to use after slowdown point is reached
 		})
+	return expr
 
 
 # ==============================================================================
