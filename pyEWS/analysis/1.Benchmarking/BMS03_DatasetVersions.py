@@ -190,8 +190,6 @@ def main(args):
 					final = True
 					# setup["BranchDepth"] = branch
 					
-
-
 				if not setup['predictwindow'] is None:
 					bsestr = f"TTS_VI_df_{setup['predictwindow']}years"
 				else:
