@@ -127,7 +127,7 @@ def main(args):
 			final        = False
 			t0           = pd.Timestamp.now()
 			
-			def _pairFinder(exper, experiment, setup, pair, version, perf, force, t0):
+			def _pairFinder(exper, experiment, setup, pair, version, perf, force, t0, branch):
 				# ========== check if the files exist ==========
 				psetup = exper[pair].copy()
 				ppath = f"./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/{pair}/" 
@@ -143,13 +143,14 @@ def main(args):
 						perf["Branch%02d" % exp] = ({"experiment":experiment, "version":version, 
 							"RFtime":pd.to_timedelta(bx["RFtime"]), "TimeCumulative":pd.to_timedelta(bx["TimeCumulative"]),  
 							"R2":bx["R2"], "NumVar":bx["NumVar"],  "SiteFraction":bx["SiteFraction"]})
-						t0 -= pd.to_timedelta(bx["RFtime"])
+						t0     -= pd.to_timedelta(bx["RFtime"])
+						branch += 1
 					
 					# ========== pull the column names ==========
 					dfc = pd.read_csv(pfn_PI)
 					ColNm = dfc.Variable.values.tolist()
 					
-					return ColNm, True, t0, perf
+					return ColNm, True, t0, perf, branch
 
 				else:
 					return None, False, t0, perf
@@ -164,7 +165,7 @@ def main(args):
 
 
 			else:
-				ColNm, RequestFinal, t0, perf =  _pairFinder(exper, experiment, setup, setup['pariedRun'], version, perf, force, t0)
+				ColNm, RequestFinal, t0, perf =  _pairFinder(exper, experiment, setup, setup['pariedRun'], version, perf, force, t0, branch)
 			corr_linkage = None # will be replaced after the 0 itteration
 			orig_clnm    = None # Original Column names
 
