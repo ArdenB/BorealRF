@@ -121,7 +121,7 @@ def main(args):
 			# ========== Setup the loop specific variables ==========
 			branch       = 0
 			final        = False
-			ColNm        = None #will be replaced as i keep adding new columns
+			ColNm        = None # will be replaced as i keep adding new columns
 			corr_linkage = None # will be replaced after the 0 itteration
 			orig_clnm    = None # Original Column names
 			RequestFinal = False # a way to request final if i'm using REECV
@@ -186,7 +186,7 @@ def main(args):
 					X_train, X_test, y_train, y_test, col_nms, orig_clnm, experiment, 
 					version, branch,  setup, corr_linkage,fn_RFE, fn_RCV,  verbose=False, final=final)
 
-				if setup["AltMethod"] in ["BackStep", "RFECV"]:
+				if (setup["AltMethod"] in ["BackStep", "RFECV"]) and final:
 					NV = len(ColNm)
 				else:
 					NV = loadstats["colcount"]
@@ -221,7 +221,7 @@ def main(args):
 									feature_imp  = BackStepOD[indx-1]["FI"]
 									ColNm        = BackStepOD[indx-1]["ColNm"]
 									RequestFinal = True
-									breakpoint()
+									# breakpoint()
 								else:
 									# if its acceptably worse store that
 									pass
