@@ -101,9 +101,9 @@ def main(args):
 
 
 			# ========== Allow for version skipping ==========
-			if version > 3 and experiment > 335:
-				warn.warn("Skipping this one so everything else can finish")
-				continue
+			# if version > 3 and experiment > 335:
+			# 	warn.warn("Skipping this one so everything else can finish")
+			# 	continue
 			
 
 
