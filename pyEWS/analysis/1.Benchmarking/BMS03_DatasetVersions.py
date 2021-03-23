@@ -165,7 +165,7 @@ def main(args):
 
 
 			else:
-				ColNm, RequestFinal, t0, perf =  _pairFinder(exper, experiment, setup, setup['pariedRun'], version, perf, force, t0, branch)
+				ColNm, RequestFinal, t0, perf, branch =  _pairFinder(exper, experiment, setup, setup['pariedRun'], version, perf, force, t0, branch)
 			corr_linkage = None # will be replaced after the 0 itteration
 			orig_clnm    = None # Original Column names
 
