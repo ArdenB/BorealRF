@@ -155,9 +155,6 @@ def main(args):
 				else:
 					return None, False, t0, perf
 
-				
-			
-
 			if setup['pariedRun'] is None:
 				ColNm        = None # will be replaced as i keep adding new columns
 				RequestFinal = False # a way to request final if i'm using REECV
