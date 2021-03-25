@@ -98,8 +98,10 @@ def main(args):
 				fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_{setup['predictwindow']}years.csv"
 				sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_{setup['predictwindow']}years.csv"
 			
+
+
 			# ========== Allow for version skipping ==========
-			# if version > 3 and experiment > 335:
+			# if version < 6 and experiment > 335:
 			# 	warn.warn("Skipping this one so everything else can finish")
 			# 	continue
 			
@@ -230,8 +232,8 @@ def main(args):
 					})
 				
 				# ========== Print out branch performance ==========
-				# print("Branch %02d had %d veriables and an R2 of " % (branch, len(col_nms)), r2)
-				print(f"Experiment {experiment} Ver {version} Branch {branch} had {len(col_nms)} and an R2 of {r2}")
+				print("Branch %02d had %d veriables and an R2 of " % (branch, len(col_nms)), r2)
+
 				# ========== Print out branch performance ==========
 
 				if not final:
@@ -243,7 +245,6 @@ def main(args):
 							indx = len(BackStepOD)
 							BackStepOD[indx] = {"R2":r2, "FI":feature_imp.copy(), "ColNm":col_nms.copy()}
 							if len(BackStepOD) > 1:
-								print(f"Benchmark R2 {BackStepOD[0]['R2']}, Current R2 {r2}, Delta {BackStepOD[0]['R2']-r2}")
 								if r2 > BackStepOD[0]["R2"]:
 									#  if the model is better store that, This removes the OD and puts the reslt in it place
 									BackStepOD   = OrderedDict()
@@ -298,7 +299,6 @@ def main(args):
 				breakpoint()
 
 			# ========== Write the metadata ==========
-			print("Total time taken:", pd.Timestamp.now()-T0)
 			meta_fn = path + "Metadata"
 			if not os.path.isfile(meta_fn + ".txt"):
 				maininfo = "Results in this folder is written from %s (%s):%s by %s, %s" % (__title__, __file__, 
@@ -308,6 +308,7 @@ def main(args):
 				# ========== Write the setup info ==========
 				pd.DataFrame(
 					pd.Series(setup), columns=["Exp%03d" % (experiment)]).to_csv(path+"Exp%03d_setup.csv" % (experiment))
+			print("Total time taken:", pd.Timestamp.now()-T0)
 
 
 

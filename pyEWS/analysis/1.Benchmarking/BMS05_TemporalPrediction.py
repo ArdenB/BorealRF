@@ -53,7 +53,9 @@ import seaborn as sns
 import palettable
 from numba import jit
 import dask.dataframe as dd
-from dask.diagnostics import ProgressBar
+# from dask.diagnostics import ProgressBar
+from progressbar import progressbar
+from tqdm import tqdm
 
 
 # ========== Import my dunctions ==========
@@ -72,7 +74,8 @@ from sklearn import metrics as sklMet
 # from sklearn.utils import shuffle
 # from scipy.stats import spearmanr
 # from scipy.cluster import hierarchy
-
+print("seaborn version : ", sns.__version__)
+# sys.exit()
 # ==============================================================================
 def main():
 	"""Goal of the script is to open the results files from different models 
@@ -88,6 +91,7 @@ def main():
 	# +++++ the final model results +++++
 	mres_fnames = glob.glob(path + "*/Exp*_Results.csv")
 	df_mres = pd.concat([fix_results(mrfn) for mrfn in mres_fnames])
+	# breakpoint()
 	# for expn in df_mres.experiment.unique():
 	# 	def _tcheck(ser):
 	# 		if ser.max() > 1.5 * ser.median():
@@ -103,17 +107,26 @@ def main():
 	vi_df, fcount = VIload()
 	
 
-	# ========== Nan Tollerance =========== 
-	# NanExp = [300, 320, 321, 322, 323]
-	# NanTol_performance(path, NanExp, df_setup, df_mres.copy(), formats, vi_df, keys)
-	experiments = [330, 333, 333]
+	# ========== Disturbance Inclusion ==========
+	experiments = [330, 332,  333]
+	Regional_predictability(path, experiments, df_setup, df_mres, formats, vi_df, keys)
+	Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df)	
+	MLmethod_performance(path, experiments, df_setup, df_mres, formats, vi_df, keys, ncol = 4)
+
+	# ========== Stopping method ==========
+	experiments = [330, 333, 334, 335, 336, 337]
+	Regional_predictability(path, experiments, df_setup, df_mres, formats, vi_df, keys)
+	Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df)	
 	MLmethod_performance(path, experiments, df_setup, df_mres, formats, vi_df, keys, ncol = 4)
 
 	breakpoint()
-	Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df)
+	# ========== Nan Tollerance =========== 
+	# NanExp = [300, 320, 321, 322, 323]
+	# NanTol_performance(path, NanExp, df_setup, df_mres.copy(), formats, vi_df, keys)
 
 	# ========== Setup the experiment for temporal ==========
 	experiments = [310, 330, 331]
+	Regional_predictability(path, experiments, df_setup, df_mres, formats, vi_df, keys)
 	MLmethod_performance(path, experiments, df_setup, df_mres, formats, vi_df, keys, ncol = 4)
 	Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df)
 	
@@ -130,6 +143,70 @@ def main():
 
 	# 	breakpoint()
 # ==============================================================================
+def Regional_predictability(path, experiments, df_setup, df_mres, formats, vi_df, keys):
+	"""
+	Function to make a figure that explores the temporal predictability. This 
+	figure will only use the runs with virable windows
+	"""
+	# ========== make a container for the data and get the file names ==========
+	exp_names = [keys[expn] for expn in experiments]
+
+	OvP_fnames = []
+	for expn in experiments:	
+		OvP_fnames += glob.glob(f"{path}{expn}/Exp{expn}_*_OBSvsPREDICTED.csv")
+	
+	# ========== load the results and the VI data ==========
+	df_OvsP    = pd.concat([load_OBS(ofn) for ofn in OvP_fnames])
+	# ========== pull out the obs gap ==========
+	df_OvsP["ObsGap"]   = vi_df.loc[df_OvsP.index]["ObsGap"]
+	df_OvsP["ObsGap"]   = df_OvsP["ObsGap"].astype("category")
+	df_OvsP["residual"] = df_OvsP["Estimated"] - df_OvsP["Observed"]
+	df_OvsP["AbsResidual"] = df_OvsP["residual"].abs()
+	df_OvsP["Region"]   = vi_df.loc[df_OvsP.index]["Region"]
+	df_OvsP["AllRuns"]  = False
+	print(f"Starting the region Calculation at {pd.Timestamp.now()}. This is slow")
+	df_OvsP.reset_index(inplace=True)
+	for ind in tqdm(df_OvsP['index'].unique()):
+		verr = df_OvsP[df_OvsP["index"] == ind].version.unique()
+
+		if (len(experiments) * verr.size) == df_OvsP[df_OvsP["index"] == ind].shape[0]:
+			df_OvsP.loc[df_OvsP["index"] == ind, "AllRuns"] = True
+
+		# expr = df_OvsP[df_OvsP["index"] == ind].experiment.unique()
+		# if np.array_equal(experiments, expr):
+	
+
+	# ========== Create the figure ==========
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':8})
+	font = {'family' : 'normal',
+	        'weight' : 'bold', #,
+	        'size'   : 8}
+	mpl.rc('font', **font)
+	sns.set_style("whitegrid")
+
+	# ========== make the plot ==========
+	for va in ["AbsResidual", "residual"]:
+		for matched in ["matched", "unmatched"]:
+			if matched == "unmatched":
+				df_set = df_OvsP.copy()
+			else:
+				df_set = df_OvsP[df_OvsP.AllRuns].copy()
+			# palette=colours[:len(experiments)]
+			lab = [df_setup.loc[df_setup.Code.astype(int) == expn, "name"].values[0] for expn in experiments]
+
+			ax = sns.barplot(y=va, x="Region", hue="experiment",estimator=np.median, data=df_set)#,  order=exp_names)#ci="sd",
+			ax.legend(title='Experiment', loc='upper right', labels=lab)
+			plt.show()
+			# ax1.set_xlabel("")
+			# ax1.set_ylabel(r"$R^{2}$")
+			# ax1.set_xticklabels(ax1.get_xticklabels(), rotation=30, horizontalalignment='right')
+			# ax1.set(ylim=(0., 1.))
+
+		# breakpoint()
+
+	breakpoint()
+
+
 def NanTol_performance(path, experiments, df_setup, df_mres, formats, vi_df, keys,  ncol = 4):
 	"""
 	function to make map of overall ML method performance 
@@ -250,29 +327,35 @@ def MLmethod_performance(path, experiments, df_setup, df_mres, formats, vi_df, k
 	fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(
 		2, 2, figsize=(15,10),num=("General Summary"), dpi=130)
 	# +++++ R2 plot +++++
-	sns.barplot(y="R2", x="experiment", data=df_set, ci="sd", ax=ax1, order=exp_names, palette=colours[:len(experiments)])
+	sns.barplot(y="R2", x="experiment",estimator=np.median, data=df_set,  ax=ax1, order=exp_names, palette=colours[:len(experiments)])#ci="sd",
 	ax1.set_xlabel("")
 	ax1.set_ylabel(r"$R^{2}$")
 	ax1.set_xticklabels(ax1.get_xticklabels(), rotation=30, horizontalalignment='right')
 	ax1.set(ylim=(0., 1.))
 	# +++++ time taken plot +++++
-	sns.barplot(y="TotalTime", x="experiment", data=df_set, ci="sd", ax=ax2, order=exp_names, palette=colours[:len(experiments)])
+	sns.barplot(y="TotalTime", x="experiment",estimator=np.median, data=df_set,  ax=ax2, order=exp_names, palette=colours[:len(experiments)])#ci="sd",
 	ax2.set_xlabel("")
 	ax2.set_ylabel(r"$\Delta$t (min)")
 	ax2.set_xticklabels(ax2.get_xticklabels(), rotation=30, horizontalalignment='right')
 	# +++++ site fraction plot +++++
-	sns.barplot(y="fractrows", x="experiment", data=df_set, ci="sd", ax=ax3, order=exp_names, palette=colours[:len(experiments)])
+	sns.barplot(y="fractrows", x="experiment",estimator=np.median, data=df_set,  ax=ax3, order=exp_names, palette=colours[:len(experiments)])#ci="sd",
 	ax3.set_xlabel("")
 	ax3.set_ylabel("% of sites")
 	ax3.set_xticklabels(ax3.get_xticklabels(), rotation=30, horizontalalignment='right')
 	ax3.set(ylim=(0., 1.))
 	
 	# +++++ site fraction plot +++++
-	sns.barplot(y="itterrows", x="experiment", data=df_set, ci="sd", ax=ax4, order=exp_names, palette=colours[:len(experiments)])
+	# sns.barplot(y="itterrows", x="experiment", data=df_set, ci="sd", ax=ax4, order=exp_names, palette=colours[:len(experiments)])
+	# ax4.set_xlabel("")
+	# ax4.set_ylabel("No. of sites")
+	# ax4.set_xticklabels(ax3.get_xticklabels(), rotation=30, horizontalalignment='right')
+	# ax4.set(ylim=(0., np.ceil(df_set.itterrows.max()/1000)*1000))
+
+	sns.barplot(y="colcount", x="experiment", estimator=np.median, data=df_set,  ax=ax4, order=exp_names, palette=colours[:len(experiments)])#ci="sd",
 	ax4.set_xlabel("")
-	ax4.set_ylabel("No. of sites")
+	ax4.set_ylabel("Median Number of Variables")
 	ax4.set_xticklabels(ax3.get_xticklabels(), rotation=30, horizontalalignment='right')
-	ax4.set(ylim=(0., np.ceil(df_set.itterrows.max()/1000)*1000))
+	# ax4.set(ylim=(0., np.ceil(df_set.itterrows.max()/1000)*1000))
 	plt.tight_layout()
 	# ========== Save tthe plot ==========
 	print("starting save at:", pd.Timestamp.now())
@@ -303,12 +386,13 @@ def Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df
 	# ========== load the results and the VI data ==========
 	df_OvsP    = pd.concat([load_OBS(ofn) for ofn in OvP_fnames])
 
-
 	# ========== pull out the obs gap ==========
 	df_OvsP["ObsGap"]   = vi_df.loc[df_OvsP.index]["ObsGap"]
 	df_OvsP["ObsGap"]   = df_OvsP["ObsGap"].astype("category")
-	df_OvsP["residual"] = df_OvsP["Estimated"] = df_OvsP["Observed"]
+	df_OvsP["residual"] = df_OvsP["Estimated"] - df_OvsP["Observed"]
 	df_OvsP["AbsResidual"] = df_OvsP["residual"].abs()
+	# df_OvsP["Region"]   = vi_df.loc[df_OvsP.index]["Region"]
+	# breakpoint()
 
 	# ========== Create the figure ==========
 	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':8})
@@ -373,8 +457,8 @@ def Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df
 			__title__, __version__,  __author__, pd.Timestamp.now())
 		gitinfo = cf.gitmetadata()
 		cf.writemetadata(f"{path}plots/BMS05_TemporalPrediction_{va}", [plotinfo, gitinfo])
-	ipdb.set_trace()
-	breakpoint()
+	# ipdb.set_trace()
+	# breakpoint()
 
 # ==============================================================================
 
@@ -384,6 +468,11 @@ def VIload():
 	print(f"Loading the VI_df, this can be a bit slow: {pd.Timestamp.now()}")
 	vi_df = pd.read_csv("./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears.csv", index_col=0)#[['lagged_biomass','ObsGap']]
 	vi_df["NanFrac"] = vi_df.isnull().mean(axis=1)
+
+	# ========== Fill in the missing sites ==========
+	region_fn ="./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears.csv"
+	site_df = pd.read_csv(region_fn, index_col=0)
+
 	vi_df = vi_df[['lagged_biomass','ObsGap', "NanFrac"]]
 	for nanp in [0, 0.25, 0.50, 0.75, 1.0]:	
 		isin = (vi_df["NanFrac"] <=nanp).astype(float)
@@ -392,6 +481,8 @@ def VIload():
 
 	fcount = pd.melt(vi_df.drop(["lagged_biomass","NanFrac"], axis=1).groupby("ObsGap").count(), ignore_index=False).reset_index()
 	fcount["variable"] = fcount["variable"].astype("category")
+	vi_df["Region"]    = site_df["Region"]
+	# breakpoint()
 
 	return vi_df, fcount
 
@@ -446,8 +537,17 @@ def Experiment_name(df, df_setup, var = "experiment"):
 					nm = f"DataMOD_{pred if not np.isnan(float(pred)) else 'AllSample' }yrPred_{lswin}yrLS_{NAfrac}percNA"
 					if cat == 332:
 						nm += "_disturbance"
-					elif cat == 333:
+					elif cat in [333, 335, 337]:
 						nm += "_FeatureSel"
+					elif cat in [339, 334, 336]:
+						nm += "_PermutationSel"
+
+
+					if not df_setup[df_setup.Code.astype(int) == cat]["AltMethod"].isnull()[0]:
+						nm += f"_{df_setup[df_setup.Code.astype(int) == cat]['AltMethod'].values[0]}"
+					
+
+					# breakpoint()
 
 
 			else:
@@ -477,10 +577,13 @@ def fix_results(fn):
 	for col in df_in.columns:
 		if col == "TotalTime":
 			df_in[col] = pd.to_timedelta(df_in[col])
-		# elif col == "experiment":
-		# 	df_in[col] = df_in[col].astype('category')
+		elif col == "Computer":
+			df_in[col] = df_in[col].astype('category')
 		else:
-			df_in[col] = df_in[col].astype(float)
+			try:
+				df_in[col] = df_in[col].astype(float)
+			except Exception as e:
+				breakpoint()
 	# ========== Loop over the regions ==========
 
 	for region in site_df.Region.unique():
@@ -494,6 +597,7 @@ def fix_results(fn):
 			df_in["%s_sitefrac" % region] = 0.
 		# 	# df_in["%s_siteinc" % region] = df_in["%s_siteinc" % region].astype(float)
 		# 	df_in["%s_sitefrac" % region] = (df_in["%s_siteinc" % region] / Rcounts[region])
+	# breakpoint()
 	return df_in
 
 
