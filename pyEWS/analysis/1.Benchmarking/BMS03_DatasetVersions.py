@@ -638,7 +638,6 @@ def experiments(ncores = -1):
 	performing """
 	expr = OrderedDict()
 
-"Step"             :None,
 	expr[300] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :300,
@@ -671,9 +670,9 @@ def experiments(ncores = -1):
 		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
+		"Step"             :None,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
-	"Step"             :None,
 	expr[301] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :301,
@@ -706,9 +705,9 @@ def experiments(ncores = -1):
 		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
+		"Step"             :None,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
-	"Step"             :None,
 	expr[302] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :302,
@@ -741,9 +740,9 @@ def experiments(ncores = -1):
 		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
+		"Step"             :None,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
-	"Step"             :None,
 	expr[303] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :303,
@@ -776,9 +775,9 @@ def experiments(ncores = -1):
 		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
+		"Step"             :None,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
-	"Step"             :None,
 	expr[304] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :304,
@@ -811,9 +810,9 @@ def experiments(ncores = -1):
 		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
+		"Step"             :None,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
-	"Step"             :None,
 	expr[305] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :305,
@@ -846,9 +845,9 @@ def experiments(ncores = -1):
 		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
+		"Step"             :None,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
-	"Step"             :None,
 	expr[310] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :310,
@@ -881,10 +880,10 @@ def experiments(ncores = -1):
 		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
+		"Step"             :None,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 
-"Step"             :None,
 	expr[320] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :320,
@@ -917,9 +916,9 @@ def experiments(ncores = -1):
 		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
+		"Step"             :None,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
-	"Step"             :None,
 	expr[321] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :321,
@@ -952,9 +951,9 @@ def experiments(ncores = -1):
 		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
+		"Step"             :None,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
-	"Step"             :None,
 	expr[322] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :322,
@@ -987,9 +986,9 @@ def experiments(ncores = -1):
 		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
+		"Step"             :None,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
-	"Step"             :None,
 	expr[323] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :323,
@@ -1022,9 +1021,9 @@ def experiments(ncores = -1):
 		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
+		"Step"             :None,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
-	"Step"             :None,
 	expr[330] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :330,
@@ -1057,9 +1056,9 @@ def experiments(ncores = -1):
 		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
+		"Step"             :None,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
-	"Step"             :None,
 	expr[331] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :331,
@@ -1092,9 +1091,9 @@ def experiments(ncores = -1):
 		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
+		"Step"             :None,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
-	"Step"             :None,
 	expr[332] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :332,
@@ -1127,6 +1126,7 @@ def experiments(ncores = -1):
 		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
+		"Step"             :None,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[333] = ({
