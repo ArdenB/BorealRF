@@ -49,6 +49,7 @@ import time
 import matplotlib.pyplot as plt
 from collections import OrderedDict, defaultdict
 import seaborn as sns
+import pickle
 
 # ========== Import my dunctions ==========
 import myfunctions.corefunctions as cf
@@ -67,6 +68,8 @@ from sklearn.utils import shuffle
 from scipy.stats import spearmanr
 from scipy.cluster import hierarchy
 import xgboost as xgb
+
+print("seaborn version : ", sns.__version__)
 
 
 # ==============================================================================
@@ -91,6 +94,7 @@ def main(args):
 			fn_PI  = path + "Exp%03d_%s_vers%02d_%sImportance.csv" % (experiment, setup["name"], version, setup["ImportanceMet"])
 			fn_RFE =  path + "Exp%03d_%s_vers%02d_%sImportance_RFECVfeature.csv" % (experiment, setup["name"], version, setup["ImportanceMet"])
 			fn_RCV =  path + "Exp%03d_%s_vers%02d_%sImportance_RFECVsteps.csv" % (experiment, setup["name"], version, setup["ImportanceMet"])
+			
 			if setup['predictwindow'] is None:
 				fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears.csv"
 				sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears.csv"
@@ -378,7 +382,7 @@ def ml_regression(
 
 		if setup["AltMethod"] == "RFECV" and final:
 			print(f"Start RFECV at: {pd.Timestamp.now()}")
-			selector = RFECV(reg, step=5, cv=5, verbose=1)#, scoring='neg_mean_absolute_error')#, n_jobs=-1
+			selector = RFECV(reg, step=setup["Step"], cv=5, verbose=1)#, scoring='neg_mean_absolute_error')#, n_jobs=-1
 			selector.fit(X_train.values, y_train.values.ravel())
 
 			# Build a table about the features
@@ -456,6 +460,28 @@ def ml_regression(
 	if final:
 		# =========== save the predictions of the last branch ==========
 		_predictedVSobserved(y_test, y_pred, experiment, version, branch, setup)
+		# ========== Save out the model ==========
+		if experiment >= 400:
+			cf.pymkdir(path+"models/")
+			try:
+				if setup["model"] == "XGBoost":
+					fn_mod = f"{path}models/XGBoost_model_exp{experiment}_version{version}"
+					regressor.save_model(f"{fn_mod}.json")
+					pickle.dump(models, open(f"{fn_mod}.dat", "wb"))
+					df_pack = syspackinfo()
+					df_pack.to_csv(f"{fn_mod}_packagelist.csv")
+					print(f"Model saved at: {pd.Timestamp.now()}")
+				else:
+					warn.warn("This has not been set up. Going interactive to stop model loss")
+					breakpoint()
+
+			except Exception as er:
+				warn.warn(str(er))
+				warn.warn("Model save failed. going interactive to stop model loss")
+				breakpoint()
+
+
+
 		return tDif, sklMet.r2_score(y_test, y_pred), FI, col_nms
 
 	else:
@@ -591,6 +617,20 @@ def Region_calculation(experiment, version, setup, path, fn_PI, fn_res,fnamein, 
 
 	df_res.to_csv(fn_res)
 
+
+def syspackinfo():
+	import scipy
+	import sklearn
+	pack = OrderedDict()
+	pack["Python"]  = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+	pack["pandas"]  = pd.__version__
+	pack["numpy"]   = np.__version__
+	pack["sklearn"] = sklearn.__version__
+	pack["XGBoost"] = xgb.__version__
+	pack["scipy"]   = scipy.__version__
+	return pd.DataFrame({"Packages":pack})
+
+
 # ==============================================================================
 
 def experiments(ncores = -1):
@@ -598,6 +638,7 @@ def experiments(ncores = -1):
 	performing """
 	expr = OrderedDict()
 
+"Step"             :None,
 	expr[300] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :300,
@@ -632,6 +673,7 @@ def experiments(ncores = -1):
 		"pariedRun"        :None, 
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
+	"Step"             :None,
 	expr[301] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :301,
@@ -666,6 +708,7 @@ def experiments(ncores = -1):
 		"pariedRun"        :None, 
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
+	"Step"             :None,
 	expr[302] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :302,
@@ -700,6 +743,7 @@ def experiments(ncores = -1):
 		"pariedRun"        :None, 
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
+	"Step"             :None,
 	expr[303] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :303,
@@ -734,6 +778,7 @@ def experiments(ncores = -1):
 		"pariedRun"        :None, 
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
+	"Step"             :None,
 	expr[304] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :304,
@@ -768,6 +813,7 @@ def experiments(ncores = -1):
 		"pariedRun"        :None, 
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
+	"Step"             :None,
 	expr[305] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :305,
@@ -802,6 +848,7 @@ def experiments(ncores = -1):
 		"pariedRun"        :None, 
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
+	"Step"             :None,
 	expr[310] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :310,
@@ -837,6 +884,7 @@ def experiments(ncores = -1):
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 
+"Step"             :None,
 	expr[320] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :320,
@@ -871,6 +919,7 @@ def experiments(ncores = -1):
 		"pariedRun"        :None, 
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
+	"Step"             :None,
 	expr[321] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :321,
@@ -905,6 +954,7 @@ def experiments(ncores = -1):
 		"pariedRun"        :None, 
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
+	"Step"             :None,
 	expr[322] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :322,
@@ -939,6 +989,7 @@ def experiments(ncores = -1):
 		"pariedRun"        :None, 
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
+	"Step"             :None,
 	expr[323] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :323,
@@ -973,6 +1024,7 @@ def experiments(ncores = -1):
 		"pariedRun"        :None, 
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
+	"Step"             :None,
 	expr[330] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :330,
@@ -1007,6 +1059,7 @@ def experiments(ncores = -1):
 		"pariedRun"        :None, 
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
+	"Step"             :None,
 	expr[331] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :331,
@@ -1041,6 +1094,7 @@ def experiments(ncores = -1):
 		"pariedRun"        :None, 
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
+	"Step"             :None,
 	expr[332] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :332,
@@ -1107,6 +1161,7 @@ def experiments(ncores = -1):
 		"SlowPoint"        :0, # The point i start to slow down feature selection and allow a different method
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
+		"Step"             :None,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	
@@ -1142,6 +1197,7 @@ def experiments(ncores = -1):
 		"SlowPoint"        :150, # The point i start to slow down feature selection and allow a different method
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
+		"Step"             :None,
 		"AltMethod"        :"BackStep" # alternate method to use after slowdown point is reached
 		})
 	expr[335] = ({
@@ -1176,6 +1232,7 @@ def experiments(ncores = -1):
 		"SlowPoint"        :150, # The point i start to slow down feature selection and allow a different method
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
+		"Step"             :None,
 		"AltMethod"        :"BackStep" # alternate method to use after slowdown point is reached
 		})
 
@@ -1211,6 +1268,7 @@ def experiments(ncores = -1):
 		"SlowPoint"        :150, # The point i start to slow down feature selection and allow a different method
 		"maxR2drop"        :0.025,
 		"pariedRun"        :334, # identical runs except at the last stage
+		"Step"             :5,
 		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
 		})
 	expr[337] = ({
@@ -1245,9 +1303,45 @@ def experiments(ncores = -1):
 		"SlowPoint"        :150, # The point i start to slow down feature selection and allow a different method
 		"maxR2drop"        :0.025,
 		"pariedRun"        :335, # identical runs except at the last stage
+		"Step"             :5,
 		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
 		})
 	
+	expr[400] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :400,
+		"name"             :"OneStageXGBOOST_AllGap_50perNA_PermutationImp_RFECV_FINAL",
+		"desc"             :"Fist attempt at a paper final model configuration",
+		"window"           :10,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"Model"            :"XGBoost", 
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation",
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"model"            :"XGBoost", 
+		"maxitter"         :14, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :False,
+		"StopPoint"        :5,
+		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"pariedRun"        :None, # identical runs except at the last stage
+		"Step"             :4,
+		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
+		})
 
 	return expr
 

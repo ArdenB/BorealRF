@@ -56,6 +56,7 @@ import dask.dataframe as dd
 # from dask.diagnostics import ProgressBar
 from progressbar import progressbar
 from tqdm import tqdm
+import bottleneck as bn
 
 
 # ========== Import my dunctions ==========
@@ -108,29 +109,33 @@ def main():
 	
 
 	# ========== Disturbance Inclusion ==========
+	version = 0
 	experiments = [330, 332,  333]
-	Regional_predictability(path, experiments, df_setup, df_mres, formats, vi_df, keys)
-	Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df)	
-	MLmethod_performance(path, experiments, df_setup, df_mres, formats, vi_df, keys, ncol = 4)
+	Regional_predictability(path, experiments, df_setup, df_mres, formats, vi_df, keys, version)
+	Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df, version)	
+	MLmethod_performance(path, experiments, df_setup, df_mres, formats, vi_df, keys, version, ncol = 4)
 
 	# ========== Stopping method ==========
+	version = 1
 	experiments = [330, 333, 334, 335, 336, 337]
-	Regional_predictability(path, experiments, df_setup, df_mres, formats, vi_df, keys)
-	Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df)	
-	MLmethod_performance(path, experiments, df_setup, df_mres, formats, vi_df, keys, ncol = 4)
+	Regional_predictability(path, experiments, df_setup, df_mres, formats, vi_df, keys, version)
+	Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df, version)	
+	MLmethod_performance(path, experiments, df_setup, df_mres, formats, vi_df, keys, version, ncol = 4)
 
 	breakpoint()
 	# ========== Nan Tollerance =========== 
-	# NanExp = [300, 320, 321, 322, 323]
-	# NanTol_performance(path, NanExp, df_setup, df_mres.copy(), formats, vi_df, keys)
+	NanExp = [300, 320, 321, 322, 323]
+	NanTol_performance(path, NanExp, df_setup, df_mres.copy(), formats, vi_df, keys, version)
 
 	# ========== Setup the experiment for temporal ==========
+	version = 2
 	experiments = [310, 330, 331]
-	Regional_predictability(path, experiments, df_setup, df_mres, formats, vi_df, keys)
-	MLmethod_performance(path, experiments, df_setup, df_mres, formats, vi_df, keys, ncol = 4)
-	Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df)
+	Regional_predictability(path, experiments, df_setup, df_mres, formats, vi_df, keys, version)
+	MLmethod_performance(path, experiments, df_setup, df_mres, formats, vi_df, keys, version, ncol = 4)
+	Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df, version)
 	
 	# ========== Experiments for ML methods ==========
+	version = 3
 	experiments = [100, 110, 200, 120, 304]
 	MLmethod_performance(path, experiments, df_setup, df_mres, formats, vi_df, keys, ncol = 4)
 	# for expn in experiments:
@@ -143,7 +148,7 @@ def main():
 
 	# 	breakpoint()
 # ==============================================================================
-def Regional_predictability(path, experiments, df_setup, df_mres, formats, vi_df, keys):
+def Regional_predictability(path, experiments, df_setup, df_mres, formats, vi_df, keys, version):
 	"""
 	Function to make a figure that explores the temporal predictability. This 
 	figure will only use the runs with virable windows
@@ -194,8 +199,9 @@ def Regional_predictability(path, experiments, df_setup, df_mres, formats, vi_df
 			# palette=colours[:len(experiments)]
 			lab = [df_setup.loc[df_setup.Code.astype(int) == expn, "name"].values[0] for expn in experiments]
 
-			ax = sns.barplot(y=va, x="Region", hue="experiment",estimator=np.median, data=df_set)#,  order=exp_names)#ci="sd",
+			ax = sns.barplot(y=va, x="Region", hue="experiment",estimator=bn.nanmedian, data=df_set)#,  order=exp_names)#ci="sd",
 			ax.legend(title='Experiment', loc='upper right', labels=lab)
+			plt.title(f"{va} {matched}")
 			plt.show()
 			# ax1.set_xlabel("")
 			# ax1.set_ylabel(r"$R^{2}$")
@@ -207,7 +213,7 @@ def Regional_predictability(path, experiments, df_setup, df_mres, formats, vi_df
 	breakpoint()
 
 
-def NanTol_performance(path, experiments, df_setup, df_mres, formats, vi_df, keys,  ncol = 4):
+def NanTol_performance(path, experiments, df_setup, df_mres, formats, vi_df, keys, version, ncol = 4):
 	"""
 	function to make map of overall ML method performance 
 	"""
@@ -275,7 +281,7 @@ def NanTol_performance(path, experiments, df_setup, df_mres, formats, vi_df, key
 	plt.tight_layout()
 	# ========== Save tthe plot ==========
 	print("starting save at:", pd.Timestamp.now())
-	fnout = f"{path}plots/BM05_Nan_performance"
+	fnout = f"{path}plots/BM05_Nan_performance_v{version}"
 	for ext in formats:
 		plt.savefig(fnout+ext)
 	
@@ -296,7 +302,7 @@ def NanTol_performance(path, experiments, df_setup, df_mres, formats, vi_df, key
 		# hue="experiment", 
 	breakpoint()
 
-def MLmethod_performance(path, experiments, df_setup, df_mres, formats, vi_df, keys,  ncol = 4):
+def MLmethod_performance(path, experiments, df_setup, df_mres, formats, vi_df, keys, version,  ncol = 4):
 	"""
 	function to make map of overall ML method performance 
 	"""
@@ -327,18 +333,18 @@ def MLmethod_performance(path, experiments, df_setup, df_mres, formats, vi_df, k
 	fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(
 		2, 2, figsize=(15,10),num=("General Summary"), dpi=130)
 	# +++++ R2 plot +++++
-	sns.barplot(y="R2", x="experiment",estimator=np.median, data=df_set,  ax=ax1, order=exp_names, palette=colours[:len(experiments)])#ci="sd",
+	sns.barplot(y="R2", x="experiment",estimator=bn.nanmedian, data=df_set,  ax=ax1, order=exp_names, palette=colours[:len(experiments)])#ci="sd",
 	ax1.set_xlabel("")
 	ax1.set_ylabel(r"$R^{2}$")
 	ax1.set_xticklabels(ax1.get_xticklabels(), rotation=30, horizontalalignment='right')
 	ax1.set(ylim=(0., 1.))
 	# +++++ time taken plot +++++
-	sns.barplot(y="TotalTime", x="experiment",estimator=np.median, data=df_set,  ax=ax2, order=exp_names, palette=colours[:len(experiments)])#ci="sd",
+	sns.barplot(y="TotalTime", x="experiment",estimator=bn.nanmedian, data=df_set,  ax=ax2, order=exp_names, palette=colours[:len(experiments)])#ci="sd",
 	ax2.set_xlabel("")
 	ax2.set_ylabel(r"$\Delta$t (min)")
 	ax2.set_xticklabels(ax2.get_xticklabels(), rotation=30, horizontalalignment='right')
 	# +++++ site fraction plot +++++
-	sns.barplot(y="fractrows", x="experiment",estimator=np.median, data=df_set,  ax=ax3, order=exp_names, palette=colours[:len(experiments)])#ci="sd",
+	sns.barplot(y="fractrows", x="experiment",estimator=bn.nanmedian, data=df_set,  ax=ax3, order=exp_names, palette=colours[:len(experiments)])#ci="sd",
 	ax3.set_xlabel("")
 	ax3.set_ylabel("% of sites")
 	ax3.set_xticklabels(ax3.get_xticklabels(), rotation=30, horizontalalignment='right')
@@ -351,7 +357,7 @@ def MLmethod_performance(path, experiments, df_setup, df_mres, formats, vi_df, k
 	# ax4.set_xticklabels(ax3.get_xticklabels(), rotation=30, horizontalalignment='right')
 	# ax4.set(ylim=(0., np.ceil(df_set.itterrows.max()/1000)*1000))
 
-	sns.barplot(y="colcount", x="experiment", estimator=np.median, data=df_set,  ax=ax4, order=exp_names, palette=colours[:len(experiments)])#ci="sd",
+	sns.barplot(y="colcount", x="experiment", estimator=bn.nanmedian, data=df_set,  ax=ax4, order=exp_names, palette=colours[:len(experiments)])#ci="sd",
 	ax4.set_xlabel("")
 	ax4.set_ylabel("Median Number of Variables")
 	ax4.set_xticklabels(ax3.get_xticklabels(), rotation=30, horizontalalignment='right')
@@ -359,7 +365,7 @@ def MLmethod_performance(path, experiments, df_setup, df_mres, formats, vi_df, k
 	plt.tight_layout()
 	# ========== Save tthe plot ==========
 	print("starting save at:", pd.Timestamp.now())
-	fnout = f"{path}plots/BM05_MLmethod_performance"
+	fnout = f"{path}plots/BM05_MLmethod_performance_v{version}"
 	for ext in formats:
 		plt.savefig(fnout+ext)
 	
@@ -373,7 +379,7 @@ def MLmethod_performance(path, experiments, df_setup, df_mres, formats, vi_df, k
 	breakpoint()
 
 
-def Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df):
+def Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df, version):
 	"""
 	Function to make a figure that explores the temporal predictability. This 
 	figure will only use the runs with virable windows
@@ -448,7 +454,7 @@ def Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df
 			# +++++ Save the plot out +++++
 			if not formats is None:
 				for fmt in formats:
-					fn = f"{path}plots/BMS05_TemporalPrediction_{va}_{CI}{fmt}"
+					fn = f"{path}plots/BMS05_TemporalPrediction_{version}_{va}_{CI}{fmt}"
 					plt.savefig(fn)
 			# 
 			plt.show()
