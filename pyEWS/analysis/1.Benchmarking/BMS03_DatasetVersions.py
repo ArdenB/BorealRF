@@ -221,7 +221,7 @@ def main(args):
 
 				# ========== Perform the Regression ==========
 				time,  r2, feature_imp, ColNm  = ml_regression(
-					X_train, X_test, y_train, y_test, ppath, col_nms, orig_clnm, experiment, 
+					X_train, X_test, y_train, y_test, path, col_nms, orig_clnm, experiment, 
 					version, branch,  setup, corr_linkage,fn_RFE, fn_RCV,  verbose=False, final=final)
 
 				if (setup["AltMethod"] in ["BackStep", "RFECV"]) and final:
