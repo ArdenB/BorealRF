@@ -467,7 +467,7 @@ def ml_regression(
 				if setup["model"] == "XGBoost":
 					fn_mod = f"{path}models/XGBoost_model_exp{experiment}_version{version}"
 					regressor.save_model(f"{fn_mod}.json")
-					pickle.dump(models, open(f"{fn_mod}.dat", "wb"))
+					pickle.dump(regressor, open(f"{fn_mod}.dat", "wb"))
 					df_pack = syspackinfo()
 					df_pack.to_csv(f"{fn_mod}_packagelist.csv")
 					print(f"Model saved at: {pd.Timestamp.now()}")
