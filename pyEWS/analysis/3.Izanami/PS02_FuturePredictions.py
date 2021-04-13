@@ -69,8 +69,8 @@ from sklearn import metrics as sklMet
 
 # ==============================================================================
 def main():
-
-		# ========== Get the file names and open the files ==========
+	# ========== Get the file names and open the files ==========
+	formats = None
 	path  = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/"
 	cf.pymkdir(path+"plots/")
 	ppath = "./pyEWS/analysis/3.Izanami/Figures/PS02/"
@@ -84,6 +84,7 @@ def main():
 	df_mres = pd.concat([fix_results(mrfn) for mrfn in mres_fnames], sort=True)
 	df_mres["TotalTime"]  = df_mres.TotalTime / pd.to_timedelta(1, unit='m')
 	df_mres, keys = Experiment_name(df_mres, df_setup, var = "experiment")
+	vi_df, fcount = VIload()
 
 
 	# ========= Load in the observations ==========
@@ -100,9 +101,13 @@ def main():
 	splts[ 0] = -1.00001
 	splts[-1] = 1.00001
 
+	experiments = [334]
+	Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df)	
 
-	confusion_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=[334],  ncol = 4, 
-		inc_class=False, split=splts, sumtxt="", annot=True, zline=True)
+	confusion_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=experiments,  ncol = 4, 
+		inc_class=False, split=splts, sumtxt="", annot=False, zline=True)
+
+	
 	breakpoint()
 
 # ==============================================================================
@@ -170,7 +175,7 @@ def confusion_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=None,  n
 		sptsze = len(split)
 
 	fig= plt.figure(
-		figsize=(19,11),
+		figsize=(8,11),
 		num=("Normalised Confusion Matrix " + sumtxt), 
 		dpi=130)#, constrained_layout=True)figsize=(17,12),
 
@@ -220,7 +225,7 @@ def confusion_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=None,  n
 			ann = df_cm.round(3)
 		else:
 			ann = False
-		sns.heatmap(df_cm, annot=ann, vmin=0, vmax=1, ax = ax, cbar=False,  square=True)
+		sns.heatmap(df_cm, annot=ann, vmin=0, vmax=1, ax = ax, cbar=False, square=True)
 		ax.plot(np.arange(expsize+1), np.arange(expsize+1), "w", alpha=0.5)
 		plt.title(expr[exp])
 		# ========== fix the labels +++++
@@ -276,6 +281,91 @@ def confusion_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=None,  n
 	# gitinfo = cf.gitmetadata()
 	# cf.writemetadata(fnout, [plotinfo, gitinfo])
 	plt.show()
+
+def Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df): #version
+	"""
+	Function to make a figure that explores the temporal predictability. This 
+	figure will only use the runs with virable windows
+	"""
+	# ========== make a container for the data and get the file names ==========
+	OvP_fnames = []
+	for expn in experiments:	
+		OvP_fnames += glob.glob(f"{path}{expn}/Exp{expn}_*_OBSvsPREDICTED.csv")
+	
+	# ========== load the results and the VI data ==========
+	df_OvsP    = pd.concat([load_OBS(ofn) for ofn in OvP_fnames])
+
+	# ========== pull out the obs gap ==========
+	df_OvsP["ObsGap"]   = vi_df.loc[df_OvsP.index]["ObsGap"]
+	df_OvsP["ObsGap"]   = df_OvsP["ObsGap"].astype("category")
+	df_OvsP["residual"] = df_OvsP["Estimated"] - df_OvsP["Observed"]
+	df_OvsP["AbsResidual"] = df_OvsP["residual"].abs()
+	# df_OvsP["Region"]   = vi_df.loc[df_OvsP.index]["Region"]
+	# breakpoint()
+
+	# ========== Create the figure ==========
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':8})
+	font = {'family' : 'normal',
+	        'weight' : 'bold', #,
+	        'size'   : 8}
+	mpl.rc('font', **font)
+	sns.set_style("whitegrid")
+
+	# ========== make the plot ==========
+	for va in ["AbsResidual", "residual"]:
+		for CI in ["SD", "QuantileInterval"]:
+			print(f"{va} {CI} {pd.Timestamp.now()}")
+			# Create the labels
+			lab = [df_setup.loc[df_setup.Code.astype(int) == expn, "name"].values[0] for expn in experiments]
+			# ========== set up the colours and build the figure ==========
+			colours = palettable.cartocolors.qualitative.Vivid_10.hex_colors
+			fig, (ax, ax2) = plt.subplots(2, 1, figsize=(14,13))
+			# ========== Build the first part of the figure ==========
+			if CI == "SD":
+				sns.lineplot(y=va, x="ObsGap", data=df_OvsP, 
+					hue="experiment", ci="sd", ax=ax, 
+					palette=colours[:len(experiments)], legend=False)
+			else:
+				# Use 
+				sns.lineplot(y=va, x="ObsGap", data=df_OvsP, 
+					hue="experiment", ci=None, ax=ax, 
+					palette=colours[:len(experiments)], legend=False)
+				for expn, hue in zip(experiments, colours[:len(experiments)]) :
+					df_ci = df_OvsP[df_OvsP.experiment == expn].groupby("ObsGap")[va].quantile([0.05, 0.95]).reset_index()
+					ax.fill_between(
+						df_ci[df_ci.level_1 == 0.05]["ObsGap"].values, 
+						df_ci[df_ci.level_1 == 0.95][va].values, 
+						df_ci[df_ci.level_1 == 0.05][va].values, alpha=0.10, color=hue)
+			# ========== fix the labels ==========
+			ax.set_xlabel('Years Between Observation', fontsize=8, fontweight='bold')
+			ax.set_ylabel(r'Mean Residual ($\pm$ %s)' % CI, fontsize=8, fontweight='bold')
+			# ========== Create hhe legend ==========
+			ax.legend(title='Experiment', loc='upper right', labels=lab)
+			ax.set_title(f"a) ", loc= 'left')
+
+
+			# ========== The second subplot ==========
+			sns.histplot(data=df_OvsP.astype(float), x="ObsGap", hue="experiment",  
+				multiple="dodge", palette=colours[:len(experiments)], ax=ax2)
+			# ========== fix the labels ==========
+			ax2.set_xlabel('Years Between Observation', fontsize=8, fontweight='bold')
+			ax2.set_ylabel(f'# of Obs.', fontsize=8, fontweight='bold')
+			# ========== Create hhe legend ==========
+			ax2.legend(title='Experiment', loc='upper right', labels=lab)
+			ax2.set_title(f"b) ", loc= 'left')
+			plt.tight_layout()
+			# +++++ Save the plot out +++++
+			# if not formats is None:
+			# 	for fmt in formats:
+			# 		fn = f"{path}plots/BMS05_TemporalPrediction_{version}_{va}_{CI}{fmt}"
+			# 		plt.savefig(fn)
+			# 
+			plt.show()
+
+		plotinfo = "PLOT INFO: Temporal Predicability plots made using %s:v.%s by %s, %s" % (
+			__title__, __version__,  __author__, pd.Timestamp.now())
+		gitinfo = cf.gitmetadata()
+		cf.writemetadata(f"{path}plots/BMS05_TemporalPrediction_{va}", [plotinfo, gitinfo])
 # ==============================================================================
 
 
@@ -369,6 +459,28 @@ def fix_results(fn):
 		# 	# df_in["%s_siteinc" % region] = df_in["%s_siteinc" % region].astype(float)
 		# 	df_in["%s_sitefrac" % region] = (df_in["%s_siteinc" % region] / Rcounts[region])
 	return df_in
+
+def VIload():
+	print(f"Loading the VI_df, this can be a bit slow: {pd.Timestamp.now()}")
+	vi_df = pd.read_csv("./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears.csv", index_col=0)#[['lagged_biomass','ObsGap']]
+	vi_df["NanFrac"] = vi_df.isnull().mean(axis=1)
+
+	# ========== Fill in the missing sites ==========
+	region_fn ="./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears.csv"
+	site_df = pd.read_csv(region_fn, index_col=0)
+
+	vi_df = vi_df[['lagged_biomass','ObsGap', "NanFrac"]]
+	for nanp in [0, 0.25, 0.50, 0.75, 1.0]:	
+		isin = (vi_df["NanFrac"] <=nanp).astype(float)
+		isin[isin == 0] = np.NaN
+		vi_df[f"{int(nanp*100)}NAN"]  = isin
+
+	fcount = pd.melt(vi_df.drop(["lagged_biomass","NanFrac"], axis=1).groupby("ObsGap").count(), ignore_index=False).reset_index()
+	fcount["variable"] = fcount["variable"].astype("category")
+	vi_df["Region"]    = site_df["Region"]
+	# breakpoint()
+
+	return vi_df, fcount
 # ==============================================================================
 
 if __name__ == '__main__':
