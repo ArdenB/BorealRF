@@ -69,6 +69,17 @@ from sklearn import metrics as sklMet
 
 # ==============================================================================
 def main():
+	vi_df, fcount = VIload()
+
+	vi_yc = vi_df.groupby(["year", "Region"])['biomass'].count().reset_index().rename({"biomass":"Observations"}, axis=1).replace(0, np.NaN)
+
+	sns.set_style("whitegrid")
+	sns.lineplot(y="Observations",x="year", data=vi_yc, hue="Region", ci=None, legend=True)
+	plt.show()
+	g = sns.FacetGrid(vi_yc, col="Region", col_wrap=3,)
+	# sns.displot(y="Observations",x="year", data=vi_yc, col="Region", col_wrap=4, kind="kde")
+	g.map(sns.lineplot, "year", "Observations")
+	plt.show()
 	breakpoint()
 
 # ==============================================================================
@@ -130,6 +141,28 @@ def load_OBS(ofn):
 	df_in["version"]    = float(ofn.split("_vers")[-1][:2])
 	return df_in
 
+
+def VIload():
+	print(f"Loading the VI_df, this can be a bit slow: {pd.Timestamp.now()}")
+	vi_df = pd.read_csv("./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears.csv", index_col=0)#[['lagged_biomass','ObsGap']]
+	vi_df["NanFrac"] = vi_df.isnull().mean(axis=1)
+
+	# ========== Fill in the missing sites ==========
+	region_fn ="./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears.csv"
+	site_df = pd.read_csv(region_fn, index_col=0)
+
+	vi_df = vi_df[['year', 'biomass', 'lagged_biomass','ObsGap', "NanFrac"]]
+	for nanp in [0, 0.25, 0.50, 0.75, 1.0]:	
+		isin = (vi_df["NanFrac"] <=nanp).astype(float)
+		isin[isin == 0] = np.NaN
+		vi_df[f"{int(nanp*100)}NAN"]  = isin
+
+	fcount = pd.melt(vi_df.drop(["lagged_biomass","NanFrac"], axis=1).groupby("ObsGap").count(), ignore_index=False).reset_index()
+	fcount["variable"] = fcount["variable"].astype("category")
+	vi_df["Region"]    = site_df["Region"].astype("category")
+	# breakpoint()
+
+	return vi_df, fcount
 # ==============================================================================
 
 if __name__ == '__main__':

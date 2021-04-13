@@ -297,10 +297,10 @@ def Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df
 
 	# ========== pull out the obs gap ==========
 	df_OvsP["ObsGap"]   = vi_df.loc[df_OvsP.index]["ObsGap"]
-	df_OvsP["ObsGap"]   = df_OvsP["ObsGap"].astype("category")
-	df_OvsP["residual"] = df_OvsP["Estimated"] - df_OvsP["Observed"]
-	df_OvsP["AbsResidual"] = df_OvsP["residual"].abs()
-	# df_OvsP["Region"]   = vi_df.loc[df_OvsP.index]["Region"]
+	df_OvsP["ObsGap"]   = df_OvsP["ObsGap"]#astype("category")
+	df_OvsP["residual"] = (df_OvsP["Estimated"] - df_OvsP["Observed"]).astype(float)
+	df_OvsP["AbsResidual"] = df_OvsP["residual"].abs().astype(float)
+	df_OvsP["Region"]   = vi_df.loc[df_OvsP.index]["Region"]#.astype("category")
 	# breakpoint()
 
 	# ========== Create the figure ==========
@@ -345,14 +345,15 @@ def Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df
 
 
 			# ========== The second subplot ==========
-			sns.histplot(data=df_OvsP.astype(float), x="ObsGap", hue="experiment",  
-				multiple="dodge", palette=colours[:len(experiments)], ax=ax2)
+			# breakpoint()
+			sns.histplot(data=df_OvsP, x="ObsGap", hue="Region",  
+				multiple="dodge",  ax=ax2) #palette=colours[:len(experiments)]
 			# ========== fix the labels ==========
 			ax2.set_xlabel('Years Between Observation', fontsize=8, fontweight='bold')
 			ax2.set_ylabel(f'# of Obs.', fontsize=8, fontweight='bold')
 			# ========== Create hhe legend ==========
-			ax2.legend(title='Experiment', loc='upper right', labels=lab)
-			ax2.set_title(f"b) ", loc= 'left')
+			# ax2.legend(title='Experiment', loc='upper right', labels=lab)
+			# ax2.set_title(f"b) ", loc= 'left')
 			plt.tight_layout()
 			# +++++ Save the plot out +++++
 			# if not formats is None:
@@ -468,8 +469,9 @@ def VIload():
 	# ========== Fill in the missing sites ==========
 	region_fn ="./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears.csv"
 	site_df = pd.read_csv(region_fn, index_col=0)
+	# breakpoint()
 
-	vi_df = vi_df[['lagged_biomass','ObsGap', "NanFrac"]]
+	vi_df = vi_df[['year', 'biomass', 'lagged_biomass','ObsGap', "NanFrac"]]
 	for nanp in [0, 0.25, 0.50, 0.75, 1.0]:	
 		isin = (vi_df["NanFrac"] <=nanp).astype(float)
 		isin[isin == 0] = np.NaN
