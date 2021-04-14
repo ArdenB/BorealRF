@@ -122,8 +122,8 @@ def main():
 	splts[-1] = 1.00001
 	# ========== Make a list of experiment groups ==========
 	threeHunExp = df_setup[df_setup.Code.astype(int) >= 300]["Code"].astype(int).values
-	NanExp = [300, 320, 321, 322, 323]
-	ModExp = [330, 332, 333]
+	NanExp = [300, 320, 321, 322, 323, 400]
+	# ModExp = [330, 332, 333]
 	for experiments, ncols, gpnm in zip([ModExp, NanExp, threeHunExp, None], [3, 5, 5, 7], ["SetupExp","NaNexp","DtMod", ""]):
 		Main_plots(path, df_mres, df_setup, df_OvsP, df_branch, keys, experiments=experiments, sumtxt=gpnm)
 		# breakpoint()

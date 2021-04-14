@@ -47,7 +47,8 @@ import matplotlib.pyplot as plt
 from collections import OrderedDict, defaultdict
 import seaborn as sns
 import palettable
-from numba import jit
+# from numba import jit
+import matplotlib.colors as mpc
 
 
 # ========== Import my dunctions ==========
@@ -70,7 +71,14 @@ from sklearn import metrics as sklMet
 # ==============================================================================
 def main():
 	vi_df, fcount = VIload()
+	breakpoint()
+	yearcount(vi_df, fcount)
+	breakpoint()
 
+
+# ==============================================================================
+
+def yearcount(vi_df, fcount):
 	vi_yc = vi_df.groupby(["year", "Region"])['biomass'].count().reset_index().rename({"biomass":"Observations"}, axis=1).replace(0, np.NaN)
 
 	sns.set_style("whitegrid")
@@ -80,7 +88,6 @@ def main():
 	# sns.displot(y="Observations",x="year", data=vi_yc, col="Region", col_wrap=4, kind="kde")
 	g.map(sns.lineplot, "year", "Observations")
 	plt.show()
-	breakpoint()
 
 # ==============================================================================
 def Experiment_name(df, df_setup, var = "experiment"):
@@ -124,7 +131,8 @@ def Experiment_name(df, df_setup, var = "experiment"):
 						nm += "_disturbance"
 					elif cat == 333:
 						nm += "_FeatureSel"
-
+			elif cat == 400:
+				nm = "Final XGBoost Model"
 			else:
 				nm = "%d.%s" % (cat, df_setup[df_setup.Code.astype(int) == int(cat)].name.values[0])
 		except Exception as er:
@@ -151,7 +159,7 @@ def VIload():
 	region_fn ="./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears.csv"
 	site_df = pd.read_csv(region_fn, index_col=0)
 
-	vi_df = vi_df[['year', 'biomass', 'lagged_biomass','ObsGap', "NanFrac"]]
+	vi_df = vi_df[['year', 'biomass', 'lagged_biomass','ObsGap', "NanFrac", 'site']]
 	for nanp in [0, 0.25, 0.50, 0.75, 1.0]:	
 		isin = (vi_df["NanFrac"] <=nanp).astype(float)
 		isin[isin == 0] = np.NaN
