@@ -204,10 +204,9 @@ def main(args):
 						bsestr = f"TTS_VI_df_AllSampleyears" 
 					else:
 						bsestr = f"TTS_VI_df_AllSampleyears_{setup['predvar']}" 
-				# breakpoint()
 
 				X_train, X_test, y_train, y_test, col_nms, loadstats, corr, df_site = bf.datasplit(
-					setup["predvar"], experiment, version,  branch, trans=setup["Transformer"], trans=, final=final,  cols_keep=ColNm, #force=True,
+					setup["predvar"], experiment, version,  branch, setup, final=final,  cols_keep=ColNm, #force=True,
 					vi_fn=fnamein, region_fn=sfnamein, basestr=bsestr, dropvar=setup["dropvar"])
 
 				# ========== perform some zeo branch data storage ==========
@@ -476,9 +475,12 @@ def ml_regression(
 					fn_mod = f"{path}models/XGBoost_model_exp{experiment}_version{version}"
 					regressor.save_model(f"{fn_mod}.json")
 					pickle.dump(regressor, open(f"{fn_mod}.dat", "wb"))
+					if (not setup["Transformer"] is None) or  (not setup["yTransformer"] is None):
+						pickle.dump(setup, open(f"{fn_mod}_setuptransfromers.dat", "wb"))
 					df_pack = syspackinfo()
 					df_pack.to_csv(f"{fn_mod}_packagelist.csv")
 					print(f"Model saved at: {pd.Timestamp.now()}")
+
 				else:
 					warn.warn("This has not been set up. Going interactive to stop model loss")
 					breakpoint()
@@ -670,6 +672,7 @@ def experiments(ncores = -1):
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
 		"Transformer"      :None,
+		"yTransformer"     :None, 
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -708,6 +711,7 @@ def experiments(ncores = -1):
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
 		"Transformer"      :None,
+		"yTransformer"     :None, 
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -746,6 +750,7 @@ def experiments(ncores = -1):
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
 		"Transformer"      :None,
+		"yTransformer"     :None, 
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -784,6 +789,7 @@ def experiments(ncores = -1):
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
 		"Transformer"      :None,
+		"yTransformer"     :None, 
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -822,6 +828,7 @@ def experiments(ncores = -1):
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
 		"Transformer"      :None,
+		"yTransformer"     :None, 
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -860,6 +867,7 @@ def experiments(ncores = -1):
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
 		"Transformer"      :None,
+		"yTransformer"     :None, 
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -898,6 +906,7 @@ def experiments(ncores = -1):
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
 		"Transformer"      :None,
+		"yTransformer"     :None, 
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -937,6 +946,7 @@ def experiments(ncores = -1):
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
 		"Transformer"      :None,
+		"yTransformer"     :None, 
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -975,6 +985,7 @@ def experiments(ncores = -1):
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
 		"Transformer"      :None,
+		"yTransformer"     :None, 
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -1013,6 +1024,7 @@ def experiments(ncores = -1):
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
 		"Transformer"      :None,
+		"yTransformer"     :None, 
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -1051,6 +1063,7 @@ def experiments(ncores = -1):
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
 		"Transformer"      :None,
+		"yTransformer"     :None, 
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -1089,6 +1102,7 @@ def experiments(ncores = -1):
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
 		"Transformer"      :None,
+		"yTransformer"     :None, 
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -1127,6 +1141,7 @@ def experiments(ncores = -1):
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
 		"Transformer"      :None,
+		"yTransformer"     :None, 
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -1165,6 +1180,7 @@ def experiments(ncores = -1):
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
 		"Transformer"      :None,
+		"yTransformer"     :None, 
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -1203,6 +1219,7 @@ def experiments(ncores = -1):
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Feature",
 		"Transformer"      :None,
+		"yTransformer"     :None, 
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -1242,6 +1259,7 @@ def experiments(ncores = -1):
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
 		"Transformer"      :None,
+		"yTransformer"     :None, 
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -1280,6 +1298,7 @@ def experiments(ncores = -1):
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Feature",
 		"Transformer"      :None,
+		"yTransformer"     :None, 
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -1319,6 +1338,7 @@ def experiments(ncores = -1):
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
 		"Transformer"      :None,
+		"yTransformer"     :None, 
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -1357,6 +1377,7 @@ def experiments(ncores = -1):
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Feature",
 		"Transformer"      :None,
+		"yTransformer"     :None, 
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -1372,44 +1393,45 @@ def experiments(ncores = -1):
 		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
 		})
 	
-	expr[400] = ({
-		# +++++ The experiment name and summary +++++
-		"Code"             :400,
-		"predvar"          :"lagged_biomass",
-		"dropvar"          :[],
-		"name"             :"OneStageXGBOOST_AllGap_50perNA_PermutationImp_RFECV_FINAL",
-		"desc"             :"Fist attempt at a paper final model configuration",
-		"window"           :10,
-		"predictwindow"    :None,
-		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
-		# +++++ The Model setup params +++++
-		"ntree"            :10,
-		"nbranch"          :2000,
-		"max_features"     :'auto',
-		"max_depth"        :5,
-		"min_samples_split":2,
-		"min_samples_leaf" :2,
-		"bootstrap"        :True,
-		# +++++ The experiment details +++++
-		"test_size"        :0.2, 
-		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Permutation",
-		"Transformer"      :None,
-		"ModVar"           :"ntree, max_depth", "dataset"
-		"classifer"        :None, 
-		"cores"            :ncores,
-		"model"            :"XGBoost", 
-		"maxitter"         :14, 
-		"DropNAN"          :0.5, 
-		"DropDist"         :False,
-		"StopPoint"        :5,
-		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
-		"maxR2drop"        :0.025,
-		"pariedRun"        :None, # identical runs except at the last stage
-		"Step"             :4,
-		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
-		})
+	# expr[400] = ({
+	# 	# +++++ The experiment name and summary +++++
+	# 	"Code"             :400,
+	# 	"predvar"          :"lagged_biomass",
+	# 	"dropvar"          :[],
+	# 	"name"             :"OneStageXGBOOST_AllGap_50perNA_PermutationImp_RFECV_FINAL",
+	# 	"desc"             :"Fist attempt at a paper final model configuration",
+	# 	"window"           :10,
+	# 	"predictwindow"    :None,
+	# 	"Nstage"           :1, 
+	# 	"Model"            :"XGBoost", 
+	# 	# +++++ The Model setup params +++++
+	# 	"ntree"            :10,
+	# 	"nbranch"          :2000,
+	# 	"max_features"     :'auto',
+	# 	"max_depth"        :5,
+	# 	"min_samples_split":2,
+	# 	"min_samples_leaf" :2,
+	# 	"bootstrap"        :True,
+	# 	# +++++ The experiment details +++++
+	# 	"test_size"        :0.2, 
+	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
+	# 	"ImportanceMet"    :"Permutation",
+	# 	"Transformer"      :None,
+	# 	"yTransformer"     :None, 
+	# 	"ModVar"           :"ntree, max_depth", "dataset"
+	# 	"classifer"        :None, 
+	# 	"cores"            :ncores,
+	# 	"model"            :"XGBoost", 
+	# 	"maxitter"         :14, 
+	# 	"DropNAN"          :0.5, 
+	# 	"DropDist"         :False,
+	# 	"StopPoint"        :5,
+	# 	"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+	# 	"maxR2drop"        :0.025,
+	# 	"pariedRun"        :None, # identical runs except at the last stage
+	# 	"Step"             :4,
+	# 	"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
+	# 	})
 	# expr[401] = ({
 	# 	# +++++ The experiment name and summary +++++
 	# 	"Code"             :401,
@@ -1434,6 +1456,7 @@ def experiments(ncores = -1):
 	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
 	# 	"ImportanceMet"    :"Permutation",
 	# 	"Transformer"      :None,
+	# 	"yTransformer"     :None, 
 	# 	"ModVar"           :"ntree, max_depth", "dataset"
 	# 	"classifer"        :None, 
 	# 	"cores"            :ncores,
@@ -1472,6 +1495,7 @@ def experiments(ncores = -1):
 	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
 	# 	"ImportanceMet"    :"Permutation",
 	# 	"Transformer"      :None,
+	# 	"yTransformer"     :None, 
 	# 	"ModVar"           :"ntree, max_depth", "dataset"
 	# 	"classifer"        :None, 
 	# 	"cores"            :ncores,
@@ -1509,7 +1533,8 @@ def experiments(ncores = -1):
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
-		"Transformer"      :QuantileTransformer(output_distribution='normal'),
+		"Transformer"      :QuantileTransformer(output_distribution='normal', ignore_implicit_zeros=True),
+		"yTransformer"     :QuantileTransformer(output_distribution='normal'), 
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,

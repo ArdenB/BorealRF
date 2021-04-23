@@ -291,8 +291,6 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 	if verbose:
 		print("loading the files using %s took: " % dftype, pd.Timestamp.now()-t0)
 
-	if not trans is None:
-		breakpoint()
 	# ========== Perform extra splits ==========
 	if setup['Nstage']!=1:
 		if not RStage:
@@ -419,9 +417,8 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 			y_train = pd.DataFrame(y_train[predvar][X_train.index])
 			y_test  = pd.DataFrame(y_test[predvar][X_test.index])
 
-	# except Exception as er:
-	# 	print(str(er))
-	# 	breakpoint()
+
+
 	# =========== Pull out the data used for prediction ===========
 	X        = pd.concat([X_test, X_train])
 	cols_out = X.columns.values
@@ -442,8 +439,24 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 	except Exception as er:
 		print(str(er))
 		breakpoint()
-
 	statsOD = _simplestatus(vi_df, X, df_site)
+
+	# ========== See if the dataset needs to be transfored ==========
+	if not setup["Transformer"] is None:
+		print(f"Applying X Transfomer at {pd.Timestamp.now()}")
+		# ========== covert to sparse ==========
+		X_train = X_train.astype(pd.SparseDtype(float, fill_value=np.NaN))
+		X_test  = X_test.astype(pd.SparseDtype(float, fill_value=np.NaN))
+		X_train = pd.DataFrame.sparse.from_spmatrix(setup["Transformer"].fit_transform(X_train), index=X_train.index, columns=X_train.columns).astype(pd.SparseDtype(float, fill_value=np.NaN)).sparse.to_dense()
+		X_test  = pd.DataFrame.sparse.from_spmatrix(setup["Transformer"].transform(X_test), index=X_test.index, columns=X_test.columns).astype(pd.SparseDtype(float, fill_value=np.NaN)).sparse.to_dense()
+		
+	if not setup["yTransformer"] is None:
+		print(f"Applying Y Transfomer at {pd.Timestamp.now()}")
+		y_train = pd.DataFrame(setup["yTransformer"].fit_transform(y_train), index=y_train.index, columns=y_train.columns )
+		y_test  = pd.DataFrame(setup["yTransformer"].transform(y_test), index=y_test.index, columns=y_test.columns )
+		# breakpoint()
+
+
 
 	# ========== Split the data  ==========
 	if final:
