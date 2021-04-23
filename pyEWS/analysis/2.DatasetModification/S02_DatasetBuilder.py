@@ -50,6 +50,7 @@ import time
 import matplotlib.pyplot as plt
 from collections import OrderedDict, defaultdict
 import seaborn as sns
+from tqdm import tqdm
 
 # ========== Import my dunctions ==========
 import myfunctions.corefunctions as cf
@@ -111,9 +112,9 @@ def main():
 
 	for ds_set in dsmod:
 		biomass_extractor(biomass, regions, df_SD, dsmod[ds_set], df_dam, df_burn, soils, permafrost, df_StandAge)
+		breakpoint()
 
 		# ============ Add data normalisation
-	breakpoint()
 
 	# ========== Things to produce ==========
 	# - Training data 
@@ -183,25 +184,35 @@ def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, pe
 				bio_orig = bio.iloc[I1]
 				bio_delt = bio.iloc[I2]
 				year     = surv[I1]
-				if (bio_delt+bio_orig) == 0:
-					lagged_biomass = 0
+				if info["Norm"]:
+					if (bio_delt+bio_orig) == 0:
+						lagged_biomass = 0
+					else:
+						lagged_biomass = ((bio_delt - bio_orig)/(bio_delt+bio_orig))
+					
+					if np.isnan(lagged_biomass):
+						# Pull out places with bad values
+						# print 
+						breakpoint()
+						continue
+
+					outdict = OrderedDict({
+						"site":index, 
+						"year":year,
+						"biomass":bio_orig,
+						"lagged_biomass": lagged_biomass,
+						"stem_density":stem.iloc[I1],
+						})
 				else:
-					lagged_biomass = ((bio_delt - bio_orig)/(bio_delt+bio_orig))
-				
-				if np.isnan(lagged_biomass):
-					# Pull out places with bad values
-					# print 
-					# breakpoint()
-					continue
-
-
-				outdict = OrderedDict({
-					"site":index, 
-					"year":year,
-					"biomass":bio_orig,
-					"lagged_biomass": lagged_biomass,
-					"stem_density":stem.iloc[I1],
-					})
+					outdict = OrderedDict({
+						"site":index, 
+						"year":year,
+						"biomass":bio_orig,
+						"Obs_biomass": bio_delt,
+						"Delta_biomass":(bio_delt - bio_orig),
+						"stem_density":stem.iloc[I1],
+						})
+				# breakpoint()
 				# add the prediction lag when i'm assessing multiple indexes
 				if info['PredictInt'] is None:
 					outdict["ObsGap"] = dif[I2, I1]
@@ -301,8 +312,12 @@ def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, pe
 		fnameS = fpath + f"SiteInfo_{info['PredictInt']}years.csv"
 		fnameV = fpath + f"VI_df_{info['PredictInt']}years.csv"
 	else:
-		fnameS = fpath + f"SiteInfo_AllSampleyears.csv"
-		fnameV = fpath + f"VI_df_AllSampleyears.csv"
+		if info["Norm"]:
+			fnameS = fpath + f"SiteInfo_AllSampleyears.csv"
+			fnameV = fpath + f"VI_df_AllSampleyears.csv"
+		else:
+			fnameS = fpath + f"SiteInfo_AllSampleyears_ObsBiomass.csv"
+			fnameV = fpath + f"VI_df_AllSampleyears_ObsBiomass.csv"
 	# breakpoint()
 	
 	sites.to_csv(fnameS)
@@ -516,8 +531,8 @@ def setup_experiements():
 	"""
 
 	dsmod = OrderedDict()
-	# dsmod[3] = ({
-	# 	"desc":"This version has a new prediction interval",
+	# dsmod[5] = ({
+	# 	"desc":"This version has a new prediction interval but with raw biomass",
 	# 	"PredictInt": None, # the interval of time to use to predict biomass into the future
 	# 	"RSveg":sol_VI_extractor, # the source of the data to be used to calculate vegetation metrics 
 	# 	"VIs":['ndvi','psri','ndii','ndvsi','msi','nirv','ndwi','nbr','satvi','tvfc'],
@@ -526,8 +541,21 @@ def setup_experiements():
 	# 	"StandAge": None, # add any stand age data
 	# 	"CO2": None, # add any data
 	# 	"infillingMethod":None, # function to use for infilling
-	# 	"Norm": True,  # Also produce a normalised version
+	# 	"Norm": False,  # Also produce a normalised version
+	# 	"meth":"Delta"
 	# 	})
+	dsmod[4] = ({
+		"desc":"This version has a new prediction interval but with raw biomass",
+		"PredictInt": None, # the interval of time to use to predict biomass into the future
+		"RSveg":sol_VI_extractor, # the source of the data to be used to calculate vegetation metrics 
+		"VIs":['ndvi','psri','ndii','ndvsi','msi','nirv','ndwi','nbr','satvi','tvfc'],
+		"Clim": "climateNA", # the climate dataset to use
+		"SiteData":SolSiteParms,
+		"StandAge": None, # add any stand age data
+		"CO2": None, # add any data
+		"infillingMethod":None, # function to use for infilling
+		"Norm": False,  # Also produce a normalised version
+		})
 	dsmod[3] = ({
 		"desc":"This version has a new prediction interval",
 		"PredictInt": None, # the interval of time to use to predict biomass into the future
@@ -576,6 +604,7 @@ def setup_experiements():
 		"CO2": None, # add any data
 		"infillingMethod":None, # function to use for infilling
 		"Norm": True,  # Also produce a normalised version
+		"meth":None
 		})
 	# Future experiments
 	# Raw  5, 10, 15 and 20 years

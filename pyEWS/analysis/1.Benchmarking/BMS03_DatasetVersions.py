@@ -63,6 +63,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.inspection import permutation_importance
 from sklearn.feature_selection import RFECV
+from sklearn.preprocessing import QuantileTransformer
 from sklearn import metrics as sklMet
 from sklearn.utils import shuffle
 from scipy.stats import spearmanr
@@ -77,6 +78,7 @@ def main(args):
 	warn.warn("Add a method to save the model out at the end with package version numbers for all relevant packages")
 	force = args.force
 	fix   = args.fix
+	inheritrows = True # a way to match the rows 
 	# ========== Load the experiments ==========
 	exper = experiments()
 	# ========== Loop over the Versions (10 per experiment) ==========
@@ -96,8 +98,12 @@ def main(args):
 			fn_RCV =  path + "Exp%03d_%s_vers%02d_%sImportance_RFECVsteps.csv" % (experiment, setup["name"], version, setup["ImportanceMet"])
 			
 			if setup['predictwindow'] is None:
-				fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears.csv"
-				sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears.csv"
+				if setup["predvar"] == "lagged_biomass":
+					fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears.csv"
+					sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears.csv"
+				else:
+					fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears_ObsBiomass.csv"
+					sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears_ObsBiomass.csv"
 			else:
 				fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_{setup['predictwindow']}years.csv"
 				sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_{setup['predictwindow']}years.csv"
@@ -194,15 +200,17 @@ def main(args):
 				if not setup['predictwindow'] is None:
 					bsestr = f"TTS_VI_df_{setup['predictwindow']}years"
 				else:
-					bsestr = f"TTS_VI_df_AllSampleyears" 
+					if (setup["predvar"] == "lagged_biomass") or inheritrows :
+						bsestr = f"TTS_VI_df_AllSampleyears" 
+					else:
+						bsestr = f"TTS_VI_df_AllSampleyears_{setup['predvar']}" 
 				# breakpoint()
 
 				X_train, X_test, y_train, y_test, col_nms, loadstats, corr, df_site = bf.datasplit(
-					experiment, version,  branch, setup, final=final,  cols_keep=ColNm, #force=True,
-					vi_fn=fnamein, region_fn=sfnamein, basestr=bsestr)
+					setup["predvar"], experiment, version,  branch, trans=setup["Transformer"], trans=, final=final,  cols_keep=ColNm, #force=True,
+					vi_fn=fnamein, region_fn=sfnamein, basestr=bsestr, dropvar=setup["dropvar"])
 
 				# ========== perform some zeo branch data storage ==========
-				# breakpoint()
 				if branch == 0:
 					# +++++ Calculate the ward hierarchy +++++
 					corr_linkage = hierarchy.ward(corr)
@@ -500,7 +508,7 @@ def _predictedVSobserved(y_test, y_pred, experiment, version, branch, setup):
 	path = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/%d/" % experiment
 	cf.pymkdir(path)
 
-	dfy  = pd.DataFrame(y_test).rename({"lagged_biomass":"Observed"}, axis=1)
+	dfy  = pd.DataFrame(y_test).rename({setup["predvar"]:"Observed"}, axis=1)
 	dfy["Estimated"] = y_pred
 	
 	fnameout = path + "Exp%03d_%s_vers%02d_OBSvsPREDICTED.csv" % (experiment, setup["name"], version)
@@ -641,6 +649,8 @@ def experiments(ncores = -1):
 	expr[300] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :300,
+		"predvar"          :"lagged_biomass",
+		"dropvar"          :[],
 		"name"             :"OneStageXGBOOST_5ypred",
 		"desc"             :"Gradient boosted regression in place of Random Forest with a 5 year prediction window",
 		"window"           :5,
@@ -659,6 +669,7 @@ def experiments(ncores = -1):
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -676,6 +687,8 @@ def experiments(ncores = -1):
 	expr[301] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :301,
+		"predvar"          :"lagged_biomass",
+		"dropvar"          :[],
 		"name"             :"OneStageXGBOOST_5ypred_10yrLS",
 		"desc"             :"Gradient boosted regression in place of Random Forest with a 5 year prediction window",
 		"window"           :10,
@@ -694,6 +707,7 @@ def experiments(ncores = -1):
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -711,6 +725,8 @@ def experiments(ncores = -1):
 	expr[302] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :302,
+		"predvar"          :"lagged_biomass",
+		"dropvar"          :[],
 		"name"             :"OneStageXGBOOST_5ypred_15yrLS",
 		"desc"             :"Gradient boosted regression in place of Random Forest with a 5 year prediction window",
 		"window"           :15,
@@ -729,6 +745,7 @@ def experiments(ncores = -1):
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -746,6 +763,8 @@ def experiments(ncores = -1):
 	expr[303] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :303,
+		"predvar"          :"lagged_biomass",
+		"dropvar"          :[],
 		"name"             :"OneStageXGBOOST_10ypred_5yrLS",
 		"desc"             :"Gradient boosted regression in place of Random Forest with a 5 year prediction window",
 		"window"           :5,
@@ -764,6 +783,7 @@ def experiments(ncores = -1):
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -781,6 +801,8 @@ def experiments(ncores = -1):
 	expr[304] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :304,
+		"predvar"          :"lagged_biomass",
+		"dropvar"          :[],
 		"name"             :"OneStageXGBOOST_10ypred_10yrLS",
 		"desc"             :"Gradient boosted regression in place of Random Forest with a 5 year prediction window",
 		"window"           :10,
@@ -799,6 +821,7 @@ def experiments(ncores = -1):
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -816,6 +839,8 @@ def experiments(ncores = -1):
 	expr[305] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :305,
+		"predvar"          :"lagged_biomass",
+		"dropvar"          :[],
 		"name"             :"OneStageXGBOOST_10ypred_15yrLS",
 		"desc"             :"Gradient boosted regression in place of Random Forest with a 5 year prediction window",
 		"window"           :15,
@@ -834,6 +859,7 @@ def experiments(ncores = -1):
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -851,6 +877,8 @@ def experiments(ncores = -1):
 	expr[310] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :310,
+		"predvar"          :"lagged_biomass",
+		"dropvar"          :[],
 		"name"             :"OneStageXGBOOST_AllGap",
 		"desc"             :"Gradient boosted regression in place of Random Forest with a 5 year prediction window",
 		"window"           :5,
@@ -869,6 +897,7 @@ def experiments(ncores = -1):
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -887,6 +916,8 @@ def experiments(ncores = -1):
 	expr[320] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :320,
+		"predvar"          :"lagged_biomass",
+		"dropvar"          :[],
 		"name"             :"OneStageXGBOOST_5ypred_WithNA",
 		"desc"             :"Gradient boosted regression in place of Random Forest with a 5 year prediction window and a nan fraction",
 		"window"           :5,
@@ -905,6 +936,7 @@ def experiments(ncores = -1):
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -922,6 +954,8 @@ def experiments(ncores = -1):
 	expr[321] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :321,
+		"predvar"          :"lagged_biomass",
+		"dropvar"          :[],
 		"name"             :"OneStageXGBOOST_5ypred_50perNA",
 		"desc"             :"Gradient boosted regression in place of Random Forest with a 5 year prediction window and a nan fraction",
 		"window"           :5,
@@ -940,6 +974,7 @@ def experiments(ncores = -1):
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -957,6 +992,8 @@ def experiments(ncores = -1):
 	expr[322] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :322,
+		"predvar"          :"lagged_biomass",
+		"dropvar"          :[],
 		"name"             :"OneStageXGBOOST_5ypred_75perNA",
 		"desc"             :"Gradient boosted regression in place of Random Forest with a 5 year prediction window and a nan fraction",
 		"window"           :5,
@@ -975,6 +1012,7 @@ def experiments(ncores = -1):
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -992,6 +1030,8 @@ def experiments(ncores = -1):
 	expr[323] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :323,
+		"predvar"          :"lagged_biomass",
+		"dropvar"          :[],
 		"name"             :"OneStageXGBOOST_5ypred_100perNA",
 		"desc"             :"Gradient boosted regression in place of Random Forest with a 5 year prediction window 1and a nan fraction",
 		"window"           :5,
@@ -1010,6 +1050,7 @@ def experiments(ncores = -1):
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -1027,6 +1068,8 @@ def experiments(ncores = -1):
 	expr[330] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :330,
+		"predvar"          :"lagged_biomass",
+		"dropvar"          :[],
 		"name"             :"OneStageXGBOOST_AllGap_50perNA",
 		"desc"             :"Gradient boosted regression in place of Random Forest with variable prediction window and a nan fraction",
 		"window"           :5,
@@ -1045,6 +1088,7 @@ def experiments(ncores = -1):
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -1062,6 +1106,8 @@ def experiments(ncores = -1):
 	expr[331] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :331,
+		"predvar"          :"lagged_biomass",
+		"dropvar"          :[],
 		"name"             :"OneStageXGBOOST_AllGap_100perNA",
 		"desc"             :"Gradient boosted regression in place of Random Forest with variable prediction window and a nan fraction",
 		"window"           :5,
@@ -1080,6 +1126,7 @@ def experiments(ncores = -1):
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -1097,6 +1144,8 @@ def experiments(ncores = -1):
 	expr[332] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :332,
+		"predvar"          :"lagged_biomass",
+		"dropvar"          :[],
 		"name"             :"OneStageXGBOOST_AllGap_50perNA_Disturbance",
 		"desc"             :"Gradient boosted regression in place of Random Forest with variable prediction window, a nan fraction and stand age",
 		"window"           :5,
@@ -1115,6 +1164,7 @@ def experiments(ncores = -1):
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -1132,6 +1182,8 @@ def experiments(ncores = -1):
 	expr[333] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :333,
+		"predvar"          :"lagged_biomass",
+		"dropvar"          :[],
 		"name"             :"OneStageXGBOOST_AllGap_50perNA_FeatureImp",
 		"desc"             :"Gradient boosted regression with variable prediction window, a nan fraction and Feature Importance",
 		"window"           :5,
@@ -1150,6 +1202,7 @@ def experiments(ncores = -1):
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Feature",
+		"Transformer"      :None,
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -1168,6 +1221,8 @@ def experiments(ncores = -1):
 	expr[334] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :334,
+		"predvar"          :"lagged_biomass",
+		"dropvar"          :[],
 		"name"             :"OneStageXGBOOST_AllGap_50perNA_Permutation_backstep",
 		"desc"             :"After the slow down point the model can backtrack if performance degrades too much",
 		"window"           :5,
@@ -1186,6 +1241,7 @@ def experiments(ncores = -1):
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -1203,6 +1259,8 @@ def experiments(ncores = -1):
 	expr[335] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :335,
+		"predvar"          :"lagged_biomass",
+		"dropvar"          :[],
 		"name"             :"OneStageXGBOOST_AllGap_50perNA_FeatureImp_backstep",
 		"desc"             :"After the slow down point the model can backtrack if performance degrades too much",
 		"window"           :5,
@@ -1221,6 +1279,7 @@ def experiments(ncores = -1):
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Feature",
+		"Transformer"      :None,
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -1239,6 +1298,8 @@ def experiments(ncores = -1):
 	expr[336] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :336,
+		"predvar"          :"lagged_biomass",
+		"dropvar"          :[],
 		"name"             :"OneStageXGBOOST_AllGap_50perNA_PermutationImp_RFECV",
 		"desc"             :"After the slow down point the model switches to RFECV to do feature selection",
 		"window"           :5,
@@ -1257,6 +1318,7 @@ def experiments(ncores = -1):
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -1274,6 +1336,8 @@ def experiments(ncores = -1):
 	expr[337] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :337,
+		"predvar"          :"lagged_biomass",
+		"dropvar"          :[],
 		"name"             :"OneStageXGBOOST_AllGap_50perNA_FeatureImp_RFECV",
 		"desc"             :"After the slow down point the model switches to RFECV to do feature selection",
 		"window"           :5,
@@ -1292,6 +1356,7 @@ def experiments(ncores = -1):
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Feature",
+		"Transformer"      :None,
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -1310,6 +1375,8 @@ def experiments(ncores = -1):
 	expr[400] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :400,
+		"predvar"          :"lagged_biomass",
+		"dropvar"          :[],
 		"name"             :"OneStageXGBOOST_AllGap_50perNA_PermutationImp_RFECV_FINAL",
 		"desc"             :"Fist attempt at a paper final model configuration",
 		"window"           :10,
@@ -1328,6 +1395,7 @@ def experiments(ncores = -1):
 		"test_size"        :0.2, 
 		"SelMethod"        :"RecursiveHierarchicalPermutation",
 		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
@@ -1342,7 +1410,120 @@ def experiments(ncores = -1):
 		"Step"             :4,
 		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
 		})
-
+	# expr[401] = ({
+	# 	# +++++ The experiment name and summary +++++
+	# 	"Code"             :401,
+	# 	"predvar"          :"Obs_biomass",
+	# 	"dropvar"          :["Delta_biomass"],
+	# 	"name"             :"OneStageXGBOOST_AllGap_50perNA_PermutationImp_RFECV_FINAL_Obs_biomass",
+	# 	"desc"             :"Testing different prediction approaches with paper final model configuration",
+	# 	"window"           :10,
+	# 	"predictwindow"    :None,
+	# 	"Nstage"           :1, 
+	# 	"Model"            :"XGBoost", 
+	# 	# +++++ The Model setup params +++++
+	# 	"ntree"            :10,
+	# 	"nbranch"          :2000,
+	# 	"max_features"     :'auto',
+	# 	"max_depth"        :5,
+	# 	"min_samples_split":2,
+	# 	"min_samples_leaf" :2,
+	# 	"bootstrap"        :True,
+	# 	# +++++ The experiment details +++++
+	# 	"test_size"        :0.2, 
+	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
+	# 	"ImportanceMet"    :"Permutation",
+	# 	"Transformer"      :None,
+	# 	"ModVar"           :"ntree, max_depth", "dataset"
+	# 	"classifer"        :None, 
+	# 	"cores"            :ncores,
+	# 	"model"            :"XGBoost", 
+	# 	"maxitter"         :14, 
+	# 	"DropNAN"          :0.5, 
+	# 	"DropDist"         :False,
+	# 	"StopPoint"        :5,
+	# 	"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+	# 	"maxR2drop"        :0.025,
+	# 	"pariedRun"        :None, # identical runs except at the last stage
+	# 	"Step"             :4,
+	# 	"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
+	# 	})
+	# expr[402] = ({
+	# 	# +++++ The experiment name and summary +++++
+	# 	"Code"             :402,
+	# 	"predvar"          :"Delta_biomass",
+	# 	"dropvar"          :["Obs_biomass"],
+	# 	"name"             :"OneStageXGBOOST_AllGap_50perNA_PermutationImp_RFECV_FINAL_Delta_biomass",
+	# 	"desc"             :"Testing different prediction approaches with paper final model configuration",
+	# 	"window"           :10,
+	# 	"predictwindow"    :None,
+	# 	"Nstage"           :1, 
+	# 	"Model"            :"XGBoost", 
+	# 	# +++++ The Model setup params +++++
+	# 	"ntree"            :10,
+	# 	"nbranch"          :2000,
+	# 	"max_features"     :'auto',
+	# 	"max_depth"        :5,
+	# 	"min_samples_split":2,
+	# 	"min_samples_leaf" :2,
+	# 	"bootstrap"        :True,
+	# 	# +++++ The experiment details +++++
+	# 	"test_size"        :0.2, 
+	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
+	# 	"ImportanceMet"    :"Permutation",
+	# 	"Transformer"      :None,
+	# 	"ModVar"           :"ntree, max_depth", "dataset"
+	# 	"classifer"        :None, 
+	# 	"cores"            :ncores,
+	# 	"model"            :"XGBoost", 
+	# 	"maxitter"         :14, 
+	# 	"DropNAN"          :0.5, 
+	# 	"DropDist"         :False,
+	# 	"StopPoint"        :5,
+	# 	"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+	# 	"maxR2drop"        :0.025,
+	# 	"pariedRun"        :None, # identical runs except at the last stage
+	# 	"Step"             :4,
+	# 	"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
+	# 	})
+	expr[404] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :401,
+		"predvar"          :"Obs_biomass",
+		"dropvar"          :["Delta_biomass"],
+		"name"             :"OneStageXGBOOST_AllGap_50perNA_PermutationImp_RFECV_FINAL_Obs_biomass",
+		"desc"             :"Testing different prediction approaches with paper final model configuration",
+		"window"           :10,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"Model"            :"XGBoost", 
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation",
+		"Transformer"      :QuantileTransformer(output_distribution='normal'),
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"model"            :"XGBoost", 
+		"maxitter"         :14, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :False,
+		"StopPoint"        :5,
+		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"pariedRun"        :None, # identical runs except at the last stage
+		"Step"             :4,
+		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
+		})
 	return expr
 
 

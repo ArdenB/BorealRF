@@ -85,6 +85,7 @@ def main():
 	df_sa = StandAge.reset_index().rename({"index":"Plot_ID"}, axis=1) #.apply(tfv)
 	# df_SD = survey.apply(tfv)#.reset_index().rename({"index":"Plot_ID"}, axis=1) 
 	
+	breakpoint()
 	# =========== create a combined region dataset summary ==========
 	df_reg = regions.merge(df_sa, how="left", on="Plot_ID")
 
