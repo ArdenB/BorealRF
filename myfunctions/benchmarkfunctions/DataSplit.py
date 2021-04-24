@@ -275,14 +275,23 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 	if all([os.path.isfile(fn) for fn in VI_fnsplit]) and not force:
 		# +++++ open existing files +++++
 		X_train, X_test, y_train, y_test = [pd.read_csv( fn, index_col=0) for fn in VI_fnsplit]
-
 		# ========== Checking the preedictor variable ==========
 		if not y_test.columns[0] == predvar:
 			# +++ This existis so i can mach the analysis between differnet predictors +++
 			print(f"Swapping predictor variables from {y_test.columns[0]} to {predvar} at: {pd.Timestamp.now()}")
 			#swap out the predicto variable 
-			y_test  = vi_df.loc[y_test.index, predvar]
-			y_train = vi_df.loc[y_train.index, predvar]
+			y_test  = pd.DataFrame(vi_df.loc[y_test.index, predvar])
+			if y_test[predvar].isnull().any().values:
+				X_test = X_test[~y_test[predvar].isnull()]
+				y_test = y_test[~y_test[predvar].isnull()]
+
+			y_train = pd.DataFrame(vi_df.loc[y_train.index, predvar])
+			if y_train[predvar].isnull().any():
+				X_train = X_train[~y_train[predvar].isnull()]
+				y_train = y_train[~y_train[predvar].isnull()]
+
+
+			# breakpoint()
 	else:
 		print("Building Test/train dataset for version: ", version, pd.Timestamp.now())
 		X_train, X_test, y_train, y_test = _testtrainbuild(version, VI_fnsplit,  vi_df.copy(), test_size, predvar, dropvar)
