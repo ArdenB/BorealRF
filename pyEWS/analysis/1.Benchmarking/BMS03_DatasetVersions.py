@@ -1512,45 +1512,45 @@ def experiments(ncores = -1):
 		"Step"             :4,
 		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
 		})
-	expr[404] = ({
-		# +++++ The experiment name and summary +++++
-		"Code"             :401,
-		"predvar"          :"Obs_biomass",
-		"dropvar"          :["Delta_biomass"],
-		"name"             :"OneStageXGBOOST_AllGap_50perNA_PermutationImp_RFECV_FINAL_Obs_biomass",
-		"desc"             :"Testing different prediction approaches with paper final model configuration",
-		"window"           :10,
-		"predictwindow"    :None,
-		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
-		# +++++ The Model setup params +++++
-		"ntree"            :10,
-		"nbranch"          :2000,
-		"max_features"     :'auto',
-		"max_depth"        :5,
-		"min_samples_split":2,
-		"min_samples_leaf" :2,
-		"bootstrap"        :True,
-		# +++++ The experiment details +++++
-		"test_size"        :0.2, 
-		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Permutation",
-		"Transformer"      :QuantileTransformer(output_distribution='normal', ignore_implicit_zeros=True),
-		"yTransformer"     :QuantileTransformer(output_distribution='normal'), 
-		"ModVar"           :"ntree, max_depth", "dataset"
-		"classifer"        :None, 
-		"cores"            :ncores,
-		"model"            :"XGBoost", 
-		"maxitter"         :14, 
-		"DropNAN"          :0.5, 
-		"DropDist"         :False,
-		"StopPoint"        :5,
-		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
-		"maxR2drop"        :0.025,
-		"pariedRun"        :None, # identical runs except at the last stage
-		"Step"             :4,
-		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
-		})
+	# expr[404] = ({
+	# 	# +++++ The experiment name and summary +++++
+	# 	"Code"             :401,
+	# 	"predvar"          :"Obs_biomass",
+	# 	"dropvar"          :["Delta_biomass"],
+	# 	"name"             :"OneStageXGBOOST_AllGap_50perNA_PermutationImp_RFECV_FINAL_Obs_biomass",
+	# 	"desc"             :"Testing different prediction approaches with paper final model configuration",
+	# 	"window"           :10,
+	# 	"predictwindow"    :None,
+	# 	"Nstage"           :1, 
+	# 	"Model"            :"XGBoost", 
+	# 	# +++++ The Model setup params +++++
+	# 	"ntree"            :10,
+	# 	"nbranch"          :2000,
+	# 	"max_features"     :'auto',
+	# 	"max_depth"        :5,
+	# 	"min_samples_split":2,
+	# 	"min_samples_leaf" :2,
+	# 	"bootstrap"        :True,
+	# 	# +++++ The experiment details +++++
+	# 	"test_size"        :0.2, 
+	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
+	# 	"ImportanceMet"    :"Permutation",
+	# 	"Transformer"      :QuantileTransformer(output_distribution='normal', ignore_implicit_zeros=True),
+	# 	"yTransformer"     :QuantileTransformer(output_distribution='normal'), 
+	# 	"ModVar"           :"ntree, max_depth", "dataset"
+	# 	"classifer"        :None, 
+	# 	"cores"            :ncores,
+	# 	"model"            :"XGBoost", 
+	# 	"maxitter"         :14, 
+	# 	"DropNAN"          :0.5, 
+	# 	"DropDist"         :False,
+	# 	"StopPoint"        :5,
+	# 	"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+	# 	"maxR2drop"        :0.025,
+	# 	"pariedRun"        :None, # identical runs except at the last stage
+	# 	"Step"             :4,
+	# 	"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
+	# 	})
 	return expr
 
 
