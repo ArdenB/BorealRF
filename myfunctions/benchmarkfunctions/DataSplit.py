@@ -281,7 +281,7 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 			print(f"Swapping predictor variables from {y_test.columns[0]} to {predvar} at: {pd.Timestamp.now()}")
 			#swap out the predicto variable 
 			y_test  = pd.DataFrame(vi_df.loc[y_test.index, predvar])
-			if y_test[predvar].isnull().any().values:
+			if y_test[predvar].isnull().any():
 				X_test = X_test[~y_test[predvar].isnull()]
 				y_test = y_test[~y_test[predvar].isnull()]
 
