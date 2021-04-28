@@ -99,7 +99,7 @@ def main():
 	branch     = glob.glob(path + "*/Exp*_BranchItteration.csv")
 	df_branch  = pd.concat([load_OBS(mrfn) for mrfn in branch], sort=True)
 
-	experiments = [400, 401, 402,  404]#403,
+	experiments = [400, 401, 402, 403, 404]
 	# ========== get the scores ==========
 	df = Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiments, path)
 	transmet(df, experiments)
@@ -145,9 +145,14 @@ def transmet(df, experiments):
 		print(mets)
 
 
-	fig = sns.relplot(data=dfM, x="Observed", y="Estimated", hue="experiment", col="experiment")
+	fig = sns.relplot(data=dfM, x="Observed", y="Estimated", hue="experiment", col="experiment", col_wrap=3)
 	fig.set(ylim=(0, 2000))
 	fig.set(xlim=(0, 2000))
+	plt.show()
+
+	fig = sns.relplot(data=dfM, x="ObsDelta", y="EstDelta", hue="experiment", col="experiment", col_wrap=3)
+	fig.set(ylim=(-1000, 1000))
+	fig.set(xlim=(-1000, 1000))
 	plt.show()
 
 	dfS = pd.DataFrame(metrics).T.reset_index().rename({"index":"experiment"},axis=1)
@@ -165,7 +170,7 @@ def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiment
 	into a comperable number """
 	bioMls = []
 	vi_fn = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears_ObsBiomass.csv"
-	vi_df  = pd.read_csv( vi_fn, index_col=0).loc[:, ['biomass', 'Obs_biomass', 'Delta_biomass',]]
+	vi_df  = pd.read_csv( vi_fn, index_col=0).loc[:, ['biomass', 'Obs_biomass', 'Delta_biomass','ObsGap']]
 
 	# ========== Loop over each experiment ==========
 	for exp in tqdm(experiments):
@@ -199,9 +204,12 @@ def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiment
 			dfC["Estimated"] += df_act["biomass"]
 		else:
 			breakpoint()
-		dfC["Observed"]   = df_act["Obs_biomass"].values
+		dfC["Observed"] = df_act["Obs_biomass"].values
 		dfC["Residual"] = dfC["Estimated"] - dfC["Observed"]
-		breakpoint()
+		dfC["Original"] = df_act["biomass"].values
+		dfC["ObsDelta"] = df_act["Delta_biomass"].values
+		dfC["EstDelta"] = dfC["Estimated"] - dfC["Original"]
+		dfC["ObsGap"]   = df_act["ObsGap"].values
 		bioMls.append(dfC)
 
 	# ========== Convert to a dataframe ==========
