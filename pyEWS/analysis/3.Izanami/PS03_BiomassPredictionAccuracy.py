@@ -99,7 +99,7 @@ def main():
 	branch     = glob.glob(path + "*/Exp*_BranchItteration.csv")
 	df_branch  = pd.concat([load_OBS(mrfn) for mrfn in branch], sort=True)
 
-	experiments = [400, 401, 402, 404]
+	experiments = [400, 401, 402,  404]#403,
 	# ========== get the scores ==========
 	df = Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiments, path)
 	transmet(df, experiments)
@@ -118,7 +118,7 @@ def transmet(df, experiments):
 	mpl.rc('font', **font)
 	sns.set_style("whitegrid")
 
-
+	# ========== pull out matched runs so i can compare across runs ==========
 	dfM = df.dropna()
 	metrics = OrderedDict()
 	for exp in experiments:
@@ -139,7 +139,7 @@ def transmet(df, experiments):
 			"MedianAE":sklMet.median_absolute_error(dfMe.Observed.values, dfMe.Estimated.values),
 			})
 			# "MAPE":sklMet.mean_absolute_percentage_error(dfMe.Observed.values, dfMe.Estimated.values),
-			# "MeanGammaDeviance":sklMet.mean_gamma_deviance(dfMe.Observed.values, dfMe.Estimated.values),
+			# "MeanGammaDeviance":sklMet.mean_gamma_deviance(dfMe.Observed.values+0.0000001, dfMe.Estimated.values+0.0000001),
 
 		metrics[exp] = mets
 		print(mets)
@@ -180,9 +180,9 @@ def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiment
 		dfC    = df_OP.copy()
 		
 		if pvar == "lagged_biomass":
-			vfunc = np.vectorize(_delag)
-			tval  = vfunc(df_act["biomass"].values, df_OP["Estimated"].values)
-			dfC["Estimated"] = tval
+			vfunc            = np.vectorize(_delag)
+			dfC["Estimated"] = vfunc(df_act["biomass"].values, df_OP["Estimated"].values)
+			
 		elif pvar == 'Obs_biomass':
 			if type(df_setup.loc[f"Exp{exp}", "yTransformer"]) == float:
 				pass
@@ -200,7 +200,8 @@ def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiment
 		else:
 			breakpoint()
 		dfC["Observed"]   = df_act["Obs_biomass"].values
-		dfC["Residual"] = dfC["Estimated"] - dfC["Observed"] 
+		dfC["Residual"] = dfC["Estimated"] - dfC["Observed"]
+		breakpoint()
 		bioMls.append(dfC)
 
 	# ========== Convert to a dataframe ==========

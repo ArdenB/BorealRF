@@ -110,29 +110,29 @@ def main():
 	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
 
 	exp = 400
-	# fig, ax = plt.subplots(1, 1, figsize=(15,13))
-	# pdfplot(df_OvsP, exp, keys, fig, ax)
+	fig, ax = plt.subplots(1, 1, figsize=(15,13))
+	pdfplot(df_OvsP, exp, keys, fig, ax)
 	
 
-	# for var, ylab, ylim in zip(["R2", "TotalTime", "colcount"], [r"$R^{2}$", r"$\Delta$t (min)", "# Predictor Vars."], [(0., 1.), None, None]):
-	# 	fig, ax = plt.subplots(1, 1, figsize=(15,13))
-	# 	branchplots(exp, df_mres, keys, var, ylab, ylim,  fig, ax)
+	for var, ylab, ylim in zip(["R2", "TotalTime", "colcount"], [r"$R^{2}$", r"$\Delta$t (min)", "# Predictor Vars."], [(0., 1.), None, None]):
+		fig, ax = plt.subplots(1, 1, figsize=(15,13))
+		branchplots(exp, df_mres, keys, var, ylab, ylim,  fig, ax)
 
-	# # breakpoint()
-	# splts = np.arange(-1, 1.05, 0.10)
-	# splts[ 0] = -1.00001
-	# splts[-1] = 1.00001
+	# breakpoint()
+	splts = np.arange(-1, 1.05, 0.10)
+	splts[ 0] = -1.00001
+	splts[-1] = 1.00001
 
-	# fig, ax = plt.subplots(1, 1, figsize=(15,13))
-	# confusion_plots(path, df_mres, df_setup, df_OvsP, keys,  exp, fig, ax, 
-	# 	inc_class=False, split=splts, sumtxt="", annot=False, zline=True)
+	fig, ax = plt.subplots(1, 1, figsize=(15,13))
+	confusion_plots(path, df_mres, df_setup, df_OvsP, keys,  exp, fig, ax, 
+		inc_class=False, split=splts, sumtxt="", annot=False, zline=True)
 
-	# splts = np.arange(-1, 1.05, 1.0)
-	# splts[ 0] = -1.00001
-	# splts[-1] = 1.00001
-	# fig, ax = plt.subplots(1, 1, figsize=(15,13))
-	# confusion_plots(path, df_mres, df_setup, df_OvsP, keys,  exp, fig, ax, 
-	# 	inc_class=False, split=splts, sumtxt="", annot=True, zline=True)
+	splts = np.arange(-1, 1.05, 1.0)
+	splts[ 0] = -1.00001
+	splts[-1] = 1.00001
+	fig, ax = plt.subplots(1, 1, figsize=(15,13))
+	confusion_plots(path, df_mres, df_setup, df_OvsP, keys,  exp, fig, ax, 
+		inc_class=False, split=splts, sumtxt="", annot=True, zline=True)
 
 
 	# breakpoint()

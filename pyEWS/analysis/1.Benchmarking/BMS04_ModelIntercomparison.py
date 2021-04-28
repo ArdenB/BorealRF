@@ -122,11 +122,10 @@ def main():
 	splts[-1] = 1.00001
 	# ========== Make a list of experiment groups ==========
 	threeHunExp = df_setup[df_setup.Code.astype(int) >= 300]["Code"].astype(int).values
+	FinExp = [400, 401, 402,  404]#403,
 	NanExp = [300, 320, 321, 322, 323, 400]
-	# ModExp = [330, 332, 333]
-	for experiments, ncols, gpnm in zip([ModExp, NanExp, threeHunExp, None], [3, 5, 5, 7], ["SetupExp","NaNexp","DtMod", ""]):
-		Main_plots(path, df_mres, df_setup, df_OvsP, df_branch, keys, experiments=experiments, sumtxt=gpnm)
-		# breakpoint()
+	ModExp = [330, 332, 333]
+	for experiments, ncols, gpnm in zip([FinExp, ModExp, NanExp, threeHunExp, None], [3, 5, 5, 7], ["FinalExp","SetupExp","NaNexp","DtMod", ""]):
 		confusion_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=experiments,
 			split = splts, sumtxt=f"SplitEqualDist{gpnm}", annot=False, ncol = ncols)
 
@@ -139,6 +138,8 @@ def main():
 
 		Region_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=experiments, ncol = 4, sumtxt=gpnm)
 		
+		Main_plots(path, df_mres, df_setup, df_OvsP, df_branch, keys, experiments=experiments, sumtxt=gpnm)
+		# breakpoint()
 		breakpoint()
 	breakpoint()
 
@@ -682,23 +683,27 @@ def fix_results(fn):
 	for col in df_in.columns:
 		if col == "TotalTime":
 			df_in[col] = pd.to_timedelta(df_in[col])
-		# elif col == "experiment":
-		# 	df_in[col] = df_in[col].astype('category')
+		elif col == "Computer":
+			df_in[col] = df_in[col].astype('category')
 		else:
-			df_in[col] = df_in[col].astype(float)
+			try:
+				df_in[col] = df_in[col].astype(float)
+			except Exception as e:
+				breakpoint()
 	# ========== Loop over the regions ==========
 
 	for region in site_df.Region.unique():
 		try:
 			if df_in["%s_sitefrac" % region].values[0] >1:
 				warn.warn("value issue here")
-				nreakpoint()
+				breakpoint()
 		except KeyError:
 			# Places with missing regions
 			df_in["%s_siteinc"  % region] = 0.
 			df_in["%s_sitefrac" % region] = 0.
 		# 	# df_in["%s_siteinc" % region] = df_in["%s_siteinc" % region].astype(float)
 		# 	df_in["%s_sitefrac" % region] = (df_in["%s_siteinc" % region] / Rcounts[region])
+	# breakpoint()
 	return df_in
 
 

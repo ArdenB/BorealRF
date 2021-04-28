@@ -110,6 +110,12 @@ def main():
 
 	# ========== Disturbance Inclusion ==========
 	version = 0
+
+	experiments = [400, 401,  402, 404]#403
+	Regional_predictability(path, experiments, df_setup, df_mres, formats, vi_df, keys, version)
+	Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df, version)	
+	MLmethod_performance(path, experiments, df_setup, df_mres, formats, vi_df, keys, version, ncol = 4)
+
 	experiments = [330, 332,  333, 400]
 	Regional_predictability(path, experiments, df_setup, df_mres, formats, vi_df, keys, version)
 	Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df, version)	
