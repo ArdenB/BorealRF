@@ -109,7 +109,6 @@ def main():
 	df_StandAge = _fix_burn_index(df_StandAge)
 	# Remotly sensed stand age 
 
-
 	for ds_set in dsmod:
 		biomass_extractor(biomass, regions, df_SD, dsmod[ds_set], df_dam, df_burn, soils, permafrost, df_StandAge)
 		breakpoint()
@@ -152,8 +151,8 @@ def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, pe
 	Sinfo    = []
 
 	# ========== iterate through the rows to find ones with the correct gap ==========
-	for num, (index, row) in enumerate(biomass.iterrows()):
-		cf.lineflick(num, biomass.shape[0], t0)
+	for num, (index, row) in tqdm(enumerate(biomass.iterrows()), total=biomass.shape[0]):
+		# cf.lineflick(num, biomass.shape[0], t0)
 		# ========== pull out the relevant data ==========
 		re   = (regions[regions.Plot_ID == index]).copy(deep=True)#.rest_index(drop=True)
 		if re.empty:
@@ -163,18 +162,18 @@ def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, pe
 		stem = row[Tfilter_col]
 		surv = df_SD.loc[index].values
 
+
 		if info["infillingMethod"] is None:
 			# This time i'm only looking for value that match the define interval
 			# ===== Find the values =====
 			dif = np.subtract.outer(surv,surv)
-			with np.errstate(invalid='ignore'):
+			with np.errstate(invalid='ignore'):	
 				dif = np.where(dif>0, dif, np.NaN)
 
 			# =========== Find the indexs that match the survey interval ==========
 			if not info['PredictInt'] is None:
 				loc = np.argwhere(dif == info['PredictInt']) 
 			else:
-				# print("This has yet to be implemented yet")
 				loc = np.argwhere(~np.isnan(dif))
 			# +++++ skip if empty +++++
 			if loc.size==0:
@@ -212,70 +211,88 @@ def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, pe
 						"Delta_biomass":(bio_delt - bio_orig),
 						"stem_density":stem.iloc[I1],
 						})
-				# breakpoint()
 				# add the prediction lag when i'm assessing multiple indexes
 				if info['PredictInt'] is None:
 					outdict["ObsGap"] = dif[I2, I1]
 				bmchange[len(bmchange)] = outdict
 
-				# ========== This is where i bring in all the other params ==========
-				# +++++ Disturbance +++++
-				yrsD  = np.max([1926, year-damage_win]) # THis has been included to deal with issues abbout indexing befo32 1932
-				if index in df_dam.index:
-					dist = df_dam.loc[index, np.arange(yrsD, year).astype(int).astype(str)].sum()*100.
-					# Find the disturbance gap
-					if (df_dam.loc[index, np.arange(1926, year).astype(int).astype(str)] > 0).any():
-						dist_year = (df_dam.loc[index, np.arange(1926, year).astype(int).astype(str)] > 0).reset_index().rename({"index":"year"}, axis=1)
-						dgap = year - np.max((dist_year.loc[dist_year[index], "year"]).astype(int).values)
-					else:
-						dgap = np.NaN
-				else:
-					dist = np.NaN
-					dgap = np.NaN
-
-				# +++++ fires +++++
-				yrsF  = np.max([1917, year-damage_win])
-				if index in df_burn.index:
-					burn = df_burn.loc[index, np.arange(yrsF, year).astype(int).astype(str)].sum()
-					# check for a burn gap
-					if (df_burn.loc[index, np.arange(1917, year).astype(int).astype(str)]>0).any():
-						burn_years = (df_burn.loc[index, np.arange(1917, year).astype(int).astype(str)]>0).reset_index().rename({"index":"year"}, axis=1)
-						bgap = year - np.max((burn_years.loc[burn_years[index], "year"]).astype(int).values)
-					else:
-						bgap = np.NaN
-				elif index.startswith("11_"):
-					# Error in indexing
-					breakpoint()
-				else:
-					burn = np.NaN
-					bgap = np.NaN
-
-
-				# ++++++++++ StandAge ++++++++++
-				if index in df_StandAge.index:
-					standage = year - df_StandAge.loc[index, "StandAge"]
-				else:
-					standage = np.NaN
-
-				# ========== Add the site infomation ==========
-				# breakpoint()
-				re2 = re.copy(deep=True)
-				re2["year"]           = year
-				re2["index"]          = [len(Sinfo)]
-				re2["Disturbance"]    = dist
-				re2["DisturbanceGap"] = dgap
-				re2["Burn"]           = burn
-				re2["BurnGap"]        = bgap
-				re2["StandAge"]	      = standage
-				re2["DistPassed"]     = float((dist+burn) <= 0.1)
-				re2.set_index("index", inplace=True, drop=True)
-				Sinfo.append(re2)
 				# if loc.shape[0]>1:
 				# 	print(year)
 				# 	breakpoint()
+		elif info["infillingMethod"] == "Future":
+			# ========== Use nanargmax to find the position of the last year surveyed ==========
+			I1       = bn.nanargmax(surv)
+			bio_orig = bio.iloc[I1]
+			year     = surv[I1]
+
+			outdict = OrderedDict({
+				"site":index, 
+				"year":year,
+				"biomass":bio_orig,
+				"stem_density":stem.iloc[I1],
+				"ObsGap":np.NaN
+				})
+			# breakpoint()
+			# add the prediction lag when i'm assessing multiple indexes
+			bmchange[len(bmchange)] = outdict
+
+			# breakpoint()
 		else:
 			warn.warn("Not implemented yet")
 			breakpoint()
+
+		# ========== This is where i bring in all the other params ==========
+		# +++++ Disturbance +++++
+		yrsD  = np.max([1926, year-damage_win]) # THis has been included to deal with issues abbout indexing befo32 1932
+		if index in df_dam.index:
+			dist = df_dam.loc[index, np.arange(yrsD, year).astype(int).astype(str)].sum()*100.
+			# Find the disturbance gap
+			if (df_dam.loc[index, np.arange(1926, year).astype(int).astype(str)] > 0).any():
+				dist_year = (df_dam.loc[index, np.arange(1926, year).astype(int).astype(str)] > 0).reset_index().rename({"index":"year"}, axis=1)
+				dgap = year - np.max((dist_year.loc[dist_year[index], "year"]).astype(int).values)
+			else:
+				dgap = np.NaN
+		else:
+			dist = np.NaN
+			dgap = np.NaN
+
+		# +++++ fires +++++
+		yrsF  = np.max([1917, year-damage_win])
+		if index in df_burn.index:
+			burn = df_burn.loc[index, np.arange(yrsF, year).astype(int).astype(str)].sum()
+			# check for a burn gap
+			if (df_burn.loc[index, np.arange(1917, year).astype(int).astype(str)]>0).any():
+				burn_years = (df_burn.loc[index, np.arange(1917, year).astype(int).astype(str)]>0).reset_index().rename({"index":"year"}, axis=1)
+				bgap = year - np.max((burn_years.loc[burn_years[index], "year"]).astype(int).values)
+			else:
+				bgap = np.NaN
+		elif index.startswith("11_"):
+			# Error in indexing
+			breakpoint()
+		else:
+			burn = np.NaN
+			bgap = np.NaN
+
+
+		# ++++++++++ StandAge ++++++++++
+		if index in df_StandAge.index:
+			standage = year - df_StandAge.loc[index, "StandAge"]
+		else:
+			standage = np.NaN
+
+		# ========== Add the site infomation ==========
+		# breakpoint()
+		re2 = re.copy(deep=True)
+		re2["year"]           = year
+		re2["index"]          = [len(Sinfo)]
+		re2["Disturbance"]    = dist
+		re2["DisturbanceGap"] = dgap
+		re2["Burn"]           = burn
+		re2["BurnGap"]        = bgap
+		re2["StandAge"]	      = standage
+		re2["DistPassed"]     = float((dist+burn) <= 0.1)
+		re2.set_index("index", inplace=True, drop=True)
+		Sinfo.append(re2)
 
 	# ========== Build the dataframes ==========
 	print("\n Building dataframes")
@@ -315,6 +332,9 @@ def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, pe
 		if info["Norm"]:
 			fnameS = fpath + f"SiteInfo_AllSampleyears.csv"
 			fnameV = fpath + f"VI_df_AllSampleyears.csv"
+		elif info["infillingMethod"] == "Future":
+			fnameS = fpath + f"SiteInfo_AllSampleyears_FutureBiomass.csv"
+			fnameV = fpath + f"VI_df_AllSampleyears_FutureBiomass.csv"
 		else:
 			fnameS = fpath + f"SiteInfo_AllSampleyears_ObsBiomass.csv"
 			fnameV = fpath + f"VI_df_AllSampleyears_ObsBiomass.csv"
@@ -544,6 +564,18 @@ def setup_experiements():
 	# 	"Norm": False,  # Also produce a normalised version
 	# 	"meth":"Delta"
 	# 	})
+	dsmod[5] = ({
+		"desc":"This version Is to allow for future predictions",
+		"PredictInt": None, # the interval of time to use to predict biomass into the future
+		"RSveg":sol_VI_extractor, # the source of the data to be used to calculate vegetation metrics 
+		"VIs":['ndvi','psri','ndii','ndvsi','msi','nirv','ndwi','nbr','satvi','tvfc'],
+		"Clim": "climateNA", # the climate dataset to use
+		"SiteData":SolSiteParms,
+		"StandAge": None, # add any stand age data
+		"CO2": None, # add any data
+		"infillingMethod":"Future", # function to use for infilling
+		"Norm": False,  # Also produce a normalised version
+		})
 	dsmod[4] = ({
 		"desc":"This version has a new prediction interval but with raw biomass",
 		"PredictInt": None, # the interval of time to use to predict biomass into the future
