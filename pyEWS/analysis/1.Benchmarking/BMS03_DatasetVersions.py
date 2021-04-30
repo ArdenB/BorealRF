@@ -71,6 +71,8 @@ from scipy.cluster import hierarchy
 import xgboost as xgb
 
 print("seaborn version : ", sns.__version__)
+# print("xgb version : ", xgb.__version__)
+# breakpoint()
 
 
 # ==============================================================================
@@ -111,9 +113,9 @@ def main(args):
 
 
 			# ========== Allow for version skipping ==========
-			if version < 2 and experiment < 403:
-				warn.warn("Skipping this one so everything else can finish")
-				continue
+			# if version < 2 and experiment < 403:
+			# 	warn.warn("Skipping this one so everything else can finish")
+			# 	continue
 			
 
 
@@ -179,7 +181,7 @@ def main(args):
 			# ////// To do, ad a way to record when a feature falls out \\\\\\
 			# ========== Loop over the branchs ===========
 			while not final:
-				print("branch:", branch, pd.Timestamp.now())
+				print("Exp:",experiment, "version:", version, "branch:", branch, pd.Timestamp.now())
 				
 				# ========== Add a check to see if this is the final round ==========
 				# Final round uses the full test train dataset 
@@ -243,7 +245,7 @@ def main(args):
 					})
 				
 				# ========== Print out branch performance ==========
-				print("Branch %02d had %d veriables and an R2 of " % (branch, len(col_nms)), r2)
+				print("Exp %d Branch %02d had %d veriables and an R2 of " % (experiment, branch, len(col_nms)), r2)
 
 				# ========== Print out branch performance ==========
 
@@ -276,7 +278,7 @@ def main(args):
 
 					# ========== Move to next branch ==========
 					branch += 1
-					print("Branch %02d will test %d veriables" % (branch, len(ColNm)))
+					print("Exp %d Branch %02d will test %d veriables" % (experiment, branch, len(ColNm)))
 
 
 
