@@ -99,7 +99,7 @@ def main():
 	branch     = glob.glob(path + "*/Exp*_BranchItteration.csv")
 	df_branch  = pd.concat([load_OBS(mrfn) for mrfn in branch], sort=True)
 
-	experiments = [400, 401, 402, 403, 404]
+	experiments = [400, 401, 402, 403, 404] 
 	# ========== get the scores ==========
 	df = Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiments, path)
 	transmet(df, experiments, df_mres)
@@ -122,27 +122,31 @@ def transmet(df, experiments, df_mres):
 	dfM = df.dropna()
 	metrics = OrderedDict()
 	for exp in experiments:
-		dfMe = dfM.loc[dfM.experiment == exp].copy()
-		print( f"{exp} max version: {dfMe.version.max()}")
-		bad  = (dfMe.Estimated < 0 ).sum()
-		Insane  = (dfMe.Estimated < -100 ).sum()
+		print( f"{exp} max version: {dfM.version.max()}")
+		for ver in dfM.version.unique():
 
-		dfMe.loc[(dfMe.Estimated < 0), "Estimated"] = np.NaN
-		# dfMe.loc[(dfMe.Observed < 0), "Observed"]   = 0
-		dfMe.dropna(inplace=True)
-		mets = OrderedDict({
-			"BadValueCount":bad, 
-			"InsaneValueCount":Insane, 
-			"R2":sklMet.r2_score(dfMe.Observed.values, dfMe.Estimated.values), 
-			"ExplainedVarianceScore":sklMet.explained_variance_score(dfMe.Observed.values, dfMe.Estimated.values),
-			"MAE":sklMet.mean_absolute_error(dfMe.Observed.values, dfMe.Estimated.values),
-			"MedianAE":sklMet.median_absolute_error(dfMe.Observed.values, dfMe.Estimated.values),
-			})
-			# "MAPE":sklMet.mean_absolute_percentage_error(dfMe.Observed.values, dfMe.Estimated.values),
-			# "MeanGammaDeviance":sklMet.mean_gamma_deviance(dfMe.Observed.values+0.0000001, dfMe.Estimated.values+0.0000001),
+			dfMe = dfM.loc[np.logical_and(dfM.experiment == exp, dfM.version == ver)].copy()
+			bad  = (dfMe.Estimated < 0 ).sum() + (dfMe.Estimated > (df.Observed.max())).sum()
+			Insane  = (dfMe.Estimated < -100 ).sum() + (dfMe.Estimated > (500+df.Observed.max())).sum()
 
-		metrics[exp] = mets
-		print(mets)
+			dfMe.loc[(dfMe.Estimated < 0), "Estimated"] = np.NaN
+			dfMe.loc[(dfMe.Estimated > 2*df.Observed.max()), "Estimated"] = np.NaN
+			# dfMe.loc[(dfMe.Observed < 0), "Observed"]   = 0
+			dfMe.dropna(inplace=True)
+			mets = OrderedDict({
+				"Version":ver,
+				"BadValueCount":bad, 
+				"InsaneValueCount":Insane, 
+				"R2":sklMet.r2_score(dfMe.Observed.values, dfMe.Estimated.values), 
+				"ExplainedVarianceScore":sklMet.explained_variance_score(dfMe.Observed.values, dfMe.Estimated.values),
+				"MAE":sklMet.mean_absolute_error(dfMe.Observed.values, dfMe.Estimated.values),
+				"MedianAE":sklMet.median_absolute_error(dfMe.Observed.values, dfMe.Estimated.values),
+				})
+				# "MAPE":sklMet.mean_absolute_percentage_error(dfMe.Observed.values, dfMe.Estimated.values),
+				# "MeanGammaDeviance":sklMet.mean_gamma_deviance(dfMe.Observed.values+0.0000001, dfMe.Estimated.values+0.0000001),
+
+			metrics[f"{exp}v{ver}"] = mets
+			print(mets)
 
 
 	fig = sns.relplot(data=dfM, x="Observed", y="Estimated", hue="experiment", col="experiment", col_wrap=3)
@@ -161,7 +165,7 @@ def transmet(df, experiments, df_mres):
 	sns.barplot(y="index", x="Rank", hue="experiment", data=dfScores)
 	plt.show()
 
-
+	ipdb.set_trace()
 	breakpoint()
 
 
