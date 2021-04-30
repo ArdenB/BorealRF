@@ -86,7 +86,7 @@ def main():
 	mres_fnames = glob.glob(path + "*/Exp*_Results.csv")
 	df_mres = pd.concat([fix_results(mrfn) for mrfn in mres_fnames], sort=False)
 	df_mres["TotalTime"]  = df_mres.TotalTime / pd.to_timedelta(1, unit='m')
-	df_mres, keys = Experiment_name(df_mres, df_setup, var = "experiment")
+	df_mres, keys = Experiment_name(df_mres, df_setup, var = "exp")
 
 
 	# ========= Load in the observations ==========
@@ -124,7 +124,7 @@ def transmet(df, experiments, df_mres):
 	for exp in experiments:
 		print( f"{exp} max version: {dfM.version.max()}")
 		for ver in dfM.version.unique():
-
+			dfOG = df_mres.loc[np.logical_and(df_mres.experiment == exp, df_mres.version == ver)]
 			dfMe = dfM.loc[np.logical_and(dfM.experiment == exp, dfM.version == ver)].copy()
 			bad  = (dfMe.Estimated < 0 ).sum() + (dfMe.Estimated > (df.Observed.max())).sum()
 			Insane  = (dfMe.Estimated < -100 ).sum() + (dfMe.Estimated > (500+df.Observed.max())).sum()
@@ -133,7 +133,9 @@ def transmet(df, experiments, df_mres):
 			dfMe.loc[(dfMe.Estimated > 2*df.Observed.max()), "Estimated"] = np.NaN
 			# dfMe.loc[(dfMe.Observed < 0), "Observed"]   = 0
 			dfMe.dropna(inplace=True)
+
 			mets = OrderedDict({
+				"experiment":exp,
 				"Version":ver,
 				"BadValueCount":bad, 
 				"InsaneValueCount":Insane, 
@@ -141,13 +143,25 @@ def transmet(df, experiments, df_mres):
 				"ExplainedVarianceScore":sklMet.explained_variance_score(dfMe.Observed.values, dfMe.Estimated.values),
 				"MAE":sklMet.mean_absolute_error(dfMe.Observed.values, dfMe.Estimated.values),
 				"MedianAE":sklMet.median_absolute_error(dfMe.Observed.values, dfMe.Estimated.values),
+				"rawR2":dfOG["R2"].values[0],
+				"TotalTime":dfOG["TotalTime"].values[0],#pd.to_timedelta(, unit='s'), 
+				"Computer":dfOG["Computer"].values[0],
 				})
 				# "MAPE":sklMet.mean_absolute_percentage_error(dfMe.Observed.values, dfMe.Estimated.values),
 				# "MeanGammaDeviance":sklMet.mean_gamma_deviance(dfMe.Observed.values+0.0000001, dfMe.Estimated.values+0.0000001),
 
-			metrics[f"{exp}v{ver}"] = mets
+			metrics[len(metrics)] = mets
 			print(mets)
 
+
+	dfS = pd.DataFrame(metrics).T.infer_objects()
+	dfS["experiment"] = dfS["experiment"].astype('category')
+	sns.barplot(y="TotalTime", x="experiment", hue="Computer", data=dfS)
+	plt.show()
+	# breakpoint()
+	# dfS["TotalTime"] = pd.to_timedelta(dfS["TotalTime"], unit='s')
+	dfScores = dfM.groupby(["experiment","Rank"]).nunique()["index"].reset_index()
+	# breakpoint()
 
 	fig = sns.relplot(data=dfM, x="Observed", y="Estimated", hue="experiment", col="experiment", col_wrap=3)
 	fig.set(ylim=(0, 2000))
@@ -159,14 +173,12 @@ def transmet(df, experiments, df_mres):
 	fig.set(xlim=(-1000, 1000))
 	plt.show()
 
-	dfS = pd.DataFrame(metrics).T.reset_index().rename({"index":"experiment"},axis=1)
-	dfScores = dfM.groupby(["experiment","Rank"]).nunique()["index"].reset_index()
-
 	sns.barplot(y="index", x="Rank", hue="experiment", data=dfScores)
 	plt.show()
 
 	ipdb.set_trace()
 	breakpoint()
+	# dfS.groupby(["experiment","Computer"]).mean()
 
 
 def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiments, path):
