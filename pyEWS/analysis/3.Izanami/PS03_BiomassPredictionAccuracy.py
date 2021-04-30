@@ -84,7 +84,7 @@ def main():
 	
 	# +++++ the final model results +++++
 	mres_fnames = glob.glob(path + "*/Exp*_Results.csv")
-	df_mres = pd.concat([fix_results(mrfn) for mrfn in mres_fnames], sort=True)
+	df_mres = pd.concat([fix_results(mrfn) for mrfn in mres_fnames], sort=False)
 	df_mres["TotalTime"]  = df_mres.TotalTime / pd.to_timedelta(1, unit='m')
 	df_mres, keys = Experiment_name(df_mres, df_setup, var = "experiment")
 
@@ -102,12 +102,12 @@ def main():
 	experiments = [400, 401, 402, 403, 404]
 	# ========== get the scores ==========
 	df = Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiments, path)
-	transmet(df, experiments)
+	transmet(df, experiments, df_mres)
 	breakpoint()
 
 # ==============================================================================
 
-def transmet(df, experiments):
+def transmet(df, experiments, df_mres):
 	"""Function to look at ther overall performance of the different approaches"""
 
 		# ========== Create the figure ==========
@@ -287,6 +287,8 @@ def Experiment_name(df, df_setup, var = "experiment"):
 			print(str(er))
 			breakpoint()
 		keys[cat] = nm
+		if not  var == "experiment":
+			df[var] = df["experiment"].copy()
 		df[var].replace({cat:nm}, inplace=True)
 	return df, keys
 
@@ -321,7 +323,7 @@ def fix_results(fn):
 		try:
 			if df_in["%s_sitefrac" % region].values[0] >1:
 				warn.warn("value issue here")
-				nreakpoint()
+				breakpoint()
 		except KeyError:
 			# Places with missing regions
 			df_in["%s_siteinc"  % region] = 0.
