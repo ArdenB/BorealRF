@@ -110,7 +110,7 @@ def main():
 def transmet(df, experiments, df_mres):
 	"""Function to look at ther overall performance of the different approaches"""
 
-		# ========== Create the figure ==========
+	# ========== Create the figure ==========
 	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':8})
 	font = {'family' : 'normal',
 	        'weight' : 'bold', #,

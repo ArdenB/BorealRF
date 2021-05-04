@@ -97,6 +97,7 @@ def main():
 		"./EWS_package/data/psp/modeling_data/soil_properties_aggregated.csv", index_col=0).rename(
 		{'prop_vals.rownames.samp_loc.':"Plot_ID"}, axis=1)
 	soils = _fix_burn_index(soils)
+	
 	# add permafrost
 	permafrost = pd.read_csv(
 		"./EWS_package/data/psp/modeling_data/extract_permafrost_probs.csv", index_col=0).rename(
