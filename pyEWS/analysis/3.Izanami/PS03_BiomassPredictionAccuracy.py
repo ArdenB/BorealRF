@@ -157,6 +157,9 @@ def transmet(df, experiments, df_mres):
 	dfS = pd.DataFrame(metrics).T.infer_objects()
 	dfS["experiment"] = dfS["experiment"].astype('category')
 	sns.barplot(y="TotalTime", x="experiment", hue="Computer", data=dfS)
+	sns.barplot(y="R2", x="experiment",  data=dfS)#hue="Computer",
+	plt.show()
+	sns.barplot(y="R2", x="experiment",  data=dfS)
 	plt.show()
 	# breakpoint()
 	# dfS["TotalTime"] = pd.to_timedelta(dfS["TotalTime"], unit='s')
@@ -169,8 +172,8 @@ def transmet(df, experiments, df_mres):
 	plt.show()
 
 	fig = sns.relplot(data=dfM, x="ObsDelta", y="EstDelta", hue="experiment", col="experiment", col_wrap=3)
-	fig.set(ylim=(-1000, 1000))
-	fig.set(xlim=(-1000, 1000))
+	fig.set(ylim=(-500, 500))
+	fig.set(xlim=(-500, 500))
 	plt.show()
 
 	sns.barplot(y="index", x="Rank", hue="experiment", data=dfScores)
