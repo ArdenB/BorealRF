@@ -77,7 +77,6 @@ print("seaborn version : ", sns.__version__)
 
 # ==============================================================================
 def main(args):
-	warn.warn("Add a method to save the model out at the end with package version numbers for all relevant packages")
 	force = args.force
 	fix   = args.fix
 	inheritrows = True # a way to match the rows 
