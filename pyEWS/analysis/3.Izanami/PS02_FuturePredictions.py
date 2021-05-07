@@ -49,6 +49,8 @@ import seaborn as sns
 import palettable
 # from numba import jit
 import matplotlib.colors as mpc
+from tqdm import tqdm
+from itertools import product
 
 
 # ========== Import my dunctions ==========
@@ -96,10 +98,8 @@ def main():
 
 	branch     = glob.glob(path + "*/Exp*_BranchItteration.csv")
 	df_branch  = pd.concat([load_OBS(mrfn) for mrfn in branch], sort=True)
-	# breakpoint()
 
-	experiments = [400]
-
+	# experiments = [400]
 	# ========== Create the figure ==========
 	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':8})
 	font = {'family' : 'normal',
@@ -109,9 +109,29 @@ def main():
 	sns.set_style("whitegrid")
 	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
 
-	exp = 400
-	fig, ax = plt.subplots(1, 1, figsize=(15,13))
-	pdfplot(df_OvsP, exp, keys, fig, ax)
+	experiments = [400, 401, 402]
+	df = Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiments, path)
+
+	pred = OrderedDict()
+	pred["DeltaBiomass"] = ({
+		"obsvar":"ObsDelta",
+		"estvar":"EstDelta", 
+		"limits":(-300, 300)
+		})
+	pred["Biomass"] = ({
+		"obsvar":"Observed",
+		"estvar":"Estimated", 
+		"limits":(0, 1000)
+		})
+
+	for exp, var in product(experiments, pred):
+		# exp = 400
+		print(exp, var)
+		fig, ax = plt.subplots(1, 1, figsize=(15,13))
+		pdfplot(df, exp, keys, fig, ax, pred[var]['obsvar'], pred[var]['estvar'], var, pred[var]['limits'])
+
+	breakpoint()
+	
 	
 
 	for var, ylab, ylim in zip(["R2", "TotalTime", "colcount"], [r"$R^{2}$", r"$\Delta$t (min)", "# Predictor Vars."], [(0., 1.), None, None]):
@@ -145,13 +165,13 @@ def main():
 	breakpoint()
 
 # ==============================================================================
-def pdfplot(df_OvsP, exp, keys, fig, ax):
+def pdfplot(df, exp, keys, fig, ax, obsvar, estvar, var, clip):
 	""" Plot the probability distribution function """
-	df = df_OvsP[df_OvsP.experiment == exp]
-	df = pd.melt(df[["Observed", "Estimated"]])
+	dfin = df[df.experiment == exp]
+	dfin = pd.melt(dfin[[obsvar, estvar]])
 	# breakpoint()
-	sns.kdeplot(data=df, x="value", hue="variable", fill=True, ax=ax, clip=(-1., 1.))
-	ax.set_xlabel("Biomass Change")
+	sns.kdeplot(data=dfin, x="value", hue="variable", fill=True, ax=ax, clip=clip)#clip=(-1., 1.)
+	ax.set_xlabel(var)
 	plt.show()
 
 
@@ -391,8 +411,67 @@ def Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df
 	plt.show()
 
 # ==============================================================================
+def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiments, path):
+	""" Function to transfrom different methods of calculating biomass 
+	into a comperable number """
+	bioMls = []
+	vi_fn = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears_ObsBiomass.csv"
+	vi_df  = pd.read_csv( vi_fn, index_col=0).loc[:, ['biomass', 'Obs_biomass', 'Delta_biomass','ObsGap']]
 
+	# ========== Loop over each experiment ==========
+	for exp in tqdm(experiments):
+		pvar =  df_setup.loc[f"Exp{exp}", "predvar"]
+		if type(pvar) == float:
+			# deal with the places i've alread done
+			pvar = "lagged_biomass"
 
+		# +++++ pull out the observed and predicted +++++
+		df_OP  = df_OvsP.loc[df_OvsP.experiment == exp]
+		df_act = vi_df.iloc[df_OP.index]
+		dfC    = df_OP.copy()
+		
+		if pvar == "lagged_biomass":
+			vfunc            = np.vectorize(_delag)
+			dfC["Estimated"] = vfunc(df_act["biomass"].values, df_OP["Estimated"].values)
+			
+		elif pvar == 'Obs_biomass':
+			if type(df_setup.loc[f"Exp{exp}", "yTransformer"]) == float:
+				pass
+			else:
+				for ver in dfC.version.unique().astype(int):
+					ppath = f"./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/{exp}/" 
+					fn_mod = f"{ppath}models/XGBoost_model_exp{exp}_version{ver}"
+
+					setup = pickle.load(open(f"{fn_mod}_setuptransfromers.dat", "rb"))
+					dfC.loc[dfC.version == ver, "Estimated"] = setup['yTransformer'].inverse_transform(dfC.loc[dfC.version == ver, "Estimated"].values.reshape(-1, 1))
+
+				# breakpoint()
+		elif pvar == 'Delta_biomass':
+			dfC["Estimated"] += df_act["biomass"]
+		else:
+			breakpoint()
+		dfC["Observed"] = df_act["Obs_biomass"].values
+		dfC["Residual"] = dfC["Estimated"] - dfC["Observed"]
+		dfC["Original"] = df_act["biomass"].values
+		dfC["ObsDelta"] = df_act["Delta_biomass"].values
+		dfC["EstDelta"] = dfC["Estimated"] - dfC["Original"]
+		dfC["ObsGap"]   = df_act["ObsGap"].values
+		bioMls.append(dfC)
+
+	# ========== Convert to a dataframe ==========
+	df = pd.concat(bioMls).reset_index().sort_values(["version", "index"]).reset_index(drop=True)
+
+	# ========== Perform grouped opperations ==========
+	df["Rank"]     = df.abs().groupby(["version", "index"])["Residual"].rank(na_option="bottom").apply(np.floor)
+	df["RunCount"] = df.abs().groupby(["version", "index"])["Residual"].transform("count")
+	df.loc[df["RunCount"] < len(experiments), "Rank"] = np.NaN
+	
+	return df
+def _delag(b0, bl):
+	if bl == 1.:
+		return np.nan
+	else:
+		return ((bl*b0)+b0)/(1-bl)
 def Experiment_name(df, df_setup, var = "experiment"):
 	keys = {}
 	for cat in df["experiment"].unique():
