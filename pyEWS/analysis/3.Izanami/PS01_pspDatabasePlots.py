@@ -71,7 +71,7 @@ from sklearn import metrics as sklMet
 # ==============================================================================
 def main():
 	vi_df, fcount = VIload()
-	breakpoint()
+	# breakpoint()
 	yearcount(vi_df, fcount)
 	breakpoint()
 
@@ -79,14 +79,26 @@ def main():
 # ==============================================================================
 
 def yearcount(vi_df, fcount):
-	vi_yc = vi_df.groupby(["year", "Region"])['biomass'].count().reset_index().rename({"biomass":"Observations"}, axis=1).replace(0, np.NaN)
 
+	# ========== Create the figure ==========
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':8, "axes.labelweight":"bold"})
+	font = ({'family' : 'normal','weight' : 'bold', 'size'   : 8})
+	mpl.rc('font', **font)
 	sns.set_style("whitegrid")
-	sns.lineplot(y="Observations",x="year", data=vi_yc, hue="Region", ci=None, legend=True)
+	# plt.rcParams.update({'axes.titleweight':"bold", })
+
+
+	vi_yc = vi_df.groupby(["year", "Region"])['biomass'].count().reset_index().rename({"biomass":"Observations"}, axis=1).replace(0, np.NaN)
+	fig, ax = plt.subplots(1, 1, figsize=(25,15))
+	sns.lineplot(y="Observations",x="year", data=vi_yc, hue="Region", ci=None, legend=True, ax = ax)
+	fig.tight_layout()
 	plt.show()
-	g = sns.FacetGrid(vi_yc, col="Region", col_wrap=3,)
+	
+
+	g = sns.FacetGrid(vi_yc, col="Region", col_wrap=4, hue="Region", height=6)
 	# sns.displot(y="Observations",x="year", data=vi_yc, col="Region", col_wrap=4, kind="kde")
 	g.map(sns.lineplot, "year", "Observations")
+	# g.tight_layout()
 	plt.show()
 
 # ==============================================================================
