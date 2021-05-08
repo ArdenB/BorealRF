@@ -78,6 +78,16 @@ def main():
 	cf.pymkdir(path+"plots/")
 	ppath = "./pyEWS/analysis/3.Izanami/Figures/PS03/"
 	cf.pymkdir(ppath)
+
+	# ========== Create the matplotlib params ==========
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':8, "axes.labelweight":"bold",})
+	font = {'family' : 'normal',
+	        'weight' : 'bold', #,
+	        'size'   : 8}
+	mpl.rc('font', **font)
+	sns.set_style("whitegrid")
+
+
 	# +++++ the model Infomation +++++
 	setup_fnames = glob.glob(path + "*/Exp*_setup.csv")
 	df_setup     = pd.concat([pd.read_csv(sfn, index_col=0).T for sfn in setup_fnames], sort=True)
@@ -99,27 +109,305 @@ def main():
 	branch     = glob.glob(path + "*/Exp*_BranchItteration.csv")
 	df_branch  = pd.concat([load_OBS(mrfn) for mrfn in branch], sort=True)
 
-	experiments = [400, 401, 402, 403, 404] 
-	# ========== get the scores ==========
-	df = Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiments, path)
-	transmet(df, experiments, df_mres)
+	expr = OrderedDict()
+	expr["Complete"]      = [400, 401, 402, 403, 404, 405, 406] 
+	expr["Predictors"]    = [400, 401, 402] 
+	expr['Obs_biomass']   = [401, 403, 404] 
+	expr['Delta_biomass'] = [402, 405, 406] 
+	
+	nvar = "exp"
+	ci="sd"
+	
+	for epnm in expr:
+		# ========== get the scores ==========
+		df = Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, expr[epnm], path)
+		dfM, dfS, dfScores, exp_names = transmet(df, expr[epnm], df_mres, ppath, epnm, keys)
+
+		# ========== Make the plts ==========
+		ConfusionPlotter(df, expr[epnm], df_mres, ppath, epnm, keys, nvar, 
+			ci, dfM, dfS, dfScores, exp_names)
+		_overviewplots(df, expr[epnm], df_mres, ppath, epnm, keys, nvar, ci, dfM, dfS, dfScores, exp_names)
+		_scatterplots(df, expr[epnm], df_mres, ppath, epnm, keys, nvar, ci, dfM, dfS, dfScores, exp_names)
+
 	breakpoint()
 
 # ==============================================================================
+def ConfusionPlotter(df, experiments, df_mres, ppath, epnm, keys, nvar, 
+	ci, dfM, dfS, dfScores, exp_names):#, split, obsvar, estvar,):
+	obsvar = "ObsDelta"
+	estvar = "EstDelta"
+	
+	# maxval = np.ceil(dfM.loc[:, obsvar].abs().max()/ 100) * 100
+	maxval =  500
+	minval = -500
+	gap    = 10 
+	# split  = np.hstack([np.min([-maxval ,-1000.]),np.arange(-400., 401, 10), np.max([1000., maxval])])
+	split  = np.arange(minval, maxval+1, gap)
+	dfMp = dfM.copy()
+	for va  in [obsvar, estvar]:
+		dfMp.loc[dfMp[va]<= minval, va] = (minval+1)
+		dfMp.loc[dfMp[va]>= maxval, va] = ( maxval-1)
 
-def transmet(df, experiments, df_mres):
+
+	ncol = np.min([4, len(experiments)]).astype(int)
+	nrow = np.ceil(len(experiments)/ncol).astype(int)
+
+	fig= plt.figure(
+		figsize=(ncol*6,nrow*5),
+		num=(f"Normalised Confusion Matrix - {epnm}"), 
+		dpi=130)#, constrained_layout=True)figsize=(17,12),
+
+	axs = []
+
+
+	# ========== Loop over ach experiment ==========
+	for num, exp in enumerate(experiments):
+		ax = fig.add_subplot(np.ceil( len(experiments) / ncol).astype(int), ncol, num+1, label=exp)
+		_confusion_plots(df_mres, dfMp, dfS, obsvar, estvar, keys, exp, fig, ax, split, 
+			inc_class=False, sumtxt=epnm, annot=False, zline=True, num=num)
+
+
+	# for exp in experiments:
+		# fig, ax = plt.subplots(1, 1, figsize=(15,13))
+	fig.suptitle(
+		f'{epnm}{ f" ({dfM.version.max()+1} runs out of 10)" if (dfM.version.max() < 9.0) else ""}', 
+		fontweight='bold')
+	plt.tight_layout()
+	# ========== Save tthe plot ==========
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS03_{epnm}_Normalised_Confusion_Matrix" 
+	for ext in [".png"]:#".pdf",
+		plt.savefig(fnout+ext, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+	
+
+# ==============================================================================
+def _confusion_plots(
+	df_mres, dfM, dfS, obsvar, estvar,  keys, exp, fig, ax, split,
+	inc_class=False, sumtxt="", annot=False, zline=True, num=0, cbar=True, mask=True):
+	"""Function to create and plot the confusion matrix"""
+
+
+	# ========== Get the observed and estimated values ==========
+	df_c         = dfM.loc[dfM.experiment == keys[exp], [obsvar,estvar]].copy()
+	expsize      = len(split) -1 # df_class.experiment.unique().size
+	df_c[obsvar] = pd.cut(df_c[obsvar], split, labels=np.arange(expsize))
+	df_c[estvar] = pd.cut(df_c[estvar], split, labels=np.arange(expsize))
+	df_set       = dfS[dfS.experiment == keys[exp]]
+
+	# if any((df2 <= split.min()).any()) or any((df2 >= split.max()).any()):
+	# 	breapoint()
+	# ========== Pull out the classification only accuracy ==========
+	# expr   = OrderedDict()
+	# cl_on  = OrderedDict() #dict to hold the classification only 
+	# for num, expn in enumerate(experiments):
+	# expr[exp] = keys[exp]
+
+	if any(df_c[estvar].isnull()):
+		breakpoint()
+		df_c = df_c[~df_c[estvar].isnull()]
+
+	if any(df_c[obsvar].isnull()):
+		breakpoint()
+		df_c = df_c[~df_c[obsvar].isnull()]
+
+	try:
+		sptsze = split.size
+	except:
+		sptsze = len(split)
+	
+	df_c.sort_values(obsvar, axis=0, ascending=True, inplace=True)
+	print(exp, sklMet.accuracy_score(df_c[obsvar], df_c[estvar]))
+	
+	# ========== Calculate the confusion matrix ==========
+	# \\\ confustion matrix  observed (rows), predicted (columns), then transpose and sort
+	df_cm  = pd.DataFrame(
+		sklMet.confusion_matrix(df_c[obsvar], df_c[estvar],  
+			labels=df_c[obsvar].cat.categories,  normalize='true'),  
+		index = [int(i) for i in np.arange(expsize)], 
+		columns = [int(i) for i in np.arange(expsize)]).T.sort_index(ascending=False)
+
+	cmap = mpc.ListedColormap(palettable.matplotlib.Inferno_20_r.mpl_colors)
+	if mask:
+		#+++++ remove 0 values +++++
+		df_cm.replace(0, np.NaN, inplace=True)
+		# breakpoint()
+
+	if annot:
+		ann = df_cm.round(3)
+	else:
+		ann = False
+
+
+	g = sns.heatmap(df_cm, annot=ann, vmin=0, vmax=1, ax = ax, cbar=cbar, square=True, cmap=cmap)
+	ax.plot(np.flip(np.arange(expsize+1)), np.arange(expsize+1), "w", alpha=0.5)
+	# plt.title(expr[exp])
+	# ========== fix the labels +++++
+	if (sptsze > 10):
+		# +++++ The location of the ticks +++++
+		interval = int(np.floor(sptsze/10))
+		location = np.arange(0, sptsze, interval)
+		# +++++ The new values +++++
+		values = np.round(np.linspace(split[0], split[-1], location.size))
+		ax.set_xticks(location)
+		ax.set_xticklabels(values, rotation=90)
+		ax.set_yticks(location)
+		ax.set_yticklabels(np.flip(values), rotation=0)
+		# ========== Add the cross hairs ==========
+		if zline:
+			try:
+				ax.axvline(location[values == 0][0], alpha =0.25, linestyle="--", c="grey")
+				ax.axhline(location[values == 0][0], alpha =0.25, linestyle="--", c="grey")
+			except Exception as er:
+				print(er)
+				breakpoint()
+	else:
+		# warn.warn("Yet to fix the ticks here")
+		# breakpoint()
+		# ========== Calculate the zero lines ==========
+		if zline:
+			# ========== Calculate the zero line location ==========
+			((x0),) = np.where(np.array(split) < 0)
+			x0a = x0[-1]
+			((x1),) = np.where(np.array(split) >=0)
+			x1a = x1[0]
+			zeroP =  x0a + (0.-split[x0a])/(split[x1a]-split[x0a])
+			# ========== Add the cross hairs ==========
+			ax.axvline(x=zeroP, ymin=0.1, alpha =0.25, linestyle="--", c="w")
+			ax.axhline(y=zeroP, xmax=0.9, alpha =0.25, linestyle="--", c="w")
+
+		# +++++ fix the values +++++
+		location = np.arange(0., sptsze)#+1
+		location[ 0] += 0.00001
+		location[-1] -= 0.00001
+		ax.set_xticks(location)
+		ax.set_xticklabels(np.round(split, 2), rotation=90)
+		ax.set_yticks(location)
+		ax.set_yticklabels(np.flip(np.round(split, 2)), rotation=0)
+
+
+	ax.set_title(f"{exp}-{keys[exp]} $R^{2}$ {df_set.R2.mean()}", loc= 'left')
+	ax.set_xlabel(obsvar)
+	ax.set_ylabel(estvar)
+
+
+	# g.tight_layout()
+
+
+
+def _overviewplots(df, experiments, df_mres, ppath, epnm, keys, nvar, ci, dfM, dfS, dfScores, exp_names):
+	# ========== Plot Broad summary  ==========
+	fig, ((ax1, ax2, ax3), (ax4, ax5, ax6)) = plt.subplots(2, 3, num=("General Summary"), figsize=(20,10))
+	
+	# +++++ time taken plot +++++
+	sns.barplot(y="TotalTime", x="experiment", hue="Computer", ci=ci, data=dfS, ax=ax1, order=exp_names)
+	# sns.barplot(y="TotalTime", x="experiment", data=df_set, ci="sd", ax=ax2, )
+	ax1.set_xlabel("")
+	ax1.set_ylabel(r"$\Delta$t (min)")
+	# ax1.set_xticklabels(ax1.get_xticklabels(), rotation=30, horizontalalignment='right')
+
+	# +++++ R2 plot +++++
+	sns.barplot(y="R2", x="experiment",  data=dfS, ci=ci, ax=ax2, order=exp_names)
+	ax2.set_xlabel("")
+	ax2.set_ylabel(r"$R^{2}$")
+	# ax2.set_xticklabels(ax1.get_xticklabels(), rotation=30, horizontalalignment='right')
+	ax2.set(ylim=(0., 1.))
+
+	# +++++ group rank plot +++++
+	sns.barplot(y="index", x="Rank", hue="experiment", data=dfScores, ax = ax3, hue_order=exp_names)
+	ax3.set_xlabel("Min abs. residual Rank")
+	ax3.set_ylabel("Count")
+
+	# +++++ Mean Absolute Error +++++
+	sns.barplot(y="MAE", x="experiment", data=dfS, ci=ci, ax=ax4, order=exp_names)
+	ax4.set_xlabel("")
+	ax4.set_ylabel("Mean Absolute Error")
+	# ax4.set_xticklabels(ax4.get_xticklabels(), rotation=30, horizontalalignment='right')
+	
+	# +++++ Median Absolute Error +++++
+	sns.barplot(y="MedianAE", x="experiment", data=dfS, ci=ci, ax=ax5, order=exp_names)
+	ax5.set_xlabel("")
+	ax5.set_ylabel("Median Absolute Error")
+	# ax5.set_xticklabels(ax5.get_xticklabels(), rotation=30, horizontalalignment='right')
+	
+	# +++++ Median Absolute Error +++++
+	sns.barplot(y="BadValueCount", x="experiment", data=dfS, ci=ci, ax=ax6, order=exp_names)
+	ax6.set_xlabel("")
+	ax6.set_ylabel("Bad Value Count")
+	if len(experiments) > 4:
+		for axi in [ax1, ax2, ax4, ax5, ax6]:
+			axi.set_xticklabels(axi.get_xticklabels(), rotation=10, horizontalalignment='right')
+
+
+	fig.suptitle(
+		f'{epnm}{ f" ({dfM.version.max()+1} runs out of 10)" if (dfM.version.max() < 9.0) else ""}', 
+		fontweight='bold')
+	plt.tight_layout()
+	# ========== Save tthe plot ==========
+	print("starting save at:", pd.Timestamp.now())
+	fnout =  f"{ppath}PS03_{epnm}_General_Model_Comparison"
+	for ext in [".png"]:#".pdf", 
+		plt.savefig(fnout+ext)
+	plotinfo = "PLOT INFO: General Multimodel Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	
+	plt.show()
+
+def _scatterplots(df, experiments, df_mres, ppath, epnm, keys, nvar, ci, dfM, dfS, dfScores, exp_names):
+	# ========== Biomass scatter plot ==========
+	fig = sns.relplot(data=dfM, x="Observed", y="Estimated",  col="experiment", col_wrap=np.min([4, len(experiments)])) #hue="experiment",
+	fig.set(ylim=(0, 2000))
+	fig.set(xlim=(0, 2000))
+	fig.fig.suptitle(
+		f'Biomass - {epnm}{ f" ({dfM.version.max()+1} runs out of 10)" if (dfM.version.max() < 9.0) else ""}', 
+		fontweight='bold')
+	fig.tight_layout()
+	
+	fnout =  f"{ppath}/PS03_{epnm}_Biomass"
+	for ext in [".png"]:#".pdf", 
+		plt.savefig(fnout+ext)
+	plotinfo = "PLOT INFO: General Multimodel Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+	
+	# ========== Delta biomass Biomass scatter plot ==========
+	fig = sns.relplot(data=dfM, x="ObsDelta", y="EstDelta", 
+		col="experiment", col_wrap=np.min([4, len(experiments)])) # hue="experiment", 
+	fig.set(ylim=(-500, 500))
+	fig.set(xlim=(-500, 500))
+	fig.fig.suptitle(
+		f'\u0394Biomass - {epnm}{ f" ({dfM.version.max()+1} runs out of 10)" if (dfM.version.max() < 9.0) else ""}', 
+		fontweight='bold')
+
+	fig.tight_layout()
+	fnout =  f"{ppath}PS03_{epnm}_DeltaBiomass"
+	for ext in [".png"]:#".pdf", 
+		plt.savefig(fnout+ext)
+	plotinfo = "PLOT INFO: Delta Biomass Multimodel Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+
+# ==============================================================================
+
+def transmet(df, experiments, df_mres, ppath, epnm, keys, nvar = "exp", ci="sd"):
 	"""Function to look at ther overall performance of the different approaches"""
 
-	# ========== Create the figure ==========
-	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':8})
-	font = {'family' : 'normal',
-	        'weight' : 'bold', #,
-	        'size'   : 8}
-	mpl.rc('font', **font)
-	sns.set_style("whitegrid")
+
+	# ========== create a dataframe ==========
+	dfM = df.dropna().copy()
 
 	# ========== pull out matched runs so i can compare across runs ==========
-	dfM = df.dropna()
 	metrics = OrderedDict()
 	for exp in experiments:
 		print( f"{exp} max version: {dfM.version.max()}")
@@ -135,7 +423,7 @@ def transmet(df, experiments, df_mres):
 			dfMe.dropna(inplace=True)
 
 			mets = OrderedDict({
-				"experiment":exp,
+				"experiment":df_mres.loc[np.logical_and(df_mres.experiment == exp, df_mres.version == ver), nvar].values[0], #exp,
 				"Version":ver,
 				"BadValueCount":bad, 
 				"InsaneValueCount":Insane, 
@@ -151,38 +439,18 @@ def transmet(df, experiments, df_mres):
 				# "MeanGammaDeviance":sklMet.mean_gamma_deviance(dfMe.Observed.values+0.0000001, dfMe.Estimated.values+0.0000001),
 
 			metrics[len(metrics)] = mets
-			print(mets)
+			# print(mets)
 
+	#  ========== Setup the dataframes ==========
+	exp_names         = [keys[expn] for expn in experiments]
+	dfM['experiment'] = dfM.experiment.map(keys)
+	dfM["experiment"] = dfM["experiment"].astype('category')
 
-	dfS = pd.DataFrame(metrics).T.infer_objects()
+	dfS               = pd.DataFrame(metrics).T.infer_objects()
 	dfS["experiment"] = dfS["experiment"].astype('category')
-	sns.barplot(y="TotalTime", x="experiment", hue="Computer", data=dfS)
-	sns.barplot(y="R2", x="experiment",  data=dfS)#hue="Computer",
-	plt.show()
-	sns.barplot(y="R2", x="experiment",  data=dfS)
-	plt.show()
-	# breakpoint()
-	# dfS["TotalTime"] = pd.to_timedelta(dfS["TotalTime"], unit='s')
-	dfScores = dfM.groupby(["experiment","Rank"]).nunique()["index"].reset_index()
-	# breakpoint()
+	dfScores          = dfM.groupby(["experiment","Rank"]).nunique()["index"].reset_index()
 
-	fig = sns.relplot(data=dfM, x="Observed", y="Estimated", hue="experiment", col="experiment", col_wrap=3)
-	fig.set(ylim=(0, 2000))
-	fig.set(xlim=(0, 2000))
-	plt.show()
-
-	fig = sns.relplot(data=dfM, x="ObsDelta", y="EstDelta", hue="experiment", col="experiment", col_wrap=3)
-	fig.set(ylim=(-500, 500))
-	fig.set(xlim=(-500, 500))
-	plt.show()
-
-	sns.barplot(y="index", x="Rank", hue="experiment", data=dfScores)
-	plt.show()
-
-	ipdb.set_trace()
-	breakpoint()
-	# dfS.groupby(["experiment","Computer"]).mean()
-
+	return dfM, dfS, dfScores, exp_names
 
 def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiments, path):
 	""" Function to transfrom different methods of calculating biomass 
@@ -204,13 +472,15 @@ def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiment
 		dfC    = df_OP.copy()
 		
 		if pvar == "lagged_biomass":
-			vfunc            = np.vectorize(_delag)
-			dfC["Estimated"] = vfunc(df_act["biomass"].values, df_OP["Estimated"].values)
-			
-		elif pvar == 'Obs_biomass':
 			if type(df_setup.loc[f"Exp{exp}", "yTransformer"]) == float:
-				pass
+
+				vfunc            = np.vectorize(_delag)
+				dfC["Estimated"] = vfunc(df_act["biomass"].values, df_OP["Estimated"].values)
 			else:
+				warn.warn("Not Implemeted Yet")
+				breakpoint()
+		elif pvar == 'Obs_biomass':
+			if not type(df_setup.loc[f"Exp{exp}", "yTransformer"]) == float:
 				for ver in dfC.version.unique().astype(int):
 					ppath = f"./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/{exp}/" 
 					fn_mod = f"{ppath}models/XGBoost_model_exp{exp}_version{ver}"
@@ -218,11 +488,19 @@ def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiment
 					setup = pickle.load(open(f"{fn_mod}_setuptransfromers.dat", "rb"))
 					dfC.loc[dfC.version == ver, "Estimated"] = setup['yTransformer'].inverse_transform(dfC.loc[dfC.version == ver, "Estimated"].values.reshape(-1, 1))
 
-				# breakpoint()
 		elif pvar == 'Delta_biomass':
+			if not type(df_setup.loc[f"Exp{exp}", "yTransformer"]) == float:
+				for ver in dfC.version.unique().astype(int):
+					ppath = f"./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/{exp}/" 
+					fn_mod = f"{ppath}models/XGBoost_model_exp{exp}_version{ver}"
+
+					setup = pickle.load(open(f"{fn_mod}_setuptransfromers.dat", "rb"))
+					dfC.loc[dfC.version == ver, "Estimated"] = setup['yTransformer'].inverse_transform(dfC.loc[dfC.version == ver, "Estimated"].values.reshape(-1, 1))
 			dfC["Estimated"] += df_act["biomass"]
+
 		else:
 			breakpoint()
+
 		dfC["Observed"] = df_act["Obs_biomass"].values
 		dfC["Residual"] = dfC["Estimated"] - dfC["Observed"]
 		dfC["Original"] = df_act["biomass"].values
@@ -253,7 +531,9 @@ def _delag(b0, bl):
 
 def Experiment_name(df, df_setup, var = "experiment"):
 	keys = {}
-	for cat in df["experiment"].unique():
+	if not  var == "experiment":
+		df[var] = df["experiment"].copy()
+	for cat in df["experiment"].astype(int).unique():
 		# =========== Setup the names ============
 		try:
 			if cat == 100:
@@ -292,22 +572,30 @@ def Experiment_name(df, df_setup, var = "experiment"):
 						nm += "_disturbance"
 					elif cat == 333:
 						nm += "_FeatureSel"
-			elif cat == 400:
-				nm = "Final XGBoost Model"
-			elif cat == 401:
-				nm = "Final XGBoost Model Observed Biomass"
-			elif cat == 402:
-				nm = "Final XGBoost Model Delta Biomass"
-			elif cat == 404:
-				nm = "Final XGBoost Model Obs Biomass Quantile Transform"
+			elif cat >= 400:
+				mdva = df_setup[df_setup.Code.astype(int) == cat]["predvar"][0]
+				if type(mdva) == float:
+					mdva = "lagged_biomass"
+				
+				def _TFnamer(stn, tfname):
+					# Function to quickly rename transfomrs 
+					if type(tfname) == float:
+						return ""
+					elif tfname in ["QuantileTransformer(output_distribution='normal')", "QuantileTransformer(ignore_implicit_zeros=True, output_distribution='normal')"]:
+						return f" {stn}_QTn"
+					else:
+						breakpoint()
+						return f" {stn}_UNKNOWN"
+
+
+				nm = f'{mdva}{_TFnamer("Ytf", df_setup.loc[f"Exp{int(cat)}", "yTransformer"])}{_TFnamer("Xtf", df_setup.loc[f"Exp{int(cat)}", "Transformer"])}'
+
 			else:
 				nm = "%d.%s" % (cat, df_setup[df_setup.Code.astype(int) == int(cat)].name.values[0])
 		except Exception as er:
 			print(str(er))
 			breakpoint()
 		keys[cat] = nm
-		if not  var == "experiment":
-			df[var] = df["experiment"].copy()
 		df[var].replace({cat:nm}, inplace=True)
 	return df, keys
 

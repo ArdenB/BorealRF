@@ -79,18 +79,25 @@ def main():
 	ppath = "./pyEWS/analysis/3.Izanami/Figures/PS04/"
 	cf.pymkdir(ppath)
 	
-	
-	exps = [401, 403, 404]
+	expr = OrderedDict()
+	expr['Delta_biomass'] = [402, 405, 406] 
+	expr["Predictors"]    = [400, 401, 402] 
+	expr['Obs_biomass']   = [401, 403, 404] 
+	# expr["Complete"]      = [400, 401, 402, 403, 404, 405, 406] 
 	var  = "PermutationImportance"
-	huex = "VariableGroup"#"Count"
-	# ========== get the PI data ==========
-	df = _ImpOpener(path, exps)
-
-	featureplotter(df, ppath, var, exps, huex)
+	for epnm in expr:
+		# exps = [401, 403, 404]
+		huex = "VariableGroup"#"Count"
+		# ========== get the PI data ==========
+		df, ver = _ImpOpener(path, expr[epnm])
+		# try:
+		featureplotter(df, ppath, var, expr[epnm], huex, epnm, ver)
+		# except Exception as er:
+		# 	warn.warn(str(er))
 	breakpoint()
 
 # ==============================================================================
-def featureplotter(df, ppath, var, exps, huex):
+def featureplotter(df, ppath, var, exps, huex, epnm, ver):
 	""" Function to plot the importance of features """
 	# ========== Setup params ==========
 	plt.rcParams.update({'axes.titleweight':"bold","axes.labelweight":"bold", 'axes.titlesize':8})
@@ -118,16 +125,31 @@ def featureplotter(df, ppath, var, exps, huex):
 
 	for exp,  ax in zip(exps, g.axes):
 		for tick_label, patch in zip(ax.get_xticklabels(), ax.patches):
-		    cgroup = df.loc[np.logical_and(df.Variable == tick_label._text, df.experiment==exp), huex].unique()[0]
 		    try: 
+		    	cgroup = df.loc[np.logical_and(df.Variable == tick_label._text, df.experiment==exp), huex].unique()[0]
 		    	tick_label.set_color(colordict[f"{cgroup}"])
-		    except:
+		    except Exception as er:
+		    	warn.warn(str(er))
 		    	breakpoint()
+	g.fig.suptitle(
+		f'{epnm}{ f" ({ver+1} runs out of 10)" if (ver < 9.0) else ""}', 
+		fontweight='bold')
 	plt.tight_layout()
+
+	# ========== Save tthe plot ==========
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS04_{epnm}_{var}" 
+	for ext in [".png"]:#".pdf",
+		plt.savefig(fnout+ext, dpi=130)
+	
+	plotinfo = "PLOT INFO: Feature Importance plots made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+
 	plt.show()
 
 	# ========== Create the same fig but for the vars that i care about ==========
-
 	g = sns.catplot( 
 		x="Variable", y=var, #ci=0.95, estimator=bn.nanmedian, 
 		hue=huex, dodge=False, 
@@ -150,7 +172,21 @@ def featureplotter(df, ppath, var, exps, huex):
 		    	tick_label.set_color(colordict[f"{cgroup}"])
 		    except:
 		    	breakpoint()
+	g.fig.suptitle(
+		f'{epnm}{ f" ({ver+1} runs out of 10)" if (ver < 9.0) else ""}', 
+		fontweight='bold')
 	plt.tight_layout()
+	# ========== Save tthe plot ==========
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS04_{epnm}_topAgreement_{var}" 
+	for ext in [".png"]:#".pdf",
+		plt.savefig(fnout+ext, dpi=130)
+	
+	plotinfo = "PLOT INFO: Feature Importance plots made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+
 	plt.show()
 
 	breakpoint()
@@ -204,7 +240,7 @@ def _ImpOpener(path, exps, var = "PermutationImportance"):
 	df["VariableGroup"] = df.Variable.apply(_getgroup, 
 		species = sp_groups.scientific.values, soils=soils, permafrost=permafrost).astype("category")
 	# breakpoint()
-	return df
+	return df, ver
 
 # ==============================================================================
 if __name__ == '__main__':
