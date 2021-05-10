@@ -116,27 +116,36 @@ def main():
 	pred["DeltaBiomass"] = ({
 		"obsvar":"ObsDelta",
 		"estvar":"EstDelta", 
-		"limits":(-300, 300)
+		"limits":(-300, 300),
+		"Resname":"Residual"
 		})
 	pred["Biomass"] = ({
 		"obsvar":"Observed",
 		"estvar":"Estimated", 
-		"limits":(0, 1000)
+		"limits":(0, 1000), 
+		"Resname":"Residual"
 		})
+	# breakpoint()
 
 	for exp, var in product(experiments, pred):
-		# exp = 400
 		print(exp, var)
-		fig, ax = plt.subplots(1, 1, figsize=(15,13))
-		pdfplot(df, exp, keys, fig, ax, pred[var]['obsvar'], pred[var]['estvar'], var, pred[var]['limits'])
+		if var == "Biomass":
+			fig, ax = plt.subplots(1, 1, figsize=(14,6))
+			Temporal_predictability(ppath, [exp], df_setup, df, keys,  fig, ax, var, va=pred[var]['Resname'])	
 
+		fig, ax = plt.subplots(1, 1, figsize=(14,6))
+		pdfplot(ppath, df, exp, keys, fig, ax, pred[var]['obsvar'], pred[var]['estvar'], var, pred[var]['limits'])
+
+	# vi_df, fcount = VIload()
+
+	warn.warn("TThe following plots have not been adjusted for different variable types")
 	breakpoint()
 	
 	
-
 	for var, ylab, ylim in zip(["R2", "TotalTime", "colcount"], [r"$R^{2}$", r"$\Delta$t (min)", "# Predictor Vars."], [(0., 1.), None, None]):
 		fig, ax = plt.subplots(1, 1, figsize=(15,13))
 		branchplots(exp, df_mres, keys, var, ylab, ylim,  fig, ax)
+
 
 	# breakpoint()
 	splts = np.arange(-1, 1.05, 0.10)
@@ -156,23 +165,34 @@ def main():
 
 
 	# breakpoint()
-	vi_df, fcount = VIload()
-	fig, (ax, ax2) = plt.subplots(2, 1, figsize=(14,13))
-	Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df, fig, ax, ax2,)	
 
 
 	
 	breakpoint()
 
 # ==============================================================================
-def pdfplot(df, exp, keys, fig, ax, obsvar, estvar, var, clip):
+def pdfplot(ppath, df, exp, keys, fig, ax, obsvar, estvar, var, clip, single=True):
 	""" Plot the probability distribution function """
 	dfin = df[df.experiment == exp]
 	dfin = pd.melt(dfin[[obsvar, estvar]])
 	# breakpoint()
-	sns.kdeplot(data=dfin, x="value", hue="variable", fill=True, ax=ax, clip=clip)#clip=(-1., 1.)
+	g = sns.kdeplot(data=dfin, x="value", hue="variable", fill=True, ax=ax, clip=clip)#clip=(-1., 1.)
 	ax.set_xlabel(var)
-	plt.show()
+	if single:
+		plt.title(f'{exp} - {keys[exp]}', fontweight='bold')
+		plt.tight_layout()
+
+		# ========== Save tthe plot ==========
+		print("starting save at:", pd.Timestamp.now())
+		fnout = f"{ppath}PS02_{exp}_{var}_ProbDistFunc" 
+		for ext in [".png"]:#".pdf",
+			plt.savefig(fnout+ext, dpi=130)
+		
+		plotinfo = "PLOT INFO: PDF plots made using %s:v.%s by %s, %s" % (
+			__title__, __version__,  __author__, pd.Timestamp.now())
+		gitinfo = cf.gitmetadata()
+		cf.writemetadata(fnout, [plotinfo, gitinfo])
+		plt.show()
 
 
 def branchplots(exp, df_mres, keys, var, ylab, ylim,  fig, ax):
@@ -332,26 +352,19 @@ def confusion_plots(path, df_mres, df_setup, df_OvsP, keys, exp, fig, ax,
 	# cf.writemetadata(fnout, [plotinfo, gitinfo])
 	plt.show()
 
-def Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df, fig, ax, ax2, va = "residual", CI = "QuantileInterval"): #version
+def Temporal_predictability(
+	ppath, experiments, df_setup, df, keys,  fig, ax, var,
+	va = "Residual", CI = "QuantileInterval", single=True):
+
 	"""
 	Function to make a figure that explores the temporal predictability. This 
 	figure will only use the runs with virable windows
 	"""
-	# ========== make a container for the data and get the file names ==========
-	OvP_fnames = []
-	for expn in experiments:	
-		OvP_fnames += glob.glob(f"{path}{expn}/Exp{expn}_*_OBSvsPREDICTED.csv")
-	
-	# ========== load the results and the VI data ==========
-	df_OvsP    = pd.concat([load_OBS(ofn) for ofn in OvP_fnames])
-
-	# ========== pull out the obs gap ==========
-	df_OvsP["ObsGap"]   = vi_df.loc[df_OvsP.index]["ObsGap"]
-	df_OvsP["ObsGap"]   = df_OvsP["ObsGap"]#astype("category")
-	df_OvsP["residual"] = (df_OvsP["Estimated"] - df_OvsP["Observed"]).astype(float)
-	df_OvsP["AbsResidual"] = df_OvsP["residual"].abs().astype(float)
-	df_OvsP["Region"]   = vi_df.loc[df_OvsP.index]["Region"]#.astype("category")
-	# breakpoint()
+	if len(experiments) > 1:
+		# pick only the subset that are matched 
+		dfX = df.dropna()
+	else:
+		dfX = df.loc[df["experiment"] == experiments[0]]
 
 
 
@@ -360,21 +373,22 @@ def Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df
 	# 	for CI in ["SD", "QuantileInterval"]:
 	print(f"{va} {CI} {pd.Timestamp.now()}")
 	# Create the labels
-	lab = [df_setup.loc[df_setup.Code.astype(int) == expn, "name"].values[0] for expn in experiments]
+
+	lab = [keys[expn] for expn in experiments]
 	# ========== set up the colours and build the figure ==========
 	colours = palettable.cartocolors.qualitative.Vivid_10.hex_colors
 	# ========== Build the first part of the figure ==========
 	if CI == "SD":
-		sns.lineplot(y=va, x="ObsGap", data=df_OvsP, 
+		sns.lineplot(y=va, x="ObsGap", data=dfX, 
 			hue="experiment", ci="sd", ax=ax, 
 			palette=colours[:len(experiments)], legend=False)
 	else:
 		# Use 
-		sns.lineplot(y=va, x="ObsGap", data=df_OvsP, 
+		sns.lineplot(y=va, x="ObsGap", data=dfX, 
 			hue="experiment", ci=None, ax=ax, 
 			palette=colours[:len(experiments)], legend=False)
 		for expn, hue in zip(experiments, colours[:len(experiments)]) :
-			df_ci = df_OvsP[df_OvsP.experiment == expn].groupby("ObsGap")[va].quantile([0.05, 0.95]).reset_index()
+			df_ci = dfX[dfX.experiment == expn].groupby("ObsGap")[va].quantile([0.05, 0.95]).reset_index()
 			ax.fill_between(
 				df_ci[df_ci.level_1 == 0.05]["ObsGap"].values, 
 				df_ci[df_ci.level_1 == 0.95][va].values, 
@@ -384,31 +398,37 @@ def Temporal_predictability(path, experiments, df_setup, df_mres, formats, vi_df
 	ax.set_ylabel(r'Mean Residual ($\pm$ %s)' % CI, fontsize=8, fontweight='bold')
 	# ========== Create hhe legend ==========
 	ax.legend(title='Experiment', loc='upper right', labels=lab)
-	ax.set_title(f"a) ", loc= 'left')
+	ax.set_title(f"{var} {va} {CI}", loc= 'left')
 
 
 	# ========== The second subplot ==========
 	# breakpoint()
-	sns.histplot(data=df_OvsP, x="ObsGap", hue="Region",  
-		multiple="dodge",  ax=ax2) #palette=colours[:len(experiments)]
-	# ========== fix the labels ==========
-	ax2.set_xlabel('Years Between Observation', fontsize=8, fontweight='bold')
-	ax2.set_ylabel(f'# of Obs.', fontsize=8, fontweight='bold')
+	# sns.histplot(data=df_OvsP, x="ObsGap", hue="Region",  
+	# 	multiple="dodge",  ax=ax2) #palette=colours[:len(experiments)]
+	# # ========== fix the labels ==========
+	# ax2.set_xlabel('Years Between Observation', fontsize=8, fontweight='bold')
+	# ax2.set_ylabel(f'# of Obs.', fontsize=8, fontweight='bold')
 	# ========== Create hhe legend ==========
 	# ax2.legend(title='Experiment', loc='upper right', labels=lab)
 	# ax2.set_title(f"b) ", loc= 'left')
-	plt.tight_layout()
-	# +++++ Save the plot out +++++
-	# if not formats is None:
-	# 	for fmt in formats:
-	# 		fn = f"{path}plots/BMS05_TemporalPrediction_{version}_{va}_{CI}{fmt}"
-	# 		plt.savefig(fn)
-	# 
-	# plotinfo = "PLOT INFO: Temporal Predicability plots made using %s:v.%s by %s, %s" % (
-	# 	__title__, __version__,  __author__, pd.Timestamp.now())
-	# gitinfo = cf.gitmetadata()
-	# cf.writemetadata(f"{path}plots/BMS05_TemporalPrediction_{va}", [plotinfo, gitinfo])
-	plt.show()
+
+	if single:
+		plt.tight_layout()
+
+		# ========== Save tthe plot ==========
+		print("starting save at:", pd.Timestamp.now())
+		if len (experiments) == 0:
+			fnout = f"{ppath}PS02_{var}_{va}_{CI}_{experiments[0]}_TemporalPred" 
+		else:
+			fnout = f"{ppath}PS02_{var}_{va}_{CI}_TemporalPred" 
+		for ext in [".png"]:#".pdf",
+			plt.savefig(fnout+ext)#, dpi=130)
+		plotinfo = "PLOT INFO: PDF plots made using %s:v.%s by %s, %s" % (
+			__title__, __version__,  __author__, pd.Timestamp.now())
+		gitinfo = cf.gitmetadata()
+		cf.writemetadata(fnout, [plotinfo, gitinfo])
+		plt.show()
+	# plt.show()
 
 # ==============================================================================
 def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiments, path):
@@ -417,7 +437,10 @@ def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiment
 	bioMls = []
 	vi_fn = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears_ObsBiomass.csv"
 	vi_df  = pd.read_csv( vi_fn, index_col=0).loc[:, ['biomass', 'Obs_biomass', 'Delta_biomass','ObsGap']]
-
+	
+	# ========== Fill in the missing sites ==========
+	region_fn ="./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears.csv"
+	site_df = pd.read_csv(region_fn, index_col=0)
 	# ========== Loop over each experiment ==========
 	for exp in tqdm(experiments):
 		pvar =  df_setup.loc[f"Exp{exp}", "predvar"]
@@ -428,7 +451,9 @@ def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiment
 		# +++++ pull out the observed and predicted +++++
 		df_OP  = df_OvsP.loc[df_OvsP.experiment == exp]
 		df_act = vi_df.iloc[df_OP.index]
+		df_s   = site_df.iloc[df_OP.index]
 		dfC    = df_OP.copy()
+		# breakpoint()
 		
 		if pvar == "lagged_biomass":
 			vfunc            = np.vectorize(_delag)
@@ -450,20 +475,22 @@ def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiment
 			dfC["Estimated"] += df_act["biomass"]
 		else:
 			breakpoint()
-		dfC["Observed"] = df_act["Obs_biomass"].values
-		dfC["Residual"] = dfC["Estimated"] - dfC["Observed"]
-		dfC["Original"] = df_act["biomass"].values
-		dfC["ObsDelta"] = df_act["Delta_biomass"].values
-		dfC["EstDelta"] = dfC["Estimated"] - dfC["Original"]
-		dfC["ObsGap"]   = df_act["ObsGap"].values
+		dfC["Observed"]      = df_act["Obs_biomass"].values
+		dfC["Residual"]      = dfC["Estimated"] - dfC["Observed"]
+		dfC["Original"]      = df_act["biomass"].values
+		dfC["ObsDelta"]      = df_act["Delta_biomass"].values
+		dfC["EstDelta"]      = dfC["Estimated"] - dfC["Original"]
+		# dfC["DeltaResidual"] = dfC["EstDelta"] - dfC["ObsDelta"]
+		dfC["ObsGap"]        = df_act["ObsGap"].values
+		dfC["Region"]        = df_s["Region"].values
 		bioMls.append(dfC)
 
 	# ========== Convert to a dataframe ==========
 	df = pd.concat(bioMls).reset_index().sort_values(["version", "index"]).reset_index(drop=True)
 
 	# ========== Perform grouped opperations ==========
-	df["Rank"]     = df.abs().groupby(["version", "index"])["Residual"].rank(na_option="bottom").apply(np.floor)
-	df["RunCount"] = df.abs().groupby(["version", "index"])["Residual"].transform("count")
+	df["Rank"]     = df.drop("Region", axis=1).abs().groupby(["version", "index"])["Residual"].rank(na_option="bottom").apply(np.floor)
+	df["RunCount"] = df.drop("Region", axis=1).abs().groupby(["version", "index"])["Residual"].transform("count")
 	df.loc[df["RunCount"] < len(experiments), "Rank"] = np.NaN
 	
 	return df
@@ -509,12 +536,27 @@ def Experiment_name(df, df_setup, var = "experiment"):
 				else:
 					NAfrac = int(float(df_setup[df_setup.Code.astype(int) == cat]["DropNAN"][0]) *100)
 					nm = f"DataMOD_{pred if not np.isnan(float(pred)) else 'AllSample' }yrPred_{lswin}yrLS_{NAfrac}percNA"
-					if cat == 332:
-						nm += "_disturbance"
-					elif cat == 333:
-						nm += "_FeatureSel"
-			elif cat == 400:
-				nm = "Final XGBoost Model"
+				if cat == 332:
+					nm += "_disturbance"
+				elif cat == 333:
+					nm += "_FeatureSel"
+			elif cat >= 400:
+				mdva = df_setup[df_setup.Code.astype(int) == cat]["predvar"][0]
+				if type(mdva) == float:
+					mdva = "lagged_biomass"
+				
+				def _TFnamer(stn, tfname):
+					# Function to quickly rename transfomrs 
+					if type(tfname) == float:
+						return ""
+					elif tfname in ["QuantileTransformer(output_distribution='normal')", "QuantileTransformer(ignore_implicit_zeros=True, output_distribution='normal')"]:
+						return f" {stn}_QTn"
+					else:
+						breakpoint()
+						return f" {stn}_UNKNOWN"
+
+
+				nm = f'{mdva}{_TFnamer("Ytf", df_setup.loc[f"Exp{int(cat)}", "yTransformer"])}{_TFnamer("Xtf", df_setup.loc[f"Exp{int(cat)}", "Transformer"])}'
 			else:
 				nm = "%d.%s" % (cat, df_setup[df_setup.Code.astype(int) == int(cat)].name.values[0])
 		except Exception as er:

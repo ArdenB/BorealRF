@@ -80,6 +80,7 @@ def main():
 	cf.pymkdir(ppath)
 	
 	expr = OrderedDict()
+	expr['DeltaBiomass']  = [402, 405]
 	expr['Delta_biomass'] = [402, 405, 406] 
 	expr["Predictors"]    = [400, 401, 402] 
 	expr['Obs_biomass']   = [401, 403, 404] 

@@ -110,10 +110,11 @@ def main():
 	df_branch  = pd.concat([load_OBS(mrfn) for mrfn in branch], sort=True)
 
 	expr = OrderedDict()
+	expr['DeltaBiomass']  = [402, 405]
+	expr['Delta_biomass'] = [402, 405, 406] 
 	expr["Complete"]      = [400, 401, 402, 403, 404, 405, 406] 
 	expr["Predictors"]    = [400, 401, 402] 
 	expr['Obs_biomass']   = [401, 403, 404] 
-	expr['Delta_biomass'] = [402, 405, 406] 
 	
 	nvar = "exp"
 	ci="sd"

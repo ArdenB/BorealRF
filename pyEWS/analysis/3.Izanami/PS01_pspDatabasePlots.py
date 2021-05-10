@@ -70,15 +70,18 @@ from sklearn import metrics as sklMet
 
 # ==============================================================================
 def main():
+	ppath = "./pyEWS/analysis/3.Izanami/Figures/PS01/"
+	cf.pymkdir(ppath)
+
 	vi_df, fcount = VIload()
 	# breakpoint()
-	yearcount(vi_df, fcount)
+	yearcount(ppath, vi_df, fcount)
 	breakpoint()
 
 
 # ==============================================================================
 
-def yearcount(vi_df, fcount):
+def yearcount(ppath, vi_df, fcount):
 
 	# ========== Create the figure ==========
 	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':8, "axes.labelweight":"bold"})
@@ -87,18 +90,46 @@ def yearcount(vi_df, fcount):
 	sns.set_style("whitegrid")
 	# plt.rcParams.update({'axes.titleweight':"bold", })
 
+	vi_yc = vi_df.groupby(["year"])['biomass'].count().reset_index().rename({"biomass":"Observations"}, axis=1).replace(0, np.NaN)
+	fig, ax = plt.subplots(1, 1, figsize=(20,10))
+	sns.lineplot(y="Observations",x="year", data=vi_yc, ci=None, legend=True, ax = ax)
+	fig.tight_layout()
+	# ========== Save tthe plot ==========
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS01_ObsYear_single" 
+	for ext in [".png"]:#".pdf",
+		plt.savefig(fnout+ext)
+	
+	plt.show()
 
 	vi_yc = vi_df.groupby(["year", "Region"])['biomass'].count().reset_index().rename({"biomass":"Observations"}, axis=1).replace(0, np.NaN)
-	fig, ax = plt.subplots(1, 1, figsize=(25,15))
+	fig, ax = plt.subplots(1, 1, figsize=(20,10))
 	sns.lineplot(y="Observations",x="year", data=vi_yc, hue="Region", ci=None, legend=True, ax = ax)
 	fig.tight_layout()
+	# ========== Save tthe plot ==========
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS01_ObsYear_Region_single" 
+	for ext in [".png"]:#".pdf",
+		plt.savefig(fnout+ext)
+	
 	plt.show()
 	
 
-	g = sns.FacetGrid(vi_yc, col="Region", col_wrap=4, hue="Region", height=6)
+	g = sns.FacetGrid(vi_yc, col="Region", col_wrap=4, hue="Region", height=4)
 	# sns.displot(y="Observations",x="year", data=vi_yc, col="Region", col_wrap=4, kind="kde")
 	g.map(sns.lineplot, "year", "Observations")
-	# g.tight_layout()
+	g.fig.tight_layout()
+	# ========== Save tthe plot ==========
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS01_ObsYear_Region_Multi" 
+	for ext in [".png"]:#".pdf",
+		plt.savefig(fnout+ext)
+
+	plotinfo = "PLOT INFO: PDF plots made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	
 	plt.show()
 
 # ==============================================================================
