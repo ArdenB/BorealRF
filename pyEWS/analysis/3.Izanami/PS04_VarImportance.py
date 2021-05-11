@@ -51,6 +51,7 @@ import palettable
 import matplotlib.colors as mpc
 from tqdm import tqdm
 import pickle
+from itertools import product
 
 
 # ========== Import my dunctions ==========
@@ -85,20 +86,22 @@ def main():
 	expr["Predictors"]    = [400, 401, 402] 
 	expr['Obs_biomass']   = [401, 403, 404] 
 	# expr["Complete"]      = [400, 401, 402, 403, 404, 405, 406] 
-	var  = "PermutationImportance"
+	# var  = "PermutationImportance"
+	# var  = "Importance"
 	for epnm in expr:
 		# exps = [401, 403, 404]
 		huex = "VariableGroup"#"Count"
 		# ========== get the PI data ==========
-		df, ver = _ImpOpener(path, expr[epnm])
+		df, ver, hueord = _ImpOpener(path, expr[epnm], AddFeature=True)
 		# try:
-		featureplotter(df, ppath, var, expr[epnm], huex, epnm, ver)
+		for var in ["PermutationImportance", "FeatureImportance"]:
+			featureplotter(df, ppath, var, expr[epnm], huex, epnm, ver, hueord)
 		# except Exception as er:
 		# 	warn.warn(str(er))
 	breakpoint()
 
 # ==============================================================================
-def featureplotter(df, ppath, var, exps, huex, epnm, ver):
+def featureplotter(df, ppath, var, exps, huex, epnm, ver, hueord, AddFeature=True):
 	""" Function to plot the importance of features """
 	# ========== Setup params ==========
 	plt.rcParams.update({'axes.titleweight':"bold","axes.labelweight":"bold", 'axes.titlesize':8})
@@ -108,13 +111,13 @@ def featureplotter(df, ppath, var, exps, huex, epnm, ver):
 	mpl.rc('font', **font)
 	sns.set_style("whitegrid")
 	# plt.rcParams.update({'axes.titleweight':"bold", })
+	# if AddFeature:
+	# 	breakpoint()
 
 	# ========== Create the figure ==========
-	g = sns.catplot( 
-		x="Variable", y=var, #ci=0.95, estimator=bn.nanmedian, 
-		hue=huex, dodge=False, 
-		data=df, 
-		col="experiment",  col_wrap=1, sharex=False, aspect=5, height=6., kind="bar")
+	g = sns.catplot( x="Variable", y=var, hue=huex, dodge=False, data=df, 
+		palette= hueord["cmap"], col="experiment",  
+		col_wrap=1, sharex=False, aspect=5, height=6., kind="bar")
 	g.set_xticklabels( rotation=45, horizontalalignment='right')
 	g.set(ylim=(0, 1))
 	g.set_axis_labels("", var)
@@ -192,7 +195,7 @@ def featureplotter(df, ppath, var, exps, huex, epnm, ver):
 
 	breakpoint()
 
-def _ImpOpener(path, exps, var = "PermutationImportance"):
+def _ImpOpener(path, exps, var = "PermutationImportance", AddFeature=False):
 	"""
 	Function to open the feature importance files and return them as a single 
 	DataFrame"""
@@ -203,6 +206,16 @@ def _ImpOpener(path, exps, var = "PermutationImportance"):
 		fnames = sorted(glob.glob(f"{path}{exp}/Exp{exp}_*PermutationImportance.csv"))
 		for ver, fn in enumerate(fnames):
 			dfin = pd.read_csv( fn, index_col=0)
+			if AddFeature:
+				ver    = int(fn[-28:-26])
+				fn_mod = f"{path}{exp}/models/XGBoost_model_exp{exp}_version{ver}.dat"
+				model  = pickle.load(open(f"{fn_mod}", "rb"))
+				dfin["FeatureImportance"] = model.feature_importances_
+				# if not os.path.isfile()
+				if var == "Importance":
+					dfin = pd.melt(dfin, id_vars="Variable", value_vars=["PermutationImportance", "FeatureImportance"], var_name="Metric", value_name=var)
+					dfin.replace({"PermutationImportance":"PI", "FeatureImportance":"FI"}, inplace=True)
+				# breakpoint()
 			dfin["experiment"] = exp
 			dfin["version"]    = ver
 			df_list.append(dfin)
@@ -240,9 +253,34 @@ def _ImpOpener(path, exps, var = "PermutationImportance"):
 	
 	df["VariableGroup"] = df.Variable.apply(_getgroup, 
 		species = sp_groups.scientific.values, soils=soils, permafrost=permafrost).astype("category")
-	# breakpoint()
-	return df, ver
+	hueord =  cmapper(df["VariableGroup"], AddFeature, var)
+	if AddFeature and var == "Importance":
+		df["VariableGroup"] = pd.Series([f"{MI}-{VG}" for MI, VG in zip(df["Metric"], df["VariableGroup"])]).astype("category")
+	
+	# ========== set the cat order ==========
+	df["VariableGroup"].cat.set_categories(hueord["HueOrder"], inplace=True)
+	return df, ver, hueord
 
+# ==============================================================================
+def cmapper(varlist, AddFeature, var):
+	# pick the cmap
+	# "Disturbance", 
+	if "Disturbance" in varlist:
+		warn.warn("THis is not implemented, currently no provision for disturbance")
+		breakpoint()
+		sys.exit()
+
+	vaorder = ["Climate", "RS VI", "Survey", "Species","Permafrost", "Soil",]
+	cmapHex = palettable.colorbrewer.qualitative.Paired_12.hex_colors
+	if AddFeature and var == "Importance":
+		vaorder = [f"{MI}-{VG}" for VG, MI in product(vaorder, ["FI", "PI"])]
+		# breakpoint()
+	else:
+		cmapHex = cmapHex[1::2]
+	# ========== Decide the order of stuff =========
+	return ({"cmap":cmapHex, "HueOrder":vaorder})
+
+	
 # ==============================================================================
 if __name__ == '__main__':
 	main()
