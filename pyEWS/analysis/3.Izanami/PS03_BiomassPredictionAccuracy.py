@@ -80,10 +80,10 @@ def main():
 	cf.pymkdir(ppath)
 
 	# ========== Create the matplotlib params ==========
-	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':8, "axes.labelweight":"bold",})
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':12, "axes.labelweight":"bold",})
 	font = {'family' : 'normal',
 	        'weight' : 'bold', #,
-	        'size'   : 8}
+	        'size'   : 12}
 	mpl.rc('font', **font)
 	sns.set_style("whitegrid")
 
@@ -178,7 +178,7 @@ def ConfusionPlotter(df, experiments, df_mres, ppath, epnm, keys, nvar,
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS03_{epnm}_Normalised_Confusion_Matrix" 
 	for ext in [".png"]:#".pdf",
-		plt.savefig(fnout+ext, dpi=130)
+		plt.savefig(fnout+ext)#, dpi=130)
 	
 	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
 		__title__, __version__,  __author__, pd.Timestamp.now())

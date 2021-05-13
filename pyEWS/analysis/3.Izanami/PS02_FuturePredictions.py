@@ -101,10 +101,10 @@ def main():
 
 	# experiments = [400]
 	# ========== Create the figure ==========
-	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':8})
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':12})
 	font = {'family' : 'normal',
 	        'weight' : 'bold', #,
-	        'size'   : 8}
+	        'size'   : 12}
 	mpl.rc('font', **font)
 	sns.set_style("whitegrid")
 	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
@@ -394,8 +394,8 @@ def Temporal_predictability(
 				df_ci[df_ci.level_1 == 0.95][va].values, 
 				df_ci[df_ci.level_1 == 0.05][va].values, alpha=0.10, color=hue)
 	# ========== fix the labels ==========
-	ax.set_xlabel('Years Between Observation', fontsize=8, fontweight='bold')
-	ax.set_ylabel(r'Mean Residual ($\pm$ %s)' % CI, fontsize=8, fontweight='bold')
+	ax.set_xlabel('Years Between Observation', fontsize=12, fontweight='bold')
+	ax.set_ylabel(r'Mean Residual ($\pm$ %s)' % CI, fontsize=12, fontweight='bold')
 	# ========== Create hhe legend ==========
 	ax.legend(title='Experiment', loc='upper right', labels=lab)
 	ax.set_title(f"{var} {va} {CI}", loc= 'left')

@@ -104,10 +104,10 @@ def main():
 def featureplotter(df, ppath, var, exps, huex, epnm, ver, hueord, AddFeature=True):
 	""" Function to plot the importance of features """
 	# ========== Setup params ==========
-	plt.rcParams.update({'axes.titleweight':"bold","axes.labelweight":"bold", 'axes.titlesize':8})
+	plt.rcParams.update({'axes.titleweight':"bold","axes.labelweight":"bold", 'axes.titlesize':10})
 	font = {'family' : 'normal',
 	        'weight' : 'bold', #,
-	        'size'   : 8}
+	        'size'   : 10}
 	mpl.rc('font', **font)
 	sns.set_style("whitegrid")
 	# plt.rcParams.update({'axes.titleweight':"bold", })

@@ -73,8 +73,8 @@ def main():
 	ppath = "./pyEWS/analysis/3.Izanami/Figures/PS01/"
 	cf.pymkdir(ppath)
 
-	vi_df, fcount = VIload()
-	# breakpoint()
+	regions = regionDict()
+	vi_df, fcount = VIload(regions)
 	yearcount(ppath, vi_df, fcount)
 	breakpoint()
 
@@ -84,8 +84,8 @@ def main():
 def yearcount(ppath, vi_df, fcount):
 
 	# ========== Create the figure ==========
-	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':8, "axes.labelweight":"bold"})
-	font = ({'family' : 'normal','weight' : 'bold', 'size'   : 8})
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':12, "axes.labelweight":"bold"})
+	font = ({'family' : 'normal','weight' : 'bold', 'size'   : 12})
 	mpl.rc('font', **font)
 	sns.set_style("whitegrid")
 	# plt.rcParams.update({'axes.titleweight':"bold", })
@@ -133,6 +133,22 @@ def yearcount(ppath, vi_df, fcount):
 	plt.show()
 
 # ==============================================================================
+def regionDict():
+	regions = ({
+		'BC': "British Columbia", 
+		'AB': "Alberta", 
+		'SK': "Saskatchewan", 
+		'MB': "Manitoba", 
+		'ON': "Ontario", 
+		'QC': "Quebec", 
+		'NL': "Newfoundland and Labrador", 
+		'NB': "New Brunswick", 
+		'NS': "Nova Scotia", 
+		'YT': "Yukon", 
+		'NWT':"Northwest Territories", 
+		'CAFI':"Alaska"
+		})
+	return regions
 def Experiment_name(df, df_setup, var = "experiment"):
 	keys = {}
 	for cat in df["experiment"].unique():
@@ -193,7 +209,7 @@ def load_OBS(ofn):
 	return df_in
 
 
-def VIload():
+def VIload(regions):
 	print(f"Loading the VI_df, this can be a bit slow: {pd.Timestamp.now()}")
 	vi_df = pd.read_csv("./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears.csv", index_col=0)#[['lagged_biomass','ObsGap']]
 	vi_df["NanFrac"] = vi_df.isnull().mean(axis=1)
@@ -201,6 +217,7 @@ def VIload():
 	# ========== Fill in the missing sites ==========
 	region_fn ="./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears.csv"
 	site_df = pd.read_csv(region_fn, index_col=0)
+	site_df.replace(regions, inplace=True)
 
 	vi_df = vi_df[['year', 'biomass', 'lagged_biomass','ObsGap', "NanFrac", 'site']]
 	for nanp in [0, 0.25, 0.50, 0.75, 1.0]:	
@@ -210,6 +227,7 @@ def VIload():
 
 	fcount = pd.melt(vi_df.drop(["lagged_biomass","NanFrac"], axis=1).groupby("ObsGap").count(), ignore_index=False).reset_index()
 	fcount["variable"] = fcount["variable"].astype("category")
+	
 	vi_df["Region"]    = site_df["Region"].astype("category")
 	# breakpoint()
 
