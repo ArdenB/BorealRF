@@ -44,6 +44,7 @@ import time
 import ipdb
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 from collections import OrderedDict, defaultdict
 import seaborn as sns
 import palettable
