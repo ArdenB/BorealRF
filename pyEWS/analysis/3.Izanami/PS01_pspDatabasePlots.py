@@ -127,6 +127,10 @@ def PSPfigure(ppath, vi_df, fcount, exp, lons, lats):
 	# +++++ KDE of the gabs beteen observations +++++
 	ax3 = fig.add_subplot(spec[2, 0])
 	_obsgap(vi_df, fig, ax2)
+
+	# +++++ Add the final save +++++
+
+	# +++++ the plot of the number of sites +++++
 	plt.show()
 	breakpoint()
 
@@ -134,6 +138,7 @@ def PSPfigure(ppath, vi_df, fcount, exp, lons, lats):
 
 def _obsgap(vi_df, fig, ax):
 	sns.kdeplot(data=vi_df, x="ObsGap", hue="NanFrac", fill=True, alpha=0.50, ax=ax)
+
 def _mapgridder(exp, vi_df, fig, ax, map_proj, lons, lats, modelled=True, vmin=0, vmax=1000):
 	# ========== Simple lons and lats ========== 
 	# ========== Setup params ==========
@@ -260,6 +265,7 @@ def yearcount(ppath, vi_df, fcount):
 	plt.show()
 
 # ==============================================================================
+
 def regionDict():
 	regions = ({
 		'BC': "British Columbia", 
@@ -347,16 +353,12 @@ def Experiment_name(df, df_setup, var = "experiment"):
 
 # ==============================================================================
 
-
-
-
 def load_OBS(ofn):
 	df_in = pd.read_csv(ofn, index_col=0)
 	df_in["experiment"] = int(ofn.split("/")[-2])
 	df_in["experiment"] = df_in["experiment"].astype("category")
 	df_in["version"]    = float(ofn.split("_vers")[-1][:2])
 	return df_in
-
 
 def VIload(regions, path, exp = None):
 	print(f"Loading the VI_df, this can be a bit slow: {pd.Timestamp.now()}")

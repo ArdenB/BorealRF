@@ -52,6 +52,7 @@ import matplotlib.colors as mpc
 from tqdm import tqdm
 import pickle
 from itertools import product
+import ast
 
 
 # ========== Import my dunctions ==========
@@ -67,9 +68,9 @@ import myfunctions.benchmarkfunctions as bf
 # from sklearn.ensemble import RandomForestClassifier
 # from sklearn.inspection import permutation_importance
 from sklearn import metrics as sklMet
+from scipy.cluster import hierarchy
 # from sklearn.utils import shuffle
 # from scipy.stats import spearmanr
-# from scipy.cluster import hierarchy
 
 # ==============================================================================
 def main():
@@ -79,7 +80,14 @@ def main():
 	cf.pymkdir(path+"plots/")
 	ppath = "./pyEWS/analysis/3.Izanami/Figures/PS04/"
 	cf.pymkdir(ppath)
-	
+	exp = 402
+
+	# ==========  ========== 
+	corr, col_nms, corr_linkage = _getcorr(path, exp)
+	df, ver, hueord = _ImpOpener(path, [exp], AddFeature=True)
+	featureFig(corr, col_nms, corr_linkage, df, ver, hueord)
+	breakpoint()
+	# ========== the old method left for supp ==========
 	expr = OrderedDict()
 	expr['DeltaBiomass']  = [402, 405]
 	expr['Delta_biomass'] = [402, 405, 406] 
@@ -101,6 +109,56 @@ def main():
 	breakpoint()
 
 # ==============================================================================
+def featureFig(corr, col_nms, corr_linkage, df, ver, hueord):
+	""" Figure to look at features """
+	# ========== Setup the matplotlib params ==========
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':12, "axes.labelweight":"bold"})
+	font = ({'family' : 'normal','weight' : 'bold', 'size'   : 12})
+	mpl.rc('font', **font)
+	sns.set_style("whitegrid")
+	# map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
+
+	# ========== Create the figure ==========
+	fig  = plt.figure(constrained_layout=True, figsize=(12,18))
+	spec = gridspec.GridSpec(ncols=2, nrows=3, figure=fig)
+
+	# +++++ Correlation matric +++++
+	ax1  = fig.add_subplot(spec[0, 0])
+	_heatmap(corr, col_nms, fig, ax1)
+
+	# +++++ Correlation matric +++++
+	ax2  = fig.add_subplot(spec[0, 1])
+	_Network_plot(corr, corr_linkage, col_nms, fig, ax2)
+
+	plt.show()
+	breakpoint()
+
+
+
+def _Network_plot(corr, corr_linkage, col_nms, fig, ax):
+	corr         = spearmanr(X).correlation
+	# +++++ Calculate the ward hierarchy +++++
+	corr_linkage = hierarchy.ward(corr)
+
+	# ========== Build a plot ==========
+	fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
+	dendro          = hierarchy.dendrogram(corr_linkage, labels=col_nms, ax=ax, leaf_rotation=90)
+	
+
+def _heatmap(corr, col_nms, fig, ax):
+
+	dfcorr = pd.DataFrame(corr, columns=col_nms, index=col_nms)
+	sns.heatmap(dfcorr, center=0, square=True, cbar_kws={"shrink": .5}, ax=ax)
+	# dendro_idx      = np.arange(0, len(dendro['ivl']))
+	# ax2.imshow(corr[dendro['leaves'], :][:, dendro['leaves']])
+	# ax2.set_xticks(dendro_idx)
+	# ax2.set_yticks(dendro_idx)
+	# ax2.set_xticklabels(dendro['ivl'], rotation='vertical')
+	# ax2.set_yticklabels(dendro['ivl'])
+	# fig.tight_layout()
+	# plt.show()
+	# ipdb.set_trace()
+
 def featureplotter(df, ppath, var, exps, huex, epnm, ver, hueord, AddFeature=True):
 	""" Function to plot the importance of features """
 	# ========== Setup params ==========
@@ -194,6 +252,43 @@ def featureplotter(df, ppath, var, exps, huex, epnm, ver, hueord, AddFeature=Tru
 	plt.show()
 
 	breakpoint()
+
+def _getcorr(path, exp,):
+	# ========== load the setup ==========
+	setup            = pd.read_csv(f"{path}{exp}/Exp{exp}_setup.csv", index_col=0).T.infer_objects().reset_index()
+	for va in ["window", "Nstage", "test_size", "DropNAN", ]:
+		setup[va] = setup[va].astype(float)
+	setup["dropvar"] = [ast.literal_eval(setup["dropvar"].values[0])]
+
+	setup = setup.loc[0]
+	for tf in ["yTransformer", "Transformer"]:
+		if np.isnan(setup[tf]):
+			setup[tf] = None
+		else:
+			breakpoint()
+	# breakpoint()
+	branch  = 0
+	version = 0
+	bsestr = f"TTS_VI_df_AllSampleyears" 
+
+	if setup.loc["predvar"] == "lagged_biomass":
+		fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears.csv"
+		sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears.csv"
+	else:
+		fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears_ObsBiomass.csv"
+		sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears_ObsBiomass.csv"
+		# bsestr = f"TTS_VI_df_AllSampleyears_{setup.loc[0, 'predvar']}" 
+
+	# ========== load in the data ==========
+	X_train, X_test, y_train, y_test, col_nms, loadstats, corr, df_site = bf.datasplit(
+		setup.loc["predvar"], exp, version,  branch, setup,  #cols_keep=ColNm, #force=True,
+		vi_fn=fnamein, region_fn=sfnamein, basestr=bsestr, dropvar=setup.loc["dropvar"])
+
+	corr_linkage = hierarchy.ward(corr)
+	# cluster_ids   = hierarchy.fcluster(corr_linkage, branch, criterion='distance')
+	return corr, col_nms, corr_linkage
+
+
 
 def _ImpOpener(path, exps, var = "PermutationImportance", AddFeature=False):
 	"""
