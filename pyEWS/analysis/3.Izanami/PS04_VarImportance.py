@@ -121,14 +121,14 @@ def featureFig(corr, col_nms, corr_linkage, df, ver, hueord):
 
 	# ========== Create the figure ==========
 	fig  = plt.figure(constrained_layout=True, figsize=(12,18))
-	spec = gridspec.GridSpec(ncols=2, nrows=3, figure=fig)
+	spec = gridspec.GridSpec(ncols=4, nrows=3, figure=fig)
 
 	# +++++ Correlation matric +++++
-	ax1  = fig.add_subplot(spec[0, 0])
+	ax1  = fig.add_subplot(spec[0, :2])
 	_heatmap(corr, col_nms, fig, ax1)
 
 	# +++++ Correlation matric +++++
-	ax2  = fig.add_subplot(spec[0, 1])
+	ax2  = fig.add_subplot(spec[0, 2:])
 	_Network_plot(corr, corr_linkage, col_nms, fig, ax2)
 
 	plt.show()
@@ -137,19 +137,15 @@ def featureFig(corr, col_nms, corr_linkage, df, ver, hueord):
 
 
 def _Network_plot(corr, corr_linkage, col_nms, fig, ax):
-	corr         = spearmanr(X).correlation
 	# +++++ Calculate the ward hierarchy +++++
-	corr_linkage = hierarchy.ward(corr)
-
 	# ========== Build a plot ==========
-	fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
 	dendro          = hierarchy.dendrogram(corr_linkage, labels=col_nms, ax=ax, leaf_rotation=90)
 	
 
 def _heatmap(corr, col_nms, fig, ax):
 
 	dfcorr = pd.DataFrame(corr, columns=col_nms, index=col_nms)
-	sns.heatmap(dfcorr, center=0, square=True, cbar_kws={"shrink": .5}, ax=ax)
+	sns.heatmap(dfcorr, center=0, square=True, cbar_kws={"pad": 0.015, "shrink": .85}, ax=ax)
 	# dendro_idx      = np.arange(0, len(dendro['ivl']))
 	# ax2.imshow(corr[dendro['leaves'], :][:, dendro['leaves']])
 	# ax2.set_xticks(dendro_idx)
