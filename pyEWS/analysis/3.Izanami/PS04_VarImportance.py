@@ -86,7 +86,7 @@ def main():
 	# ==========  ========== 
 	corr, col_nms, corr_linkage = _getcorr(path, exp)
 	df, ver, hueord = _ImpOpener(path, [exp], AddFeature=True)
-	featureFig(corr, col_nms, corr_linkage, df, ver, hueord)
+	featureFig(corr, col_nms, corr_linkage, df, ver, hueord, huex = "VariableGroup")
 	breakpoint()
 	# ========== the old method left for supp ==========
 	expr = OrderedDict()
@@ -110,7 +110,7 @@ def main():
 	breakpoint()
 
 # ==============================================================================
-def featureFig(corr, col_nms, corr_linkage, df, ver, hueord):
+def featureFig(corr, col_nms, corr_linkage, df, ver, hueord, huex = "VariableGroup"):
 	""" Figure to look at features """
 	# ========== Setup the matplotlib params ==========
 	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':12, "axes.labelweight":"bold"})
@@ -131,6 +131,17 @@ def featureFig(corr, col_nms, corr_linkage, df, ver, hueord):
 	ax2  = fig.add_subplot(spec[0, 2:])
 	_Network_plot(corr, corr_linkage, col_nms, fig, ax2)
 
+
+	# ========== Create the figure ==========
+	ax3  = fig.add_subplot(spec[1, :])
+	# g = sns.catplot(x="Variable", y="PermutationImportance", hue=huex, 	dodge=False, data=df, palette= hueord["cmap"], col="experiment",  ax=ax3)
+	g = sns.boxplot(
+		x="Variable", y="PermutationImportance", hue=huex, 
+		dodge=False, data=df.loc[df.Count >= 6], palette= hueord["cmap"], ax=ax3)
+	# g.set_xticklabels( rotation=45, horizontalalignment='right')
+	# g.set(ylim=(0, 1))
+	# g.set_axis_labels("", var)
+
 	plt.show()
 	breakpoint()
 
@@ -145,7 +156,10 @@ def _Network_plot(corr, corr_linkage, col_nms, fig, ax):
 def _heatmap(corr, col_nms, fig, ax):
 
 	dfcorr = pd.DataFrame(corr, columns=col_nms, index=col_nms)
-	sns.heatmap(dfcorr, center=0, square=True, cbar_kws={"pad": 0.015, "shrink": .85}, ax=ax)
+	sns.heatmap(dfcorr, center=0, square=True, 
+		# cbar_kws={"pad": 0.015, "shrink": .85}, 
+		cbar=False,
+		ax=ax)
 	# dendro_idx      = np.arange(0, len(dendro['ivl']))
 	# ax2.imshow(corr[dendro['leaves'], :][:, dendro['leaves']])
 	# ax2.set_xticks(dendro_idx)
