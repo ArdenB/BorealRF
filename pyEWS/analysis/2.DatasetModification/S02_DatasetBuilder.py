@@ -150,7 +150,12 @@ def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, pe
 	# ========== Setup containeers for new infomation ==========
 	bmchange = OrderedDict()
 	Sinfo    = []
-
+	badvalue = {"cords":[], "biomass":[]}
+	regions.loc[regions["Longitude"] ==  -6743524.000, "Longitude"] = -67.30599926509987 # accurate conversion
+	regions.loc[regions["Longitude"] ==  -7537091.929, ["Longitude", "Latitude"]] =  [-65.45, 47.3] # complete hack
+	regions.loc[regions["Longitude"] ==  0, ["Longitude", "Latitude"]] =  [-64.966762, 44.2119495] # complete hack
+	# regions[np.logical_or(regions["Latitude"] <40,   regions["Latitude"]>75)]
+	# ========== install some lat lon fixs ==========
 	# ========== iterate through the rows to find ones with the correct gap ==========
 	for num, (index, row) in tqdm(enumerate(biomass.iterrows()), total=biomass.shape[0]):
 		# cf.lineflick(num, biomass.shape[0], t0)
@@ -282,8 +287,9 @@ def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, pe
 			standage = np.NaN
 
 		# ========== Add the site infomation ==========
-		# breakpoint()
 		re2 = re.copy(deep=True)
+		# if re2.isnull().values.any():
+		# 	breakpoint()
 		re2["year"]           = year
 		re2["index"]          = [len(Sinfo)]
 		re2["Disturbance"]    = dist
@@ -293,9 +299,26 @@ def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, pe
 		re2["StandAge"]	      = standage
 		re2["DistPassed"]     = float((dist+burn) <= 0.1)
 		re2.set_index("index", inplace=True, drop=True)
+
+		# ========== sanity check the values ==========
+		# +++++ long  +++++
+		if (re2["Longitude"].isnull().values[0]) or (re2["Latitude"].isnull().values[0]):
+			badvalue["cords"].append(re2)
+
+		# 	# Bad longitude
+
+		# 	print(re2)
+		# 	breakpoint()
+
+		# # +++++ Lat +++++
+		# if (re2["Latitude"].values[0] > 71) or (re2["Latitude"].values[0] <= 40):
+		# 	print(re2)
+
 		Sinfo.append(re2)
 
 	# ========== Build the dataframes ==========
+	breakpoint()
+
 	print("\n Building dataframes")
 	sites  = pd.concat(Sinfo)
 	df_exp = pd.DataFrame(bmchange).T
