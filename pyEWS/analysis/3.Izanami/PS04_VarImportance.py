@@ -138,7 +138,7 @@ def featureFig(corr, col_nms, corr_linkage, df, ver, hueord, huex = "VariableGro
 	g = sns.boxplot(
 		x="Variable", y="PermutationImportance", hue=huex, 
 		dodge=False, data=df.loc[df.Count >= 6], palette= hueord["cmap"], ax=ax3)
-	# g.set_xticklabels( rotation=45, horizontalalignment='right')
+	g.set_xticklabels(g.get_xticklabels(),  rotation=15, horizontalalignment='right')
 	# g.set(ylim=(0, 1))
 	# g.set_axis_labels("", var)
 	breakpoint()
