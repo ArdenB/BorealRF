@@ -141,7 +141,7 @@ def featureFig(corr, col_nms, corr_linkage, df, ver, hueord, huex = "VariableGro
 	g.set_xticklabels(g.get_xticklabels(),  rotation=15, horizontalalignment='right')
 	# g.set(ylim=(0, 1))
 	# g.set_axis_labels("", var)
-	breakpoint()
+	# breakpoint()
 	plt.show()
 	breakpoint()
 
