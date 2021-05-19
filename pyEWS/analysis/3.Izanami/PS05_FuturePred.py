@@ -135,7 +135,7 @@ def FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass"):
 	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
 
 	# ========== Create the figure ==========
-	fig  = plt.figure(constrained_layout=True, figsize=(16,24))
+	fig  = plt.figure(constrained_layout=True, figsize=(16,15))
 	spec = gridspec.GridSpec(ncols=4, nrows=3, figure=fig, width_ratios=[11,1,11,1])
 
 	for pos in range(ds.time.size):
@@ -242,7 +242,7 @@ def fpred(path, exp, years,
 	exp:	in of experiment
 	years:  list of years to predict 
 	"""
-	warn.warn("\nTo DO: Implemnt obsgap filtering")
+	# warn.warn("\nTo DO: Implemnt obsgap filtering")
 	# ========== Load the variables ==========
 	site_df = pd.read_csv(f"{fpath}SiteInfo_AllSampleyears_FutureBiomass.csv", index_col=0)
 	vi_df   = pd.read_csv(f"{fpath}VI_df_AllSampleyears_FutureBiomass.csv", index_col=0)
