@@ -133,7 +133,7 @@ def FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass"):
 
 	# ========== Create the mapp projection ==========
 	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
-	
+
 	# ========== Create the figure ==========
 	fig  = plt.figure(constrained_layout=True, figsize=(16,24))
 	spec = gridspec.GridSpec(ncols=4, nrows=3, figure=fig, width_ratios=[11,1,11,1])
@@ -167,7 +167,7 @@ def _simplemapper(ds, vas, fig, ax, map_proj, indtime, title, lats, lons,  dim="
 	f = ds[vas].mean(dim=dim).isel(time=indtime).plot(
 		x="longitude", y="latitude", #col="time", col_wrap=2, 
 		transform=ccrs.PlateCarree(), 
-		cbar_kwargs={"pad": 0.015, "shrink":0.95},#, "extend":extend}
+		cbar_kwargs={"pad": 0.015, "shrink":0.65},#, "extend":extend}
 		# subplot_kws={'projection': map_proj}, 
 		# size=6,	aspect=ds.dims['longitude'] / ds.dims['latitude'],  
 		ax=ax)

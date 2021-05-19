@@ -350,7 +350,10 @@ def _confusion_plots(
 		ann = False
 
 
-	g = sns.heatmap(df_cm, annot=ann, vmin=0, vmax=1, ax = ax, cbar=cbar, square=True, cmap=cmap)
+	g = sns.heatmap(
+		df_cm, annot=ann, vmin=0, vmax=1, ax = ax, 
+		cbar=cbar, square=True, cmap=cmap, #cbar_kwargs={"pad": 0.015, "shrink":0.85},
+		)
 	ax.plot(np.flip(np.arange(expsize+1)), np.arange(expsize+1), "darkgrey", alpha=0.75)
 
 	# ========== fix the labels +++++
