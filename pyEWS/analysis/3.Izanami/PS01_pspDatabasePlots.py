@@ -113,7 +113,7 @@ def PSPfigure(ppath, vi_df, fcount, exp, lons, lats):
 	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
 
 	# ========== Create the figure ==========
-	fig  = plt.figure(constrained_layout=True, figsize=(10,18))
+	fig  = plt.figure(constrained_layout=True, figsize=(10,15))
 	spec = gridspec.GridSpec(ncols=2, nrows=3, figure=fig)
 
 	# +++++ the plot of the number of sites +++++
@@ -122,15 +122,26 @@ def PSPfigure(ppath, vi_df, fcount, exp, lons, lats):
 
 	# +++++ Map of the number of used sites +++++
 	ax2  = fig.add_subplot(spec[1, :], projection= map_proj)
-	_mapgridder(exp, vi_df, fig, ax2, map_proj, lons, lats, modelled=False,)
+	_mapgridder(exp, vi_df, fig, ax2, map_proj, lons, lats, modelled=True,)
 
 	# +++++ KDE of the gabs beteen observations +++++
 	ax3 = fig.add_subplot(spec[2, 0])
-	_obsgap(vi_df, fig, ax2)
+	_obsgap(vi_df, fig, ax3)
 
-	# +++++ Add the final save +++++
 
 	# +++++ the plot of the number of sites +++++
+
+
+	# ========== Save tthe plot ==========
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS01_PaperFig01_PSPdatabase" 
+	for ext in [".png", ".pdf",]:
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
 	plt.show()
 	breakpoint()
 

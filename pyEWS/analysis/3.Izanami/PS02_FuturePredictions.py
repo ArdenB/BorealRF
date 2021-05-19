@@ -35,7 +35,7 @@ import pandas as pd
 import argparse
 import datetime as dt
 import warnings as warn
-# import xarray as xr
+import xarray as xr
 import bottleneck as bn
 import scipy as sp
 import glob
@@ -52,14 +52,21 @@ import palettable
 import matplotlib.colors as mpc
 from tqdm import tqdm
 from itertools import product
+import pickle
 
 
 # ========== Import my dunctions ==========
 import myfunctions.corefunctions as cf
 import myfunctions.benchmarkfunctions as bf
 
-# ========== Import packages for parellelisation ==========
-# import multiprocessing as mp
+import xgboost as xgb
+import cartopy.crs as ccrs
+
+import cartopy.feature as cpf
+from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+import matplotlib.ticker as mticker
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
 
 # ========== Import ml packages ==========
 # from sklearn.model_selection import train_test_split
@@ -101,6 +108,113 @@ def main():
 	df_branch  = pd.concat([load_OBS(mrfn) for mrfn in branch], sort=True)
 
 	# experiments = [400]
+	exp = 402
+	FigureModelPerfomance(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exp, ppath)
+
+	# ========== old plots that might end up in supplementary material ==========
+	oldplots(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, ppath)
+
+def FigureModelPerfomance(
+	df_setup, df_mres, keys, df_OvsP, 
+	df_clest, df_branch, path, exp, ppath, years=[2020], 	
+	lons = np.arange(-170, -50.1,  0.5),
+	lats = np.arange(  42,  70.1,  0.5)):
+	"""
+	Build model performace figure
+	"""
+	# ========== Create the figure ==========
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':12})
+	font = {'family' : 'normal',
+	        'weight' : 'bold', #,
+	        'size'   : 12}
+	mpl.rc('font', **font)
+	sns.set_style("whitegrid")
+	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
+
+	# ========== Create the mapp projection ==========
+	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
+
+	df = Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, [exp], path)
+	# ========== Convert to a dataarray ==========
+	ds = gridder(path, exp, years, fpred(path, exp, years), lats, lons)
+	
+	pred = OrderedDict()
+	pred['Delta_biomass'] = ({
+		"obsvar":"ObsDelta",
+		"estvar":"EstDelta", 
+		"limits":(-300, 300),
+		"Resname":"Residual", 
+		"gap":10
+		})
+	pred["Biomass"] = ({
+		"obsvar":"Observed",
+		"estvar":"Estimated", 
+		"limits":(0, 1000), 
+		"Resname":"Residual"
+		})
+
+	# ========== Create the figure ==========
+	fig  = plt.figure(constrained_layout=True, figsize=(16,20))
+	spec = gridspec.GridSpec(ncols=4, nrows=3, figure=fig, width_ratios=[5,1,5,5], height_ratios=[5, 10, 5])
+
+
+	ax1 = fig.add_subplot(spec[0, :])
+	Temporal_predictability(ppath, [exp], df_setup, df, keys,  fig, ax1, "Residual", hue="ChangeDirection",
+		va = "Residual", CI = "QuantileInterval", single=False)
+
+	
+	ax2 = fig.add_subplot(spec[1, 0])
+	_confusion_plots(df, keys, exp, fig, ax2, pred, df_setup)
+
+	ax3 = fig.add_subplot(spec[1, 2:])
+	_regplot(df, ax3, fig)
+
+	
+	ax4 = fig.add_subplot(spec[2, 2:], projection= map_proj)
+	_simplemapper(ds, "MedianDeltaBiomass", fig, ax4, map_proj, 0, "Delta Biomass", lats, lons,  dim="Version")
+
+	# # ========== Save tthe plot ==========
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS02_PaperFig03_ModelPerformance" 
+	for ext in [".png", ".pdf"]:#".pdf",
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+	breakpoint()
+
+def _simplemapper(ds, vas, fig, ax, map_proj, indtime, title, lats, lons,  dim="Version"):
+	f = ds[vas].mean(dim=dim).isel(time=indtime).plot(
+		x="longitude", y="latitude", #col="time", col_wrap=2, 
+		transform=ccrs.PlateCarree(), 
+		cbar_kwargs={"pad": 0.015, "shrink":0.95},#, "extend":extend}
+		# subplot_kws={'projection': map_proj}, 
+		# size=6,	aspect=ds.dims['longitude'] / ds.dims['latitude'],  
+		ax=ax)
+	# breakpoint()
+	# for ax in p.axes.flat:
+	ax.set_extent([lons.min()+10, lons.max()-5, lats.min()-13, lats.max()])
+	ax.gridlines()
+	coast = cpf.GSHHSFeature(scale="intermediate")
+	ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
+	ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
+	ax.add_feature(coast, zorder=101, alpha=0.5)
+	ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
+	ax.add_feature(cpf.RIVERS, zorder=104)
+	ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
+
+
+def _regplot(df, ax, fig):
+	g = sns.violinplot( y="Residual", x="Region", hue="ChangeDirection", data=df, ax=ax, split=True, cut=0)
+	# ax.set_ylim((-500, 500))
+	g.set_xticklabels(g.get_xticklabels(), rotation=75, horizontalalignment='right')
+	g.set(ylim=(-400, 400))
+
+
+def oldplots(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, ppath):
 	# ========== Create the figure ==========
 	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':12})
 	font = {'family' : 'normal',
@@ -163,15 +277,133 @@ def main():
 	fig, ax = plt.subplots(1, 1, figsize=(15,13))
 	confusion_plots(path, df_mres, df_setup, df_OvsP, keys,  exp, fig, ax, 
 		inc_class=False, split=splts, sumtxt="", annot=True, zline=True)
-
-
 	# breakpoint()
-
-
 	
 	breakpoint()
 
 # ==============================================================================
+def _confusion_plots(
+	df, keys, exp, fig, ax, pred, df_setup,  #split,
+	inc_class=False, sumtxt="", annot=False, zline=True, num=0, cbar=True, mask=True):
+	"""Function to create and plot the confusion matrix"""
+	setup   = df_setup.loc[f"Exp{exp}"]
+	
+	obsvar  = pred[setup["predvar"]]["obsvar"] 
+	estvar  = pred[setup["predvar"]]["estvar"] 
+	gap     = pred[setup["predvar"]]["gap"]
+	# pred[setup["predvar"]]
+	split   = np.arange(pred[setup["predvar"]]['limits'][0] - gap, pred[setup["predvar"]]['limits'][1]+gap+1, gap)
+	expsize = len(split) -1 # df_class.experiment.unique().size
+
+	labels = [f"{lb}" for lb in bn.move_mean(split, 2)[1:]]
+	labels[ 0] = f"<{pred[setup['predvar']]['limits'][0]}"
+	labels[-1] = f">{pred[setup['predvar']]['limits'][1]}"
+	colconv = {cl:sp for cl, sp in zip([int(i) for i in np.arange(expsize)], labels)}
+	
+	# ========== Get the observed and estimated values ==========
+	df_c         = df.loc[:, [obsvar,estvar]].copy()
+	# +++++ tweak splits to match the min and max bounds of the data
+	split[0]  = df_c.values.min() - 1
+	split[-1] = df_c.values.max() + 1
+
+	df_c[obsvar] = pd.cut(df_c[obsvar], split, labels=np.arange(expsize))
+	df_c[estvar] = pd.cut(df_c[estvar], split, labels=np.arange(expsize))
+	# df_set       = dfS[dfS.experiment == keys[exp]]
+
+	if any(df_c[estvar].isnull()):
+		breakpoint()
+		df_c = df_c[~df_c[estvar].isnull()]
+
+	if any(df_c[obsvar].isnull()):
+		breakpoint()
+		df_c = df_c[~df_c[obsvar].isnull()]
+
+	try:
+		sptsze = split.size
+	except:
+		sptsze = len(split)
+	
+	df_c.sort_values(obsvar, axis=0, ascending=True, inplace=True)
+	print(exp, sklMet.accuracy_score(df_c[obsvar], df_c[estvar]))
+	
+	# ========== Calculate the confusion matrix ==========
+	# \\\ confustion matrix  observed (rows), predicted (columns), then transpose and sort
+	df_cm  = pd.DataFrame(
+		sklMet.confusion_matrix(df_c[obsvar], df_c[estvar],  
+			labels=df_c[obsvar].cat.categories,  normalize='true'),  
+		index = [int(i) for i in np.arange(expsize)], 
+		columns = [int(i) for i in np.arange(expsize)]).T.sort_index(ascending=False)
+
+	df_cm.rename(colconv, axis='columns', inplace=True)
+	df_cm.rename(colconv, inplace=True)
+	# breakpoint()
+
+	cmap = mpc.ListedColormap(palettable.matplotlib.Inferno_20_r.mpl_colors)
+	if mask:
+		#+++++ remove 0 values +++++
+		df_cm.replace(0, np.NaN, inplace=True)
+		# breakpoint()
+
+	if annot:
+		ann = df_cm.round(3)
+	else:
+		ann = False
+
+
+	g = sns.heatmap(df_cm, annot=ann, vmin=0, vmax=1, ax = ax, cbar=cbar, square=True, cmap=cmap)
+	ax.plot(np.flip(np.arange(expsize+1)), np.arange(expsize+1), "darkgrey", alpha=0.75)
+
+	# ========== fix the labels +++++
+	# if (sptsze > 10):
+	# 	# +++++ The location of the ticks +++++
+	# 	interval = int(np.floor(sptsze/10))
+	# 	location = np.arange(0, sptsze, interval)
+	# 	# +++++ The new values +++++
+	# 	values = np.round(np.linspace(split[0], split[-1], location.size))
+	# 	breakpoint()
+	# 	ax.set_xticks(location)
+	# 	ax.set_xticklabels(values, rotation=90)
+	# 	ax.set_yticks(location)
+	# 	ax.set_yticklabels(np.flip(values), rotation=0)
+	# 	# ========== Add the cross hairs ==========
+	# 	if zline:
+	# 		try:
+	# 			ax.axvline(location[values == 0][0], alpha =0.25, linestyle="--", c="grey")
+	# 			ax.axhline(location[values == 0][0], alpha =0.25, linestyle="--", c="grey")
+	# 		except Exception as er:
+	# 			print(er)
+	# 			breakpoint()
+	# else:
+	# 	# warn.warn("Yet to fix the ticks here")
+	# 	# breakpoint()
+	# 	# ========== Calculate the zero lines ==========
+	if zline:
+		# ========== Calculate the zero line location ==========
+		((x0),) = np.where(np.array(split) < 0)
+		x0a = x0[-1]
+		((x1),) = np.where(np.array(split) >=0)
+		x1a = x1[0]
+		zeroP =  x0a + (0.-split[x0a])/(split[x1a]-split[x0a])
+		# breakpoint()
+		# ========== Add the cross hairs ==========
+		ax.axvline(x=zeroP, alpha =0.5, linestyle="--", c="darkgrey", zorder=101)
+		ax.axhline(y=zeroP, alpha =0.5, linestyle="--", c="darkgrey", zorder=102)
+
+	# 	# +++++ fix the values +++++
+	# 	location = np.arange(0., sptsze)#+1
+	# 	location[ 0] += 0.00001
+	# 	location[-1] -= 0.00001
+	# 	ax.set_xticks(location)
+	# 	ax.set_xticklabels(np.round(split, 2), rotation=90)
+	# 	ax.set_yticks(location)
+	# 	ax.set_yticklabels(np.flip(np.round(split, 2)), rotation=0)
+
+
+	# ax.set_title(f"{exp}-{keys[exp]} $R^{2}$ {df_set.R2.mean()}", loc= 'left')
+	ax.set_xlabel(obsvar)
+	ax.set_ylabel(estvar)
+
+	
 def pdfplot(ppath, df, exp, keys, fig, ax, obsvar, estvar, var, clip, single=True):
 	""" Plot the probability distribution function """
 	dfin = df[df.experiment == exp]
@@ -212,7 +444,8 @@ def branchplots(exp, df_mres, keys, var, ylab, ylim,  fig, ax):
 
 
 def confusion_plots(path, df_mres, df_setup, df_OvsP, keys, exp, fig, ax,
-	inc_class=False, split=None, sumtxt="", annot=False, zline=True, num=0, cbar=True, mask=True):
+	inc_class=False, split=None, sumtxt="", annot=False, zline=True, num=0, cbar=True, 
+	mask=True):
 	"""Function to create and plot the confusion matrix"""
 
 	# ========== Check if i needed to pull out the splits ==========
@@ -354,18 +587,34 @@ def confusion_plots(path, df_mres, df_setup, df_OvsP, keys, exp, fig, ax,
 	plt.show()
 
 def Temporal_predictability(
-	ppath, experiments, df_setup, df, keys,  fig, ax, var,
+	ppath, experiments, df_setup, df, keys,  fig, ax, var, hue="experiment",
 	va = "Residual", CI = "QuantileInterval", single=True):
 
 	"""
 	Function to make a figure that explores the temporal predictability. This 
 	figure will only use the runs with virable windows
 	"""
+	cats = experiments
+	lab = [keys[expn] for expn in experiments]
 	if len(experiments) > 1:
 		# pick only the subset that are matched 
 		dfX = df.dropna()
+		huecount = len(experiments)
+	elif hue =="ChangeDirection":
+		dfX      = df.copy()
+		dfX[hue] = "All" #dfX[hue].cat.categories[0]
+		dfX      = pd.concat([dfX,df]).reset_index(drop=True)
+		dfX[hue] = pd.Categorical(dfX[hue].values, categories=["All", "Gain", "Loss"], ordered=True)
+		huecount = len(dfX[hue].cat.categories)
+		cats     = dfX[hue].cat.categories
+		lab      = [ct for ct in cats]
+
+	elif not hue=="experiment":
+		warn.warn("Not implemented yet")
+		breakpoint()
 	else:
 		dfX = df.loc[df["experiment"] == experiments[0]]
+		huecount = len(experiments)
 
 
 
@@ -375,30 +624,32 @@ def Temporal_predictability(
 	print(f"{va} {CI} {pd.Timestamp.now()}")
 	# Create the labels
 
-	lab = [keys[expn] for expn in experiments]
 	# ========== set up the colours and build the figure ==========
 	colours = palettable.cartocolors.qualitative.Vivid_10.hex_colors
 	# ========== Build the first part of the figure ==========
 	if CI == "SD":
 		sns.lineplot(y=va, x="ObsGap", data=dfX, 
-			hue="experiment", ci="sd", ax=ax, 
-			palette=colours[:len(experiments)], legend=False)
+			hue=hue, ci="sd", ax=ax, 
+			palette=colours[:huecount], legend=False)
 	else:
 		# Use 
 		sns.lineplot(y=va, x="ObsGap", data=dfX, 
-			hue="experiment", ci=None, ax=ax, 
-			palette=colours[:len(experiments)], legend=False)
-		for expn, hue in zip(experiments, colours[:len(experiments)]) :
-			df_ci = dfX[dfX.experiment == expn].groupby("ObsGap")[va].quantile([0.05, 0.95]).reset_index()
+			hue=hue, ci=None, ax=ax, 
+			palette=colours[:huecount], legend=False)
+		# if hue=="experiment":
+		for cat, colr in zip(cats, colours[:huecount]) :
+			df_ci = dfX[dfX[hue] == cat].groupby("ObsGap")[va].quantile([0.05, 0.95]).reset_index()
+			# breakpoint()
 			ax.fill_between(
 				df_ci[df_ci.level_1 == 0.05]["ObsGap"].values, 
 				df_ci[df_ci.level_1 == 0.95][va].values, 
-				df_ci[df_ci.level_1 == 0.05][va].values, alpha=0.10, color=hue)
+				df_ci[df_ci.level_1 == 0.05][va].values, alpha=0.20, color=colr)
+		# else:
 	# ========== fix the labels ==========
 	ax.set_xlabel('Years Between Observation', fontsize=12, fontweight='bold')
 	ax.set_ylabel(r'Mean Residual ($\pm$ %s)' % CI, fontsize=12, fontweight='bold')
 	# ========== Create hhe legend ==========
-	ax.legend(title='Experiment', loc='upper right', labels=lab)
+	ax.legend(title=hue, loc='upper right', labels=lab)
 	ax.set_title(f"{var} {va} {CI}", loc= 'left')
 
 
@@ -438,10 +689,13 @@ def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiment
 	bioMls = []
 	vi_fn = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears_ObsBiomass.csv"
 	vi_df  = pd.read_csv( vi_fn, index_col=0).loc[:, ['biomass', 'Obs_biomass', 'Delta_biomass','ObsGap']]
+
 	
 	# ========== Fill in the missing sites ==========
+	regions = regionDict()
 	region_fn ="./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears.csv"
 	site_df = pd.read_csv(region_fn, index_col=0)
+	# site_df.replace(regions, inplace=True)
 	# ========== Loop over each experiment ==========
 	for exp in tqdm(experiments):
 		pvar =  df_setup.loc[f"Exp{exp}", "predvar"]
@@ -493,8 +747,148 @@ def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiment
 	df["Rank"]     = df.drop("Region", axis=1).abs().groupby(["version", "index"])["Residual"].rank(na_option="bottom").apply(np.floor)
 	df["RunCount"] = df.drop("Region", axis=1).abs().groupby(["version", "index"])["Residual"].transform("count")
 	df.loc[df["RunCount"] < len(experiments), "Rank"] = np.NaN
-	
+
+	def _inc(val):
+		if val <=0:
+			return "Loss"
+		else:
+			return "Gain"
+
+	df["ChangeDirection"] = pd.Categorical([_inc(val) for val in df['ObsDelta'].values], categories=["Gain", "Loss"], ordered=True)
+	# df.replace(regions, inplace=True)
 	return df
+
+
+def gridder(path, exp, years, df, lats, lons, var = "DeltaBiomass"):
+
+	# ========== Setup params ==========
+	plt.rcParams.update({'axes.titleweight':"bold","axes.labelweight":"bold", 'axes.titlesize':10})
+	font = {'family' : 'normal',
+	        'weight' : 'bold', #,
+	        'size'   : 10}
+	mpl.rc('font', **font)
+	sns.set_style("whitegrid")
+	""" Function to convert the points into a grid """
+	# ========== Copy the df so i can export multiple grids ==========
+	dfC = df.copy()#.dropna()
+	# breakpoint()
+
+	dfC["longitude"] = pd.cut(dfC["Longitude"], lons, labels=bn.move_mean(lons, 2)[1:])
+	dfC["latitude"]  = pd.cut(dfC["Latitude" ], lats, labels=bn.move_mean(lats, 2)[1:])
+	dfC["ObsGap"]    = dfC.time.dt.year - dfC.year
+	if var == 'DeltaBiomass':
+		dfC["AnnualBiomass"] = dfC[var] / dfC["ObsGap"]
+	else:
+		breakpoint()
+
+
+	# ========== Convert the different measures into xarray formats ==========
+	dscount  = dfC.groupby(["time","latitude", "longitude", "Version"])[var].count().to_xarray().sortby("latitude", ascending=False)
+	dscount  = dscount.where(dscount>0)
+	dsp      = dfC.loc[dfC["DeltaBiomass"]> 0].groupby(["time","latitude", "longitude", "Version"])[var].count().to_xarray().sortby("latitude", ascending=False)
+	dsn      = dfC.loc[dfC["DeltaBiomass"]<=0].groupby(["time","latitude", "longitude", "Version"])[var].count().to_xarray().sortby("latitude", ascending=False)
+	dspos    = (dsp-dsn)/dscount
+	
+	dsmean   = dfC.groupby(["time","latitude", "longitude", "Version"])[var].mean().to_xarray().sortby("latitude", ascending=False)
+	dsmedian = dfC.groupby(["time","latitude", "longitude", "Version"])[var].median().to_xarray().sortby("latitude", ascending=False)
+	dsannual = dfC.groupby(["time","latitude", "longitude", "Version"])["AnnualBiomass"].mean().to_xarray().sortby("latitude", ascending=False)
+	# ========== Convert the different measures into xarray formats ==========
+	ds = xr.Dataset({
+		"sites":dscount, 
+		"sitesInc":dspos, 
+		f"Mean{var}":dsmean, 
+		f"Median{var}":dsmedian, 
+		f"AnnualMeanBiomass":dsannual})
+	return ds
+	
+
+
+def fpred(path, exp, years, 
+	fpath    = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/", 
+	maxdelta = 30):
+	"""
+	function to predict future biomass
+	args:
+	path:	str to files
+	exp:	in of experiment
+	years:  list of years to predict 
+	"""
+	warn.warn("\nTo DO: Implemnt obsgap filtering")
+	# ========== Load the variables ==========
+	site_df = pd.read_csv(f"{fpath}SiteInfo_AllSampleyears_FutureBiomass.csv", index_col=0)
+	vi_df   = pd.read_csv(f"{fpath}VI_df_AllSampleyears_FutureBiomass.csv", index_col=0)
+	setup   = pd.read_csv(f"{path}{exp}/Exp{exp}_setup.csv", index_col=0)
+	pvar    = setup.loc["predvar"].values[0]
+	if type(pvar) == float:
+		# deal with the places i've alread done
+		pvar = "lagged_biomass"
+
+	# ========== Loop over the model versions
+	est_list = []
+	for ver in tqdm(range(10)):
+		fn_mod = f"{path}{exp}/models/XGBoost_model_exp{exp}_version{ver}.dat"
+		if not os.path.isfile(fn_mod):
+			# missing file
+			continue
+		# ========== Load the run specific params ==========
+		model  = pickle.load(open(f"{fn_mod}", "rb"))
+		fname  = glob.glob(f"{path}{exp}/Exp{exp}_*_vers{ver:02}_PermutationImportance.csv")
+		feat   = pd.read_csv(fname[0], index_col=0)["Variable"].values
+
+		# ========== Make a dataframe ==========
+		dfout = site_df.loc[:, ["Plot_ID", "Longitude", "Latitude", "Region", "year"]].copy()
+		dfout["Version"]  = ver
+		dfout["Original"] = vi_df["biomass"].values
+
+		# ========== Make a filter for bad latitudes ==========
+		# breakpoint()
+		# dfout.loc[dfout["Longitude"] == 0, ["Longitude", "Latitude"]] = np.NaN
+		# dfout.loc[dfout["Longitude"] < -180, ["Longitude", "Latitude"]] = np.NaN
+		# dfout.loc[dfout["Longitude"] >  180, ["Longitude", "Latitude"]] = np.NaN
+		# dfout.loc[dfout["Latitude"] <= 0, ["Longitude", "Latitude"]] = np.NaN
+		# dfout.loc[dfout["Latitude"] >  90, ["Longitude", "Latitude"]] = np.NaN
+
+		# breakpoint()
+		for yr in years:
+			dfoutC = dfout.copy()
+
+			# ========== pull out the variables and apply transfors ==========
+			dfX = vi_df.loc[:, feat].copy()
+			if not type(setup.loc["Transformer"].values[0]) == float:
+				warn.warn("Not implemented yet")
+				breakpoint()
+
+			# ========== calculate the obsgap ==========
+			if "ObsGap" in feat:
+				dfX["ObsGap"] = yr - site_df["year"].values
+
+			# ========== Perform the prediction ==========
+			est = model.predict(dfX.values)
+			if not type(setup.loc["yTransformer"].values[0]) == float:
+				warn.warn("Not implemented yet")
+				breakpoint()
+
+			# ========== Convert to common forms ==========
+			if pvar == "lagged_biomass":
+				breakpoint()
+			elif pvar == 'Delta_biomass':
+				dfoutC[f"Biomass"]      = vi_df["biomass"].values + est
+				dfoutC[f"DeltaBiomass"] = est
+				# breakpoint()
+			elif pvar == 'Obs_biomass':
+				# dfout[f"BIO_{yr}"]   = est
+				# dfout[f"DELTA_{yr}"] = est - vi_df["biomass"].values
+				dfoutC[f"Biomass"]      = est
+				dfoutC[f"DeltaBiomass"] = est - vi_df["biomass"].values
+			
+			dfoutC["time"] = pd.Timestamp(f"{yr}-12-31")
+			dfoutC.loc[(dfoutC.time.dt.year - dfoutC.year) > maxdelta, ['Biomass', 'DeltaBiomass']] = np.NaN
+			est_list.append(dfoutC)
+
+
+
+	return pd.concat(est_list)
+
 def _delag(b0, bl):
 	if bl == 1.:
 		return np.nan
@@ -566,6 +960,23 @@ def Experiment_name(df, df_setup, var = "experiment"):
 		keys[cat] = nm
 		df[var].replace({cat:nm}, inplace=True)
 	return df, keys
+
+def regionDict():
+	regions = ({
+		'BC': "British Columbia", 
+		'AB': "Alberta", 
+		'SK': "Saskatchewan", 
+		'MB': "Manitoba", 
+		'ON': "Ontario", 
+		'QC': "Quebec", 
+		'NL': "Newfoundland and Labrador", 
+		'NB': "New Brunswick", 
+		'NS': "Nova Scotia", 
+		'YT': "Yukon", 
+		'NWT':"Northwest Territories", 
+		'CAFI':"Alaska"
+		})
+	return regions
 
 def load_OBS(ofn):
 	df_in = pd.read_csv(ofn, index_col=0)

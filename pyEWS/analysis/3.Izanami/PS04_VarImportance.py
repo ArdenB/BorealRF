@@ -86,7 +86,7 @@ def main():
 	# ==========  ========== 
 	corr, col_nms, corr_linkage = _getcorr(path, exp)
 	df, ver, hueord = _ImpOpener(path, [exp], AddFeature=True)
-	featureFig(corr, col_nms, corr_linkage, df, ver, hueord, huex = "VariableGroup")
+	featureFig(ppath, corr, col_nms, corr_linkage, df, ver, hueord, huex = "VariableGroup")
 	breakpoint()
 	# ========== the old method left for supp ==========
 	expr = OrderedDict()
@@ -110,7 +110,7 @@ def main():
 	breakpoint()
 
 # ==============================================================================
-def featureFig(corr, col_nms, corr_linkage, df, ver, hueord, huex = "VariableGroup"):
+def featureFig(ppath, corr, col_nms, corr_linkage, df, ver, hueord, huex = "VariableGroup"):
 	""" Figure to look at features """
 	# ========== Setup the matplotlib params ==========
 	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':12, "axes.labelweight":"bold"})
@@ -142,6 +142,23 @@ def featureFig(corr, col_nms, corr_linkage, df, ver, hueord, huex = "VariableGro
 	# g.set(ylim=(0, 1))
 	# g.set_axis_labels("", var)
 	# breakpoint()
+	# ========== Create the figure ==========
+	ax4  = fig.add_subplot(spec[2, :])
+	# g = sns.catplot(x="Variable", y="PermutationImportance", hue=huex, 	dodge=False, data=df, palette= hueord["cmap"], col="experiment",  ax=ax3)
+	g2 = sns.boxplot(
+		x="Variable", y="FeatureImportance", hue=huex, 
+		dodge=False, data=df.loc[df.Count >= 6], palette= hueord["cmap"], ax=ax4)
+	g2.set_xticklabels(g.get_xticklabels(),  rotation=15, horizontalalignment='right')
+		# ========== Save tthe plot ==========
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS04_PaperFig02_VarImportance" 
+	for ext in [".png", ".pdf",]:
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
 	plt.show()
 	breakpoint()
 

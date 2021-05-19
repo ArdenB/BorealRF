@@ -87,7 +87,7 @@ def main():
 	formats = None
 	path  = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/"
 	cf.pymkdir(path+"plots/")
-	ppath = "./pyEWS/analysis/3.Izanami/Figures/PS04/"
+	ppath = "./pyEWS/analysis/3.Izanami/Figures/PS05/"
 	cf.pymkdir(ppath)
 	
 	# expr = OrderedDict()
@@ -98,8 +98,8 @@ def main():
 	# expr["Complete"]      = [400, 401, 402, 403, 404, 405, 406] 
 	# var  = "PermutationImportance"
 	# var  = "Importance"
-	experiments = [402, 401]
-	years       = [2020, 2030, 2040]
+	experiments = [402]#, 401]
+	years       = [2025, 2030, 2040]
 	# ========== Simple lons and lats ========== 
 	lons = np.arange(-170, -50.1,  0.5)
 	lats = np.arange(  42,  70.1,  0.5)
@@ -107,7 +107,8 @@ def main():
 	for exp in experiments:
 		df = fpred(path, exp, years)
 		# ========== Convert to a dataarray ==========
-		gridder(path, exp, years, df, lats, lons)
+		ds = gridder(path, exp, years, df, lats, lons)
+		FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass")
 		breakpoint()
 
 
@@ -117,6 +118,76 @@ def main():
 
 
 # ==============================================================================
+def FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass"):
+
+
+
+	# for vas, title in zip(["sites", "sitesInc",  f"Mean{var}", f"Median{var}", "AnnualMeanBiomass"],
+	# 	["No. of Sites", "Direction of change",  f"Mean {var}", f"Median {var}", "Annual Mean Delta Biomass"]):
+	# 	# break
+	# 	# ========== Create the figure ==========
+	# 	fig, ax = plt.subplots(
+	# 		1, 1, sharex=True, subplot_kw={'projection': map_proj}, 
+	# 		figsize=(20,9)
+	# 		)
+
+	# ========== Create the mapp projection ==========
+	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
+	
+	# ========== Create the figure ==========
+	fig  = plt.figure(constrained_layout=True, figsize=(16,24))
+	spec = gridspec.GridSpec(ncols=4, nrows=3, figure=fig, width_ratios=[11,1,11,1])
+
+	for pos in range(ds.time.size):
+		ax1 = fig.add_subplot(spec[pos, 0], projection= map_proj)
+		_simplemapper(ds, "sitesInc", fig, ax1, map_proj, pos, "Direction of change", lats, lons,  dim="Version")
+
+		ax2 = fig.add_subplot(spec[pos, 2], projection= map_proj)
+		_simplemapper(ds, "sites", fig, ax2, map_proj, pos, "Number of Sites", lats, lons,  dim="Version")
+	# vas   = 
+	# title = 
+	# # ========== Save tthe plot ==========
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS05_PaperFig04_FuturePred" 
+	for ext in [".png", ".pdf"]:#".pdf",
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Paper figure made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+	breakpoint()
+	
+	
+
+	breakpoint()
+
+def _simplemapper(ds, vas, fig, ax, map_proj, indtime, title, lats, lons,  dim="Version"):
+	f = ds[vas].mean(dim=dim).isel(time=indtime).plot(
+		x="longitude", y="latitude", #col="time", col_wrap=2, 
+		transform=ccrs.PlateCarree(), 
+		cbar_kwargs={"pad": 0.015, "shrink":0.95},#, "extend":extend}
+		# subplot_kws={'projection': map_proj}, 
+		# size=6,	aspect=ds.dims['longitude'] / ds.dims['latitude'],  
+		ax=ax)
+	# breakpoint()
+	# for ax in p.axes.flat:
+	ax.set_extent([lons.min()+10, lons.max()-5, lats.min()-13, lats.max()])
+	ax.gridlines()
+	coast = cpf.GSHHSFeature(scale="intermediate")
+	ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
+	ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
+	ax.add_feature(coast, zorder=101, alpha=0.5)
+	ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
+	ax.add_feature(cpf.RIVERS, zorder=104)
+	ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
+
+	# ax.set_title("")
+	# ax.set_title(f"{title}", loc= 'left')
+	# plt.tight_layout()
+	# plt.show()
+
 def gridder(path, exp, years, df, lats, lons, var = "DeltaBiomass"):
 
 	# ========== Setup params ==========
@@ -128,8 +199,8 @@ def gridder(path, exp, years, df, lats, lons, var = "DeltaBiomass"):
 	sns.set_style("whitegrid")
 	""" Function to convert the points into a grid """
 	# ========== Copy the df so i can export multiple grids ==========
-	dfC = df.copy().dropna()
-	breakpoint()
+	dfC = df.copy()#.dropna()
+	# breakpoint()
 
 	dfC["longitude"] = pd.cut(dfC["Longitude"], lons, labels=bn.move_mean(lons, 2)[1:])
 	dfC["latitude"]  = pd.cut(dfC["Latitude" ], lats, labels=bn.move_mean(lats, 2)[1:])
@@ -157,61 +228,13 @@ def gridder(path, exp, years, df, lats, lons, var = "DeltaBiomass"):
 		f"Mean{var}":dsmean, 
 		f"Median{var}":dsmedian, 
 		f"AnnualMeanBiomass":dsannual})
-
-	# ========== Make some example plots ==========
-	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
-	# map_proj = ccrs.Orthographic(longMid,latiMid)
-	# for vas in ["sites", "sitesInc",  f"Mean{var}", f"Median{var}"]:
-	# 	p = ds[vas].mean(dim="Version").plot(
-	# 		transform=ccrs.PlateCarree(), 
-	# 		x="longitude", y="latitude", col="time", 
-	# 		col_wrap=2, 
-	# 		# size=6,	aspect=ds.dims['longitude'] / ds.dims['latitude'],  
-	# 		subplot_kws={'projection': map_proj})
-
-	# 	for ax in p.axes.flat:
-	# 	    ax.coastlines()
-	# 	    ax.set_extent([lons.min()+10, lons.max(), lats.min()-13, lats.max()])
-	# 	plt.show()
-
-	# dst = ds.isel(time=1)
-
-	for vas, title in zip(["sites", "sitesInc",  f"Mean{var}", f"Median{var}", "AnnualMeanBiomass"],
-		["No. of Sites", "Direction of change",  f"Mean {var}", f"Median {var}", "Annual Mean Delta Biomass"]):
-		# break
-		# ========== Create the figure ==========
-		fig, ax = plt.subplots(
-			1, 1, sharex=True, subplot_kw={'projection': map_proj}, 
-			figsize=(20,9)
-			)
-		f = ds[vas].mean(dim="Version").isel(time=1).plot(
-			x="longitude", y="latitude", #col="time", col_wrap=2, 
-			transform=ccrs.PlateCarree(), 
-			cbar_kwargs={"pad": 0.015, "shrink":0.95},#, "extend":extend}
-			# subplot_kws={'projection': map_proj}, 
-			# size=6,	aspect=ds.dims['longitude'] / ds.dims['latitude'],  
-			ax=ax)
-		# breakpoint()
-		# for ax in p.axes.flat:
-		ax.set_extent([lons.min()+10, lons.max()-5, lats.min()-13, lats.max()])
-		ax.gridlines()
-		coast = cpf.GSHHSFeature(scale="intermediate")
-		ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
-		ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
-		ax.add_feature(coast, zorder=101, alpha=0.5)
-		ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
-		ax.add_feature(cpf.RIVERS, zorder=104)
-		ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
-
-		ax.set_title("")
-		ax.set_title(f"{title}", loc= 'left')
-		plt.tight_layout()
-		plt.show()
-	breakpoint()
+	return ds
+	
 
 
-
-def fpred(path, exp, years, fpath  = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/"):
+def fpred(path, exp, years, 
+	fpath    = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/", 
+	maxdelta = 30):
 	"""
 	function to predict future biomass
 	args:
@@ -288,8 +311,8 @@ def fpred(path, exp, years, fpath  = "./pyEWS/experiments/3.ModelBenchmarking/1.
 				dfoutC[f"DeltaBiomass"] = est - vi_df["biomass"].values
 			
 			dfoutC["time"] = pd.Timestamp(f"{yr}-12-31")
+			dfoutC.loc[(dfoutC.time.dt.year - dfoutC.year) > maxdelta, ['Biomass', 'DeltaBiomass']] = np.NaN
 			est_list.append(dfoutC)
-			# breakpoint()
 
 
 
