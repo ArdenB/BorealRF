@@ -191,17 +191,16 @@ def _simplemapper(ds, vas, fig, ax, map_proj, indtime, title, lats, lons,  dim="
 def gridder(path, exp, years, df, lats, lons, var = "DeltaBiomass"):
 
 	# ========== Setup params ==========
-	plt.rcParams.update({'axes.titleweight':"bold","axes.labelweight":"bold", 'axes.titlesize':10})
-	font = {'family' : 'normal',
-	        'weight' : 'bold', #,
-	        'size'   : 10}
-	mpl.rc('font', **font)
-	sns.set_style("whitegrid")
+	# plt.rcParams.update({'axes.titleweight':"bold","axes.labelweight":"bold", 'axes.titlesize':10})
+	# font = {'family' : 'normal',
+	#         'weight' : 'bold', #,
+	#         'size'   : 10}
+	# mpl.rc('font', **font)
+	# sns.set_style("whitegrid")
 	""" Function to convert the points into a grid """
 	# ========== Copy the df so i can export multiple grids ==========
 	dfC = df.copy()#.dropna()
 	# breakpoint()
-
 	dfC["longitude"] = pd.cut(dfC["Longitude"], lons, labels=bn.move_mean(lons, 2)[1:])
 	dfC["latitude"]  = pd.cut(dfC["Latitude" ], lats, labels=bn.move_mean(lats, 2)[1:])
 	dfC["ObsGap"]    = dfC.time.dt.year - dfC.year
