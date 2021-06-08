@@ -140,10 +140,10 @@ def modis(df, yr, fn="/mnt/f/Data51/NDVI/5.MODIS/NorthAmerica/MOD13Q1.006_250m_a
 	df["VIdelta"] = np.NaN
 	# ========== index the dataset ==========
 	# with dask.config.set(**{'array.slicing.split_large_chunks': True}):
-	gb   = df.groupby("Plot_ID").mean().loc[:, ["Longitude", "Latitude"]].reset_index()
-	# vals = OrderedDict()
-	# for ind in tqdm(np.arange(gb.shape[0])):
-	# 	vals[gb.iloc[ind].Plot_ID] = ds["NDVI"].sel({"latitude":gb.iloc[ind].Latitude, "longitude":gb.iloc[ind].Longitude}, method="nearest").compute()
+	gb   = df.groupby("Plot_ID").mean().loc[:, ["Longitude", "Latitude"]].sort_values("Latitude", ascending=False).reset_index()
+	vals = OrderedDict()
+	for ind in tqdm(np.arange(gb.shape[0])):
+		vals[gb.iloc[ind].Plot_ID] = ds["NDVI"].sel({"latitude":gb.iloc[ind].Latitude, "longitude":gb.iloc[ind].Longitude}, method="nearest").compute()
 			
 	# 	dt = dt.groupby("time.year").max("time")#.compute(
 	# 	# df.loc[df.Plot_ID == gb.iloc[ind].Plot_ID]
