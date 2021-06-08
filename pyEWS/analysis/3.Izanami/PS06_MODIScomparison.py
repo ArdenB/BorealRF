@@ -142,9 +142,9 @@ def modis(df, yr, fn="/mnt/f/Data51/NDVI/5.MODIS/NorthAmerica/MOD13Q1.006_250m_a
 	# ========== index the dataset ==========
 	# with dask.config.set(**{'array.slicing.split_large_chunks': True}):
 	gb   = df.groupby("Plot_ID").mean().loc[:, ["Longitude", "Latitude"]].sort_values("Latitude", ascending=False).reset_index()
-
-	with ProgressBar():	
-		da = ds["NDVI"].sel({"latitude":gb[:500].Latitude.values, "longitude":gb[:500].Longitude.values}, method="nearest").compute()
+	with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+		with ProgressBar():	
+			da = ds["NDVI"].sel({"latitude":gb[:500].Latitude.values, "longitude":gb[:500].Longitude.values}, method="nearest").compute()
 	breakpoint()
 
 
