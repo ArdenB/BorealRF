@@ -142,6 +142,13 @@ def modis(df, yr, fn="/mnt/f/Data51/NDVI/5.MODIS/NorthAmerica/MOD13Q1.006_250m_a
 	# ========== index the dataset ==========
 	# with dask.config.set(**{'array.slicing.split_large_chunks': True}):
 	gb   = df.groupby("Plot_ID").mean().loc[:, ["Longitude", "Latitude"]].sort_values("Latitude", ascending=False).reset_index()
+
+	with ProgressBar():	
+		da = ds["NDVI"].sel({"latitude":gb[:500].Latitude.values, "longitude":gb[:500].Longitude.values}, method="nearest").compute()
+	breakpoint()
+
+
+
 	vals = OrderedDict()
 	pd.options.mode.chained_assignment = None
 	for ind in tqdm(np.arange(gb.shape[0])):
@@ -156,9 +163,6 @@ def modis(df, yr, fn="/mnt/f/Data51/NDVI/5.MODIS/NorthAmerica/MOD13Q1.006_250m_a
 			val = dt.sel(year=yr).values - dt.sel(year=yrst).values
 			df["VIdelta"].loc[np.logical_and(df.Plot_ID == gb.iloc[ind].Plot_ID, df.year==yrst)] = val
 			# breakpoint()
-	# with ProgressBar():	
-	# 	da = ds["NDVI"].sel({"latitude":gb[:500].Latitude.values, "longitude":gb[:500].Longitude.values}, method="nearest").compute()
-	breakpoint()
 	# da = ds["NDVI"].sel({"latitude":gb[:50].Latitude.values, "longitude":gb[:50].Longitude.values}, method="nearest")
 	breakpoint()
 
