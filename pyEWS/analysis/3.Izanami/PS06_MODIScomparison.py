@@ -63,6 +63,7 @@ import xarray as xr
 import cartopy.crs as ccrs
 import dask
 from dask.diagnostics import ProgressBar
+from tqdm import tqdm
 
 import cartopy.feature as cpf
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
@@ -131,22 +132,36 @@ def modis(df, yr, fn="/mnt/f/Data51/NDVI/5.MODIS/NorthAmerica/MOD13Q1.006_250m_a
 	"""
 	if not os.path.isfile(fn):
 		warn.warn("file is missing")
-		breakpoint()
+		fn="/mnt/d/Data51/NDVI/5.MODIS/NorthAmerica/MOD13Q1.006_250m_aid0001.nc"
+		# breakpoint()
 	
 	# ========== load the file =========
-	ds = xr.open_dataset(fn).rename({"_250m_16_days_NDVI":"NDVI", "lon":"longitude", "lat":"latitude"}).chunk()#{"longitude":1000, "latitude":1000}
-	
+	ds = xr.open_dataset(fn).rename({"_250m_16_days_NDVI":"NDVI", "lon":"longitude", "lat":"latitude"}).chunk({"latitude":500})
+	df["VIdelta"] = np.NaN
 	# ========== index the dataset ==========
 	# with dask.config.set(**{'array.slicing.split_large_chunks': True}):
+	gb   = df.groupby("Plot_ID").mean().loc[:, ["Longitude", "Latitude"]].reset_index()
+	# vals = OrderedDict()
+	# for ind in tqdm(np.arange(gb.shape[0])):
+	# 	vals[gb.iloc[ind].Plot_ID] = ds["NDVI"].sel({"latitude":gb.iloc[ind].Latitude, "longitude":gb.iloc[ind].Longitude}, method="nearest").compute()
+			
+	# 	dt = dt.groupby("time.year").max("time")#.compute(
+	# 	# df.loc[df.Plot_ID == gb.iloc[ind].Plot_ID]
+
+	# 	dfsel = df.loc[df.Plot_ID == gb.iloc[ind].Plot_ID]
+	# 	for yrst in dfsel.year.astype(int).unique():
+	# 		val = dt.sel(year=yr).values - dt.sel(year=yrst).values
+	# 		df["VIdelta"].loc[np.logical_and(df.Plot_ID == gb.iloc[ind].Plot_ID, df.year==yrst)] = val
+			# breakpoint()
+	# with ProgressBar():	
+	# 	da = ds["NDVI"].sel({"latitude":gb[:500].Latitude.values, "longitude":gb[:500].Longitude.values}, method="nearest").compute()
+	breakpoint()
+	da = ds["NDVI"].sel({"latitude":gb[:50].Latitude.values, "longitude":gb[:50].Longitude.values}, method="nearest")
 	breakpoint()
 
-	with ProgressBar():
-		da = ds["NDVI"].groupby("time.year").max("time").compute()
-
-		# dfa = ds["NDVI"].sel({"latitude":df.Latitude.values, "longitude":df.Longitude.values}, method="nearest")
-		# da  = dfa.groupby("time.year").max("time").compute()
 
 	breakpoint()
+	# da = ds["NDVI"].groupby("time.year").max("time").compute()
 
 
 def fpred(path, exp, yr, 
@@ -229,7 +244,7 @@ def fpred(path, exp, yr,
 		dfoutC["time"] = pd.Timestamp(f"{yr}-12-31")
 		dfoutC.loc[(dfoutC.time.dt.year - dfoutC.year) > maxdelta, ['Biomass', 'DeltaBiomass']] = np.NaN
 		if drop:
-			dfoutC = dfoutC.loc[dfoutC.year > (yr - maxdelta)]
+			dfoutC = dfoutC.loc[dfoutC.year > (yr - maxdelta)].dropna()
 		est_list.append(dfoutC)
 
 
