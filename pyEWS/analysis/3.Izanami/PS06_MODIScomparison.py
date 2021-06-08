@@ -91,7 +91,8 @@ def main():
 	# ppath = "./pyEWS/analysis/3.Izanami/Figures/PS06/"
 	# cf.pymkdir(ppath)
 	# dpath = 
-
+	# fn="/mnt/f/Data51/NDVI/5.MODIS/NorthAmerica/MOD13Q1.006_250m_aid0001.nc"
+	fn="./data/NDVI/5.MODIS/NorthAmerica/MOD13Q1.006_250m_aid0001.nc"
 	yr       = 2020
 	exp      = 402
 	maxdelta = 20
@@ -109,7 +110,7 @@ def main():
 
 
 	# ========== Load the MODIS data ========== 
-	df = modis(df, yr)
+	df = modis(df, yr, fn=fn)
 	
 	# ========== Convert to a dataarray ==========
 	ds = gridder(path, exp, years, df, lats, lons)
@@ -143,20 +144,21 @@ def modis(df, yr, fn="/mnt/f/Data51/NDVI/5.MODIS/NorthAmerica/MOD13Q1.006_250m_a
 	gb   = df.groupby("Plot_ID").mean().loc[:, ["Longitude", "Latitude"]].sort_values("Latitude", ascending=False).reset_index()
 	vals = OrderedDict()
 	for ind in tqdm(np.arange(gb.shape[0])):
-		vals[gb.iloc[ind].Plot_ID] = ds["NDVI"].sel({"latitude":gb.iloc[ind].Latitude, "longitude":gb.iloc[ind].Longitude}, method="nearest").compute()
-			
-	# 	dt = dt.groupby("time.year").max("time")#.compute(
-	# 	# df.loc[df.Plot_ID == gb.iloc[ind].Plot_ID]
+		dt = ds["NDVI"].sel({"latitude":gb.iloc[ind].Latitude, "longitude":gb.iloc[ind].Longitude}, method="nearest").compute()
+		vals[gb.iloc[ind].Plot_ID] = dt
 
-	# 	dfsel = df.loc[df.Plot_ID == gb.iloc[ind].Plot_ID]
-	# 	for yrst in dfsel.year.astype(int).unique():
-	# 		val = dt.sel(year=yr).values - dt.sel(year=yrst).values
-	# 		df["VIdelta"].loc[np.logical_and(df.Plot_ID == gb.iloc[ind].Plot_ID, df.year==yrst)] = val
+		dt = dt.groupby("time.year").max("time")#.compute(
+		# df.loc[df.Plot_ID == gb.iloc[ind].Plot_ID]
+
+		dfsel = df.loc[df.Plot_ID == gb.iloc[ind].Plot_ID]
+		for yrst in dfsel.year.astype(int).unique():
+			val = dt.sel(year=yr).values - dt.sel(year=yrst).values
+			df["VIdelta"].loc[np.logical_and(df.Plot_ID == gb.iloc[ind].Plot_ID, df.year==yrst)] = val
 			# breakpoint()
 	# with ProgressBar():	
 	# 	da = ds["NDVI"].sel({"latitude":gb[:500].Latitude.values, "longitude":gb[:500].Longitude.values}, method="nearest").compute()
 	breakpoint()
-	da = ds["NDVI"].sel({"latitude":gb[:50].Latitude.values, "longitude":gb[:50].Longitude.values}, method="nearest")
+	# da = ds["NDVI"].sel({"latitude":gb[:50].Latitude.values, "longitude":gb[:50].Longitude.values}, method="nearest")
 	breakpoint()
 
 
