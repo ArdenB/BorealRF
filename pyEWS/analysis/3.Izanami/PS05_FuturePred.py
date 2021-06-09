@@ -161,8 +161,6 @@ def FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass"):
 	
 	
 
-	breakpoint()
-
 def _simplemapper(ds, vas, fig, ax, map_proj, indtime, title, lats, lons,  dim="Version"):
 	f = ds[vas].mean(dim=dim).isel(time=indtime).plot(
 		x="longitude", y="latitude", #col="time", col_wrap=2, 

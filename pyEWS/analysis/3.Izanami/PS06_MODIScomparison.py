@@ -88,8 +88,8 @@ def main():
 	formats = None
 	path  = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/"
 	cf.pymkdir(path+"plots/")
-	# ppath = "./pyEWS/analysis/3.Izanami/Figures/PS06/"
-	# cf.pymkdir(ppath)
+	ppath = "./pyEWS/analysis/3.Izanami/Figures/PS06/"
+	cf.pymkdir(ppath)
 	# dpath = 
 	# fn="/mnt/f/Data51/NDVI/5.MODIS/NorthAmerica/MOD13Q1.006_250m_aid0001.nc"
 	fn="./data/NDVI/5.MODIS/NorthAmerica/MOD13Q1.006_250m_aid0001.nc"
@@ -110,18 +110,93 @@ def main():
 
 
 	# ========== Load the MODIS data ========== 
-	df = modis(df, yr, fn=fn)
+	df = modis(df, yr, exp, fn=fn)
 	
 	# ========== Convert to a dataarray ==========
-	ds = gridder(path, exp, years, df, lats, lons)
+	ds = gridder(path, exp, df, lats, lons)
 
 	# ========== Setup and build the maps ========== 
+	VIMapper(df, ds, ppath, lats, lons)
+	breakpoint()
 
 
 # ==============================================================================
+def VIMapper(df, ds, ppath, lats, lons, var = "MeanDeltaBiomass", vivar = "MeanVIdelta"):
 
+	# ========== Create the mapp projection ==========
+	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
+
+	# ========== Create the figure ==========
+	fig  = plt.figure(constrained_layout=True, figsize=(16,6))
+	spec = gridspec.GridSpec(ncols=4, nrows=1, figure=fig, width_ratios=[11,1,11,1])
+
+	for pos in range(ds.time.size):
+		ax1 = fig.add_subplot(spec[pos, 0], projection= map_proj)
+		_simplemapper(ds, var, fig, ax1, map_proj, pos, "Delta Biomass", lats, lons,  dim="Version")
+
+		ax2 = fig.add_subplot(spec[pos, 2], projection= map_proj)
+		_simplemapper(ds, vivar, fig, ax2, map_proj, pos, "Delta NDVI", lats, lons,  dim="Version")
+	# vas   = 
+	# title = 
+	# # ========== Save tthe plot ==========
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS06_PaperFig06_PredvsVI" 
+	for ext in [".png", ".pdf"]:#".pdf",
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Paper figure made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+	breakpoint()
 # ==============================================================================
-def modis(df, yr, fn="/mnt/f/Data51/NDVI/5.MODIS/NorthAmerica/MOD13Q1.006_250m_aid0001.nc"):
+def gridder(path, exp, df, lats, lons, var = "DeltaBiomass", vivar = "VIdelta"):
+
+	# ========== Setup params ==========
+	# plt.rcParams.update({'axes.titleweight':"bold","axes.labelweight":"bold", 'axes.titlesize':10})
+	# font = {'family' : 'normal',
+	#         'weight' : 'bold', #,
+	#         'size'   : 10}
+	# mpl.rc('font', **font)
+	# sns.set_style("whitegrid")
+	""" Function to convert the points into a grid """
+	# ========== Copy the df so i can export multiple grids ==========
+	dfC = df.copy()#.dropna()
+	# breakpoint()
+	dfC["longitude"] = pd.cut(dfC["Longitude"], lons, labels=bn.move_mean(lons, 2)[1:])
+	dfC["latitude"]  = pd.cut(dfC["Latitude" ], lats, labels=bn.move_mean(lats, 2)[1:])
+	dfC["ObsGap"]    = dfC.time.dt.year - dfC.year
+	if var == 'DeltaBiomass':
+		dfC["AnnualBiomass"] = dfC[var] / dfC["ObsGap"]
+	else:
+		breakpoint()
+
+
+	# ========== Convert the different measures into xarray formats ==========
+	dscount  = dfC.groupby(["time","latitude", "longitude", "Version"])[var].count().to_xarray().sortby("latitude", ascending=False)
+	dscount  = dscount.where(dscount>0)
+	dsp      = dfC.loc[dfC["DeltaBiomass"]> 0].groupby(["time","latitude", "longitude", "Version"])[var].count().to_xarray().sortby("latitude", ascending=False)
+	dsn      = dfC.loc[dfC["DeltaBiomass"]<=0].groupby(["time","latitude", "longitude", "Version"])[var].count().to_xarray().sortby("latitude", ascending=False)
+	dspos    = (dsp-dsn)/dscount
+	
+	dsmean   = dfC.groupby(["time","latitude", "longitude", "Version"])[var].mean().to_xarray().sortby("latitude", ascending=False)
+	dsmedian = dfC.groupby(["time","latitude", "longitude", "Version"])[var].median().to_xarray().sortby("latitude", ascending=False)
+	dsannual = dfC.groupby(["time","latitude", "longitude", "Version"])["AnnualBiomass"].mean().to_xarray().sortby("latitude", ascending=False)
+	dsVImean   = dfC.groupby(["time","latitude", "longitude", "Version"])[vivar].mean().to_xarray().sortby("latitude", ascending=False)
+	dsVImedian = dfC.groupby(["time","latitude", "longitude", "Version"])[vivar].median().to_xarray().sortby("latitude", ascending=False)
+	# ========== Convert the different measures into xarray formats ==========
+	ds = xr.Dataset({
+		"sites":dscount, 
+		"sitesInc":dspos, 
+		f"Mean{var}":dsmean, 
+		f"Median{var}":dsmedian, 
+		f"AnnualMeanBiomass":dsannual,
+		"MeanVIdelta":dsVImean, 
+		"MedianVIdelta":dsVImedian, })
+	return ds
+
+def modis(df, yr, exp, fn="/mnt/f/Data51/NDVI/5.MODIS/NorthAmerica/MOD13Q1.006_250m_aid0001.nc"):
 	"""
 	Func to open modis data and convert it to a format that matchs the existing 
 	modeled dataframe
@@ -135,6 +210,16 @@ def modis(df, yr, fn="/mnt/f/Data51/NDVI/5.MODIS/NorthAmerica/MOD13Q1.006_250m_a
 		warn.warn("file is missing")
 		fn="/mnt/d/Data51/NDVI/5.MODIS/NorthAmerica/MOD13Q1.006_250m_aid0001.nc"
 		# breakpoint()
+	
+	fnout = f"./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/{exp}/Exp{exp}_MODISndvi_delta.csv"
+	if os.path.isfile(fnout):
+		dfin = pd.read_csv(fnout, index_col=0)
+
+		if (dfin.shape[0] == df.shape[0]) and (df["Plot_ID"].equals(dfin["Plot_ID"])):
+			df["VIdelta"] = dfin["VIdelta"]
+			return df
+		else:
+			breakpoint()
 	
 	# ========== load the file =========
 	ds = xr.open_dataset(fn).rename({"_250m_16_days_NDVI":"NDVI", "lon":"longitude", "lat":"latitude"}).chunk({"latitude":500})
@@ -163,14 +248,16 @@ def modis(df, yr, fn="/mnt/f/Data51/NDVI/5.MODIS/NorthAmerica/MOD13Q1.006_250m_a
 		for yrst in dfsel.year.astype(int).unique():
 			val = dt.sel(year=yr).values - dt.sel(year=yrst).values
 			df["VIdelta"].loc[np.logical_and(df.Plot_ID == gb.iloc[ind].Plot_ID, df.year==yrst)] = val
-			# breakpoint()
+		# breakpoint()
+
+	df.loc[:, ["Plot_ID", "Longitude", "Latitude", "VIdelta"]].to_csv(fnout)
 	# da = ds["NDVI"].sel({"latitude":gb[:50].Latitude.values, "longitude":gb[:50].Longitude.values}, method="nearest")
-	breakpoint()
+	# breakpoint()
+	return df
 
 
-	breakpoint()
+	# breakpoint()
 	# da = ds["NDVI"].groupby("time.year").max("time").compute()
-
 
 def fpred(path, exp, yr, 
 	fpath    = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/", 
@@ -314,6 +401,26 @@ def regionDict():
 		'CAFI':"Alaska"
 		})
 	return regions
+
+def _simplemapper(ds, vas, fig, ax, map_proj, indtime, title, lats, lons,  dim="Version"):
+	f = ds[vas].mean(dim=dim).isel(time=indtime).plot(
+		x="longitude", y="latitude", #col="time", col_wrap=2, 
+		transform=ccrs.PlateCarree(), 
+		cbar_kwargs={"pad": 0.015, "shrink":0.65},#, "extend":extend}
+		# subplot_kws={'projection': map_proj}, 
+		# size=6,	aspect=ds.dims['longitude'] / ds.dims['latitude'],  
+		ax=ax)
+	# breakpoint()
+	# for ax in p.axes.flat:
+	ax.set_extent([lons.min()+10, lons.max()-5, lats.min()-13, lats.max()])
+	ax.gridlines()
+	coast = cpf.GSHHSFeature(scale="intermediate")
+	ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
+	ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
+	ax.add_feature(coast, zorder=101, alpha=0.5)
+	ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
+	ax.add_feature(cpf.RIVERS, zorder=104)
+	ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
 # ==============================================================================
 if __name__ == '__main__':
 	main()
