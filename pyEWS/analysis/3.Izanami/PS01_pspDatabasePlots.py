@@ -61,6 +61,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 # ========== Import my dunctions ==========
 import myfunctions.corefunctions as cf
 import myfunctions.benchmarkfunctions as bf
+from matplotlib.colors import LogNorm
 
 # ========== Import packages for parellelisation ==========
 # import multiprocessing as mp
@@ -186,10 +187,10 @@ def _mapgridder(exp, vi_df, fig, ax, map_proj, lons, lats, modelled=True, vmin=0
 	else:
 		vas   = "TotalSites"
 		title = "No. of Sites"
-
+	levels = [0, 1,  5, 10, 50, 100, 500, 1000]
 
 	f = ds[vas].isel(time=0).plot(
-		x="longitude", y="latitude", transform=ccrs.PlateCarree(), vmin=vmin, vmax=vmax,
+		x="longitude", y="latitude", transform=ccrs.PlateCarree(), vmin=vmin, vmax=vmax, levels=levels,
 		cbar_kwargs={"pad": 0.015, "shrink":0.85, "extend":"max"},	ax=ax)
 	ax.set_extent([lons.min()+10, lons.max()-5, lats.min()-13, lats.max()])
 	ax.gridlines()

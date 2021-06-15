@@ -114,6 +114,7 @@ def main():
 	
 	# ========== Convert to a dataarray ==========
 	ds = gridder(path, exp, df, lats, lons)
+	breakpoint()
 
 	# ========== Setup and build the maps ========== 
 	VIMapper(df, ds, ppath, lats, lons)
