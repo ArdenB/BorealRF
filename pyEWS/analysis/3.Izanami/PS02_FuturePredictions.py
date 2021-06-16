@@ -135,6 +135,7 @@ def FigureModelPerfomance(
 	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
 
 	df = Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, [exp], path)
+	breakpoint()
 	# ========== Convert to a dataarray ==========
 	ds = gridder(path, exp, years, fpred(path, exp, years), lats, lons)
 	
@@ -184,6 +185,7 @@ def FigureModelPerfomance(
 	gitinfo = cf.gitmetadata()
 	cf.writemetadata(fnout, [plotinfo, gitinfo])
 	plt.show()
+
 	breakpoint()
 
 def _simplemapper(ds, vas, fig, ax, map_proj, indtime, title, lats, lons,  dim="Version"):
@@ -728,7 +730,6 @@ def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiment
 					setup = pickle.load(open(f"{fn_mod}_setuptransfromers.dat", "rb"))
 					dfC.loc[dfC.version == ver, "Estimated"] = setup['yTransformer'].inverse_transform(dfC.loc[dfC.version == ver, "Estimated"].values.reshape(-1, 1))
 
-				# breakpoint()
 		elif pvar == 'Delta_biomass':
 			dfC["Estimated"] += df_act["biomass"]
 		else:
@@ -742,6 +743,7 @@ def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiment
 		dfC["ObsGap"]        = df_act["ObsGap"].values
 		dfC["Region"]        = df_s["Region"].values
 		bioMls.append(dfC)
+		# breakpoint()
 
 	# ========== Convert to a dataframe ==========
 	df = pd.concat(bioMls).reset_index().sort_values(["version", "index"]).reset_index(drop=True)
