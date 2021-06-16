@@ -94,7 +94,7 @@ def main():
 	# ========== Chose the experiment ==========
 	exp      = 402
 	# ========== Pull out the prediction ==========
-	dfout, dfl = fpred(path, exp, bins=np.arange(0, 41, 4))
+	dfout, dfl = fpred(path, exp)#, bins=[0,4,5,6,9,10,11,14,15,16,19, 20, 40])
 
 	# ========== Plot the loss performance ==========
 	losspotter(path, ppath, dfout, dfl)
@@ -115,14 +115,21 @@ def losspotter(path, ppath, dfout, dfl):
 	# dfl["Obsloss"] = dfl["Obsloss"].astype(float)
 
 	dfl.rename(columns={"Obsloss":"LossProb", "GapGroup":"PredictionWindow","GapQuant":"QPredictionWindow"}, inplace=True)
-	sns.lineplot(y="LossProb", x="ModLossN", hue="PredictionWindow", data=dfl)#, ci="sd")
+	fig = sns.lineplot(y="LossProb", x="ModLossN", hue="PredictionWindow", data=dfl)#, ci="sd")
 	# dfg = dfl.groupby(["GapGroup", "ModLossN"])["LossProb"].mean().reset_index()
+	# breakpoint()
+	fig.set_yticks(np.arange(0, 1.1, 0.1))
+	fig.set_xticks(np.arange(0, 10, 1))
 	plt.show()
-	sns.lineplot(y="LossProb", x="ModLossN", hue="QPredictionWindow", data=dfl)
+	
+
+	fig = sns.lineplot(y="LossProb", x="ModLossN", hue="QPredictionWindow", data=dfl)
+	fig.set_yticks(np.arange(0, 1.1, 0.1))
+	fig.set_xticks(np.arange(0, 10, 1))
 	breakpoint()
 # ==============================================================================
 def fpred(path, exp, fpath    = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/", 
-	nanthresh=0.5, drop=True, bins=[0, 10, 20, 40], qbins=8):
+	nanthresh=0.5, drop=True, bins=[0, 5, 10, 15, 20, 40], qbins=8):
 	"""
 	function to predict future biomass
 	args:
