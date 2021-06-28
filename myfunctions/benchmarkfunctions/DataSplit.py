@@ -24,6 +24,62 @@ from sklearn.model_selection import train_test_split
 import myfunctions.corefunctions as cf
 from scipy.stats import spearmanr
 import bottleneck as bn
+from sklearn.model_selection import GroupShuffleSplit
+
+
+def altsplit(setup, df_site, vi_df, test_size, predvar, dropvar, version, 
+	basestr, folder, batchsplit=True,  n_splits=10, random_state=0, vers = None, columns=None):
+	"""group=None, y=None, x=None
+	An Alternative splitting function to the test train split mode
+	This will work 
+	"""
+	# ========== Inital split, if i'm not doing stuff then this will  ==========
+	if n_splits == 1:
+		ts = test_size
+	else:
+		ts  = setup['FullTestSize']
+		ts2 = np.round(test_size/(1-setup['FullTestSize']), decimals=3)
+
+	gss   = GroupShuffleSplit(n_splits=1, test_size=ts, random_state=random_state)
+	try:
+		group = vi_df["site"]
+		y     = vi_df[predvar].astype("float32")
+		X     = vi_df.drop([predvar, 'site']+ dropvar, axis = 1).astype("float32")
+		if not columns is None:
+			X = X.loc[:, columns]
+	except:
+		breakpoint()
+	# ========== make the prelim test train group ==========
+	for ptrain, ptest in gss.split(X, y, groups=group):
+		if n_splits == 1:
+			# ========== sace for second splits =====
+			breakpoint()
+			return X.iloc[ptrain], X.iloc[ptest], y.iloc[ptrain], y.iloc[ptest]
+
+	# ========== Now move on to the alternat split approach ==========	
+	gssM   = GroupShuffleSplit(n_splits=n_splits, test_size=ts2, random_state=random_state)
+
+	# ========== loop over the the second gss ==========
+	for num, (train, test) in enumerate(gssM.split(X.loc[ptrain], y.loc[ptrain], groups=group.loc[ptrain])):
+		print("Building Test/train dataset for version: ", num, pd.Timestamp.now())
+		VI_fnsplit = [folder + "%s_vers%02d_%s.csv" % (basestr,num, sptyp) for sptyp in ["X_train", "X_test", "y_train", "y_test"]]
+		# ========== Save them out  ==========
+		# breakpoint()
+		Xt_train =  X.loc[train]
+		yt_train =  y.loc[train]
+		
+		Xt_test  = X.loc[np.hstack([test,ptest])]
+		yt_test  = y.loc[np.hstack([test,ptest])]
+
+		for df, fn in zip([Xt_train, Xt_test, yt_train, yt_test ] , VI_fnsplit):
+			df.to_csv(fn)
+
+		if num == version:
+			X_train, X_test, y_train, y_test = [Xt_train, Xt_test, yt_train, yt_test]
+
+	# breakpoint()
+	return X_train, X_test, y_train, y_test
+
 
 def _testtrainbuild(version, VI_fnsplit,  vi_df, test_size, predvar, dropvar):
 	"""Function to make batch producing new ttsplit datasets eays"""
@@ -271,6 +327,7 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 		df_site = pd.read_csv(region_fn, index_col=0)
 		df_site.rename({"Plot_ID":"site"}, axis=1, inplace=True)
 
+
 	# ============Check if the files already exist ============
 	if all([os.path.isfile(fn) for fn in VI_fnsplit]) and not force:
 		# +++++ open existing files +++++
@@ -281,19 +338,28 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 			print(f"Swapping predictor variables from {y_test.columns[0]} to {predvar} at: {pd.Timestamp.now()}")
 			#swap out the predicto variable 
 			y_test  = pd.DataFrame(vi_df.loc[y_test.index, predvar])
-			if y_test[predvar].isnull().any():
-				X_test = X_test[~y_test[predvar].isnull()]
-				y_test = y_test[~y_test[predvar].isnull()]
 
 			y_train = pd.DataFrame(vi_df.loc[y_train.index, predvar])
-			if y_train[predvar].isnull().any():
-				X_train = X_train[~y_train[predvar].isnull()]
-				y_train = y_train[~y_train[predvar].isnull()]
+		if y_test[predvar].isnull().any():
+			X_test = X_test[~y_test[predvar].isnull()]
+			y_test = y_test[~y_test[predvar].isnull()]
+
+		if y_train[predvar].isnull().any():
+			X_train = X_train[~y_train[predvar].isnull()]
+			y_train = y_train[~y_train[predvar].isnull()]
 
 	else:
 		# breakpoint()
-		print("Building Test/train dataset for version: ", version, pd.Timestamp.now())
-		X_train, X_test, y_train, y_test = _testtrainbuild(version, VI_fnsplit,  vi_df.copy(), test_size, predvar, dropvar)
+		# here i have some callout method 
+		# Is should save all 10 versions in one go as well as a full withheld cross fraction
+		if setup["FullTestSize"] > 0:
+			X_train, X_test, y_train, y_test = altsplit(
+				setup, df_site,  vi_df, test_size, predvar, dropvar, version, basestr, folder, 
+				batchsplit=True, n_splits=10, random_state=0, vers = None)
+			# breakpoint()
+		else:
+			print("Building Test/train dataset for version: ", version, pd.Timestamp.now())
+			X_train, X_test, y_train, y_test = _testtrainbuild(version, VI_fnsplit,  vi_df.copy(), test_size, predvar, dropvar)
 
 	# ========== print time taken to get all the files ==========
 	if verbose:
@@ -352,9 +418,9 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 	if 'DropDist' in setup.keys():
 		if setup['DropDist']:
 			X_train = X_train[df_site.loc[X_train.index.values]["DistPassed"] == 1]
-			X_test  = X_test[df_site.loc[X_test.index.values]["DistPassed"] == 1]
+			X_test  = X_test [df_site.loc[X_test.index.values]["DistPassed"] == 1]
 			y_train = y_train[df_site.loc[y_train.index.values]["DistPassed"] == 1]
-			y_test  = y_test[df_site.loc[y_test.index.values]["DistPassed"] == 1]
+			y_test  = y_test [df_site.loc[y_test.index.values]["DistPassed"] == 1]
 
 		else:
 			print(f"Adding distance columns at: {pd.Timestamp.now()}")
@@ -365,18 +431,29 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 			y_train =  pd.concat([y_train, df_site.loc[y_train.index, distcols]], axis=1)
 			y_test  =  pd.concat([y_test,  df_site.loc[y_test.index, distcols]], axis=1)
 			# breakpoint()
-	
+	if "FutDist" in setup.keys():
+		distcal = df_site.BurnFut + df_site.DisturbanceFut
+		distcal.where(distcal<=100., 100, inplace=True)
+		dst = distcal <= setup["FutDist"]
+		X_train = X_train.loc[dst.loc[X_train.index.values]]
+		X_test  = X_test .loc[dst.loc[X_test.index.values] ]
+		y_train = y_train.loc[dst.loc[y_train.index.values]]
+		y_test  = y_test .loc[dst.loc[y_test.index.values] ]
+		# breakpoint()
 	# ========== Check sites with NaNs ==========
 	if 'DropNAN' in setup.keys() and not setup["DropNAN"] == 0:
 		# ========== Leave the NaNs in up to a specific value ==========
 		X_train = X_train.loc[X_train[cols_keep].isnull().mean(axis=1) <= setup["DropNAN"], cols_keep]
 		X_train.drop(X_train.columns[X_train.std() == 0], axis=1, inplace=True)
-		# =========== Get rid of columnns with les that 1% of value ===========
+		
+		# =========== Get rid of columnns with les that 10% of value ===========
 		# /// This is to solve a nan correllation problem. 
-		X_train.drop(X_train.columns[(
-			np.sum(~np.logical_or(
-				X_train.values == 0, 
-				np.isnan(X_train.values)), axis=0) /  X_train.values.shape[0]) < 0.01],axis=1,inplace=True)
+		if branch == 0:
+			# ========== add a sneaky column killer here ==========
+			# Changed from 0.01 to speed up first run
+			X_train.drop(X_train.columns[(
+				np.sum(~np.logical_or(X_train.values == 0, 
+					np.isnan(X_train.values)), axis=0) /  X_train.values.shape[0]) < 0.1],axis=1,inplace=True)
 
 		X_test  =  X_test.loc[X_test[X_train.columns].isnull().mean(axis=1) <= setup["DropNAN"], X_train.columns]
 		
@@ -476,7 +553,15 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 	else:
 		# ========== Non final Need to split the training set ==========
 		# /// This is done so that my test set is pristine when looking at final models \\\
-		X_trainRec, X_testRec, y_trainRec, y_testRec = train_test_split(X_train, y_train, test_size=test_size, random_state=branch)
+		if setup["FullTestSize"] > 0:
+			# this will also need to call into the random state
+			X_trainRec, X_testRec, y_trainRec, y_testRec = altsplit(
+				setup, df_site.loc[X_train.index.values],   vi_df.loc[X_train.index.values], test_size, predvar, dropvar, version, basestr, folder, 
+				batchsplit=False, n_splits=1, random_state=branch, vers = None, columns=cols_out)
+			# breakpoint()
+		else:
+			X_trainRec, X_testRec, y_trainRec, y_testRec = train_test_split(
+				X_train, y_train, test_size=test_size, random_state=branch)
 
 		# ============ Return the filtered data  ============
 		print("Returing the twice split test train set. Loading and processing the files took:",  pd.Timestamp.now()-t0)

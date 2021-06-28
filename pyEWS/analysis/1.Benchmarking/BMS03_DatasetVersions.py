@@ -206,6 +206,11 @@ def main(args):
 					else:
 						bsestr = f"TTS_VI_df_AllSampleyears_{setup['predvar']}" 
 
+					if setup["FullTestSize"] > 0:
+						bsestr += f"_{int(setup['FullTestSize']*100)}FWH"
+						# breakpoint()
+
+				# breakpoint()
 				X_train, X_test, y_train, y_test, col_nms, loadstats, corr, df_site = bf.datasplit(
 					setup["predvar"], experiment, version,  branch, setup, final=final,  cols_keep=ColNm, #force=True,
 					vi_fn=fnamein, region_fn=sfnamein, basestr=bsestr, dropvar=setup["dropvar"])
@@ -324,7 +329,7 @@ def main(args):
 
 
 
-	breakpoint()
+		breakpoint()
 
 # ==============================================================================
 
@@ -597,7 +602,14 @@ def Region_calculation(experiment, version, setup, path, fn_PI, fn_res,fnamein, 
 		bsestr = f"TTS_VI_df_{setup['predictwindow']}years"
 	else:
 		bsestr = f"TTS_VI_df_AllSampleyears" 
-	loadstats = bf.datasplit(setup["predvar"], experiment, version,  0, setup, final=True,  cols_keep=ColNm, RStage=True, sitefix=True, 	vi_fn=fnamein, region_fn=sfnamein, basestr=bsestr)
+
+		if setup["FullTestSize"] > 0:
+			bsestr += f"_{int(setup['FullTestSize']*100)}FWH"
+	# breakpoint()
+	# breakpoint()
+	loadstats = bf.datasplit(setup["predvar"], experiment, version,  0, setup, 
+		final=True,  cols_keep=ColNm, RStage=True, sitefix=True, 
+		vi_fn=fnamein, region_fn=sfnamein, basestr=bsestr)
 
 	
 	# ========== Create a new data file ==========
@@ -688,6 +700,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
 		"Step"             :None,
+		"FullTestSize"     :0,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[301] = ({
@@ -727,6 +740,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
 		"Step"             :None,
+		"FullTestSize"     :0,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[302] = ({
@@ -766,6 +780,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
 		"Step"             :None,
+		"FullTestSize"     :0,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[303] = ({
@@ -805,6 +820,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
 		"Step"             :None,
+		"FullTestSize"     :0,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[304] = ({
@@ -844,6 +860,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
 		"Step"             :None,
+		"FullTestSize"     :0,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[305] = ({
@@ -883,6 +900,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
 		"Step"             :None,
+		"FullTestSize"     :0,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[310] = ({
@@ -922,6 +940,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
 		"Step"             :None,
+		"FullTestSize"     :0,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 
@@ -962,6 +981,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
 		"Step"             :None,
+		"FullTestSize"     :0,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[321] = ({
@@ -1001,6 +1021,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
 		"Step"             :None,
+		"FullTestSize"     :0,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[322] = ({
@@ -1040,6 +1061,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
 		"Step"             :None,
+		"FullTestSize"     :0,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[323] = ({
@@ -1079,6 +1101,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
 		"Step"             :None,
+		"FullTestSize"     :0,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[330] = ({
@@ -1118,6 +1141,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
 		"Step"             :None,
+		"FullTestSize"     :0,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[331] = ({
@@ -1157,6 +1181,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
 		"Step"             :None,
+		"FullTestSize"     :0,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[332] = ({
@@ -1196,6 +1221,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
 		"Step"             :None,
+		"FullTestSize"     :0,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	expr[333] = ({
@@ -1235,6 +1261,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
 		"Step"             :None,
+		"FullTestSize"     :0,
 		"AltMethod"        :None # alternate method to use after slowdown point is reached
 		})
 	
@@ -1275,6 +1302,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
 		"Step"             :None,
+		"FullTestSize"     :0,
 		"AltMethod"        :"BackStep" # alternate method to use after slowdown point is reached
 		})
 	expr[335] = ({
@@ -1314,6 +1342,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, 
 		"Step"             :None,
+		"FullTestSize"     :0,
 		"AltMethod"        :"BackStep" # alternate method to use after slowdown point is reached
 		})
 
@@ -1354,6 +1383,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :334, # identical runs except at the last stage
 		"Step"             :5,
+		"FullTestSize"     :0,
 		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
 		})
 	expr[337] = ({
@@ -1393,6 +1423,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :335, # identical runs except at the last stage
 		"Step"             :5,
+		"FullTestSize"     :0,
 		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
 		})
 	
@@ -1433,6 +1464,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, # identical runs except at the last stage
 		"Step"             :4,
+		"FullTestSize"     :0,
 		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
 		})
 	expr[401] = ({
@@ -1472,6 +1504,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, # identical runs except at the last stage
 		"Step"             :4,
+		"FullTestSize"     :0,
 		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
 		})
 	expr[402] = ({
@@ -1511,6 +1544,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, # identical runs except at the last stage
 		"Step"             :4,
+		"FullTestSize"     :0,
 		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
 		})
 	expr[403] = ({
@@ -1550,6 +1584,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, # identical runs except at the last stage
 		"Step"             :4,
+		"FullTestSize"     :0,
 		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
 		})
 	expr[404] = ({
@@ -1589,6 +1624,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, # identical runs except at the last stage
 		"Step"             :4,
+		"FullTestSize"     :0,
 		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
 		})
 	expr[405] = ({
@@ -1628,6 +1664,7 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, # identical runs except at the last stage
 		"Step"             :4,
+		"FullTestSize"     :0,
 		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
 		})
 	expr[406] = ({
@@ -1667,7 +1704,49 @@ def experiments(ncores = -1):
 		"maxR2drop"        :0.025,
 		"pariedRun"        :None, # identical runs except at the last stage
 		"Step"             :4,
+		"FullTestSize"     :0,
 		"AltMethod"        :"RFECV" # alternate method to use after slowdown point is reached
+		})
+	expr[410] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :410,
+		"predvar"          :"Delta_biomass",
+		"dropvar"          :["Obs_biomass"],
+		"name"             :"OneStageXGBOOST_AllGap_50perNA_PermutationImp_RFECV_FINAL_Delta_biomass_altsplit",
+		"desc"             :"Testing different prediction approaches with paper final model configuration with an additional split param",
+		"window"           :10,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"Model"            :"XGBoost", 
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
+		"yTransformer"     :None, 
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"model"            :"XGBoost", 
+		"maxitter"         :14, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :False,
+		"StopPoint"        :5,
+		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"pariedRun"        :None, # identical runs except at the last stage
+		"Step"             :4,
+		"FullTestSize"     :0.1,
+		"AltMethod"        :"RFECV", # alternate method to use after slowdown point is reached
+		"FutDist"          :20
 		})
 	return expr
 

@@ -86,6 +86,7 @@ def main():
 	biomass  = pd.read_csv(fpath+"PSP_total_changesV2.csv", index_col=0)
 	# GPS locations
 	regions  = pd.read_csv("./EWS_package/data/raw_psp/All_sites_Regions.csv", index_col=0)#.set_index("Plot_ID")
+	# _gpsfix(biomass, regions)
 	# sample dates
 	df_SD   = pd.read_csv(fpath+"survey_datesV2.csv", index_col=0)
 
@@ -189,6 +190,7 @@ def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, pe
 				bio_orig = bio.iloc[I1]
 				bio_delt = bio.iloc[I2]
 				year     = surv[I1]
+				yrfn     = surv[I2]
 				if info["Norm"]:
 					if (bio_delt+bio_orig) == 0:
 						lagged_biomass = 0
@@ -221,6 +223,17 @@ def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, pe
 				if info['PredictInt'] is None:
 					outdict["ObsGap"] = dif[I2, I1]
 				bmchange[len(bmchange)] = outdict
+				Isize = [len(Sinfo)]
+				re2 = _damagecal(index, year, yrfn, damage_win, df_dam, df_burn, df_StandAge, info, re, Isize)
+
+
+				# ========== sanity check the values ==========
+				# +++++ long  +++++
+				if (re2["Longitude"].isnull().values[0]) or (re2["Latitude"].isnull().values[0]):
+					badvalue["cords"].append(re2)
+
+				Sinfo.append(re2)
+				# breakpoint()
 
 				# if loc.shape[0]>1:
 				# 	print(year)
@@ -230,6 +243,7 @@ def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, pe
 			I1       = bn.nanargmax(surv)
 			bio_orig = bio.iloc[I1]
 			year     = surv[I1]
+			yrfn     = None
 
 			outdict = OrderedDict({
 				"site":index, 
@@ -241,83 +255,26 @@ def biomass_extractor(biomass, regions, df_SD, info, df_dam,  df_burn, soils, pe
 			# breakpoint()
 			# add the prediction lag when i'm assessing multiple indexes
 			bmchange[len(bmchange)] = outdict
+			Isize = [len(Sinfo)]
+			re2 = _damagecal(index, year, yrfn, damage_win, df_dam, df_burn, df_StandAge, info, re, Isize)
 
+			# ========== sanity check the values ==========
+			# +++++ long  +++++
+			if (re2["Longitude"].isnull().values[0]) or (re2["Latitude"].isnull().values[0]):
+				badvalue["cords"].append(re2)
+
+			Sinfo.append(re2)
+			# breakpoint()
 			# breakpoint()
 		else:
 			warn.warn("Not implemented yet")
 			breakpoint()
 
-		# ========== This is where i bring in all the other params ==========
-		# +++++ Disturbance +++++
-		yrsD  = np.max([1926, year-damage_win]) # THis has been included to deal with issues abbout indexing befo32 1932
-		if index in df_dam.index:
-			dist = df_dam.loc[index, np.arange(yrsD, year).astype(int).astype(str)].sum()*100.
-			# Find the disturbance gap
-			if (df_dam.loc[index, np.arange(1926, year).astype(int).astype(str)] > 0).any():
-				dist_year = (df_dam.loc[index, np.arange(1926, year).astype(int).astype(str)] > 0).reset_index().rename({"index":"year"}, axis=1)
-				dgap = year - np.max((dist_year.loc[dist_year[index], "year"]).astype(int).values)
-			else:
-				dgap = np.NaN
-		else:
-			dist = np.NaN
-			dgap = np.NaN
-
-		# +++++ fires +++++
-		yrsF  = np.max([1917, year-damage_win])
-		if index in df_burn.index:
-			burn = df_burn.loc[index, np.arange(yrsF, year).astype(int).astype(str)].sum()
-			# check for a burn gap
-			if (df_burn.loc[index, np.arange(1917, year).astype(int).astype(str)]>0).any():
-				burn_years = (df_burn.loc[index, np.arange(1917, year).astype(int).astype(str)]>0).reset_index().rename({"index":"year"}, axis=1)
-				bgap = year - np.max((burn_years.loc[burn_years[index], "year"]).astype(int).values)
-			else:
-				bgap = np.NaN
-		elif index.startswith("11_"):
-			# Error in indexing
-			breakpoint()
-		else:
-			burn = np.NaN
-			bgap = np.NaN
 
 
-		# ++++++++++ StandAge ++++++++++
-		if index in df_StandAge.index:
-			standage = year - df_StandAge.loc[index, "StandAge"]
-		else:
-			standage = np.NaN
-
-		# ========== Add the site infomation ==========
-		re2 = re.copy(deep=True)
-		# if re2.isnull().values.any():
-		# 	breakpoint()
-		re2["year"]           = year
-		re2["index"]          = [len(Sinfo)]
-		re2["Disturbance"]    = dist
-		re2["DisturbanceGap"] = dgap
-		re2["Burn"]           = burn
-		re2["BurnGap"]        = bgap
-		re2["StandAge"]	      = standage
-		re2["DistPassed"]     = float((dist+burn) <= 0.1)
-		re2.set_index("index", inplace=True, drop=True)
-
-		# ========== sanity check the values ==========
-		# +++++ long  +++++
-		if (re2["Longitude"].isnull().values[0]) or (re2["Latitude"].isnull().values[0]):
-			badvalue["cords"].append(re2)
-
-		# 	# Bad longitude
-
-		# 	print(re2)
-		# 	breakpoint()
-
-		# # +++++ Lat +++++
-		# if (re2["Latitude"].values[0] > 71) or (re2["Latitude"].values[0] <= 40):
-		# 	print(re2)
-
-		Sinfo.append(re2)
 
 	# ========== Build the dataframes ==========
-	breakpoint()
+	# breakpoint()
 
 	print("\n Building dataframes")
 	sites  = pd.concat(Sinfo)
@@ -532,6 +489,109 @@ def SolSiteParms(sites, df_exp, info):
 
 # ==============================================================================
 # ==============================================================================
+def _damagecal(index, year, yrfn, damage_win, df_dam, df_burn, df_StandAge, info, re, Isize):
+	# ========== This is where i bring in all the other params ==========
+	if yrfn is None:
+		yrfn = 2017 # the end of the data records for disturbance
+	# +++++ Disturbance +++++
+	yrsD  = np.max([1926, year-damage_win]) # THis has been included to deal with issues abbout indexing befo32 1932
+	if index in df_dam.index:
+		dist = df_dam.loc[index, np.arange(yrsD, year).astype(int).astype(str)].sum()*100.
+		fdis = df_dam.loc[index, np.arange(year, yrfn+1).astype(int).astype(str)].sum()*100.
+		# Find the disturbance gap
+		# breakpoint()
+		if (df_dam.loc[index, np.arange(1926, year).astype(int).astype(str)] > 0).any():
+			dist_year = (df_dam.loc[index, np.arange(1926, year).astype(int).astype(str)] > 0).reset_index().rename({"index":"year"}, axis=1)
+			dgap = year - np.max((dist_year.loc[dist_year[index], "year"]).astype(int).values)
+		else:
+			dgap = np.NaN
+	else:
+		dist = np.NaN
+		fdis = np.NaN
+		dgap = np.NaN
+
+	# +++++ fires +++++
+	yrsF  = np.max([1917, year-damage_win])
+	if index in df_burn.index:
+		burn = df_burn.loc[index, np.arange(yrsF, year).astype(int).astype(str)].sum()
+		fbrn = df_burn.loc[index, np.arange(year, yrfn+1).astype(int).astype(str)].sum()
+		# check for a burn gap
+		if (df_burn.loc[index, np.arange(1917, year).astype(int).astype(str)]>0).any():
+			burn_years = (df_burn.loc[index, np.arange(1917, year).astype(int).astype(str)]>0).reset_index().rename({"index":"year"}, axis=1)
+			bgap = year - np.max((burn_years.loc[burn_years[index], "year"]).astype(int).values)
+		else:
+			bgap = np.NaN
+	elif index.startswith("11_"):
+		# Error in indexing
+		breakpoint()
+	else:
+		burn = np.NaN
+		fbrn = np.NaN
+		bgap = np.NaN
+
+
+	# ++++++++++ StandAge ++++++++++
+	if index in df_StandAge.index:
+		standage = year - df_StandAge.loc[index, "StandAge"]
+	else:
+		standage = np.NaN
+	if standage < 0:
+		breakpoint()
+
+
+
+	# ========== Add the site infomation ==========
+	re2 = re.copy(deep=True)
+	# if re2.isnull().values.any():
+	# 	breakpoint()
+	re2["year"]           = year
+	re2["index"]          = Isize
+	re2["Disturbance"]    = dist
+	re2["DisturbanceGap"] = dgap
+	re2["DisturbanceFut"] = fdis
+	re2["Burn"]           = burn
+	re2["BurnGap"]        = bgap
+	re2["BurnFut"]        = fbrn
+	re2["StandAge"]	      = standage
+	re2["DistPassed"]     = float((dist+burn) <= 0.1)
+	re2.set_index("index", inplace=True, drop=True)
+	return re2
+
+
+def _gpsfix(biomass, regions):
+	path = "./EWS_package/data/raw_psp/"
+
+	dfL  = pd.read_csv(f"{path}All_sites_101218.csv", index_col=0)
+	dfS  = pd.read_csv(f"{path}All_sites_20181012.csv", index_col=0)
+
+	regions.loc[regions["Longitude"] ==  -6743524.000, "Longitude"] = -67.30599926509987 # accurate conversion
+	# regions.loc[regions["Longitude"] ==  -7537091.929, ["Longitude", "Latitude"]] =  [-65.45, 47.3] # complete hack
+	# regions.loc[regions["Longitude"] ==  0, ["Longitude", "Latitude"]] =  [-64.966762, 44.2119495] # complete hack
+	# regions[np.logical_or(regions["Latitude"] <40,   regions["Latitude"]>75)]
+	# regions  = pd.read_csv("./EWS_package/data/raw_psp/All_sites_Regions.csv", index_col=0)
+	# dfL.equals(dfS)
+
+	# dfL.equals(regions.loc[:,["Plot_ID", "Longitude", "Latitude"]])
+	badvalue = []
+	
+	# ========== install some lat lon fixs ==========
+	# ========== iterate through the rows to find ones with the correct gap ==========
+	for num, (index, row) in tqdm(enumerate(biomass.iterrows()), total=biomass.shape[0]):
+		# cf.lineflick(num, biomass.shape[0], t0)
+		# ========== pull out the relevant data ==========
+		re   = (regions[regions.Plot_ID == index]).copy(deep=True)#.rest_index(drop=True)
+		if re.empty:
+			# print(f"site {index} is missing")
+			REI = _regionfix(index)
+			badvalue.append({"Plot_ID":index, "Region":REI, "cause":"Missing"})
+			if REI == "YT":
+				breakpoint()
+		elif re["Latitude"].values <40 or re["Latitude"].values>75:
+			badvalue.append({"Plot_ID":index, "Region":_regionfix(index), "cause":"Error"})
+	df = pd.DataFrame(badvalue)
+	breakpoint()
+	return regions
+
 def _regionfix(site):
 	"""
 	Function to work out which region each site is and return it 
