@@ -53,7 +53,6 @@ def altsplit(setup, df_site, vi_df, test_size, predvar, dropvar, version,
 	for ptrain, ptest in gss.split(X, y, groups=group):
 		if n_splits == 1:
 			# ========== sace for second splits =====
-			breakpoint()
 			return X.iloc[ptrain], X.iloc[ptest], y.iloc[ptrain], y.iloc[ptest]
 
 	# ========== Now move on to the alternat split approach ==========	
