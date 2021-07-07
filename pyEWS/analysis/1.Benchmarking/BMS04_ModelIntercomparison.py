@@ -122,10 +122,13 @@ def main():
 	splts[-1] = 1.00001
 	# ========== Make a list of experiment groups ==========
 	threeHunExp = df_setup[df_setup.Code.astype(int) >= 300]["Code"].astype(int).values
+	PerfExp = [410, 415]
 	FinExp = [400, 401, 402,  404]#403,
 	NanExp = [300, 320, 321, 322, 323, 400]
 	ModExp = [330, 332, 333]
-	for experiments, ncols, gpnm in zip([FinExp, ModExp, NanExp, threeHunExp, None], [3, 5, 5, 7], ["FinalExp","SetupExp","NaNexp","DtMod", ""]):
+	for experiments, ncols, gpnm in zip([PerfExp, FinExp, ModExp, NanExp, threeHunExp, None], [2, 3, 5, 5, 7], ["PerformanceEXP", "FinalExp","SetupExp","NaNexp","DtMod", ""]):
+		Main_plots(path, df_mres, df_setup, df_OvsP, df_branch, keys, experiments=experiments, sumtxt=gpnm)
+		
 		confusion_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=experiments,
 			split = splts, sumtxt=f"SplitEqualDist{gpnm}", annot=False, ncol = ncols)
 
@@ -138,7 +141,6 @@ def main():
 
 		Region_plots(path, df_mres, df_setup, df_OvsP, keys, experiments=experiments, ncol = 4, sumtxt=gpnm)
 		
-		Main_plots(path, df_mres, df_setup, df_OvsP, df_branch, keys, experiments=experiments, sumtxt=gpnm)
 		# breakpoint()
 		breakpoint()
 	breakpoint()
