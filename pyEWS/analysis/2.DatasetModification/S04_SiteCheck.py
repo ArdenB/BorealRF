@@ -78,6 +78,7 @@ def main():
 
 	# ========== select the relevant data files ==========
 	fpath = "./EWS_package/data/psp/"
+	rpath = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/"
 
 	folder   = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/"
 	fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears_ObsBiomass.csv"
@@ -86,6 +87,44 @@ def main():
 	vi_df    = pd.read_csv(fnamein, index_col=0)
 	vi_df["Plot_ID"] = site_df["Plot_ID"]
 	# group_kfold = GroupKFold(n_splits=10)
+
+	dfl  = pd.read_csv(f"{folder}TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv", index_col=0)
+	expo = 402
+	expn = 411
+	dfp  = pd.read_csv(f"{rpath}{expn}/Exp411_OneStageXGBOOST_AllGap_50perNA_PermutationImp_RFECV_FINAL_Delta_biomass_altsplit_vers00_OBSvsPREDICTED.csv", index_col=0)
+	metl = []
+	
+	# ========== Take a look for fully witheld sites ==========
+	for n in range(10):
+		X_test  = pd.read_csv(f"{folder}TTS_VI_df_AllSampleyears_vers0{n}_X_test.csv", index_col=0)
+		X_train = pd.read_csv(f"{folder}TTS_VI_df_AllSampleyears_vers0{n}_X_train.csv", index_col=0)
+		# ========== read in the results ==========
+		dfpo = pd.read_csv(f"{rpath}{expo}/Exp{expo}_OneStageXGBOOST_AllGap_50perNA_PermutationImp_RFECV_FINAL_Delta_biomass_vers0{n}_OBSvsPREDICTED.csv", index_col=0)
+		# dfpo["Plot_ID"] = site_df.loc[dfpo.index,"Plot_ID"]
+		test_sites      = site_df.loc[dfpo.index,"Plot_ID"]#.unique()
+		
+		train_sites = site_df.loc[X_train.index,"Plot_ID"].unique()
+		all_site    = np.unique(np.hstack([site_df.loc[X_test.index,"Plot_ID"], site_df.loc[X_train.index,"Plot_ID"]]))
+
+		isuni     = [ts not in train_sites for ts in test_sites]
+
+		# dfl.loc[X_test[isuni].index.values, "0"]
+		
+		inboth = [tsi in dfp.index.values for tsi in dfpo[isuni].index.values]
+		# dfpo[isuni]
+
+		dfm = dfpo[isuni].loc[inboth].copy()
+		dfm["ResO"] = dfm.Estimated - dfm.Observed  
+		dfm["EstP"] = dfp.loc[dfm.index, "Estimated"]
+		dfm["ResP"] = dfm.EstP - dfm.Observed  
+		metl.append(dfm)
+		print(sum(isuni)/float(dfpo.shape[0]) * 100.0)
+
+	dftm = pd.concat(metl, ignore_index=True)
+	dftm.ResP.abs() < dftm.ResO.abs() 
+
+	breakpoint()
+	# ========== group tts ==========
 	gss = GroupShuffleSplit(n_splits=10, test_size=0.2, random_state=0)
 	y = vi_df['Delta_biomass']
 
@@ -109,15 +148,6 @@ def main():
 
 
 
-	for n in range(10):
-		X_test  = pd.read_csv(f"{folder}TTS_VI_df_AllSampleyears_vers0{n}_X_test.csv", index_col=0)
-		X_train = pd.read_csv(f"{folder}TTS_VI_df_AllSampleyears_vers0{n}_X_train.csv", index_col=0)
-		test_sties  = site_df.loc[X_test.index,"Plot_ID"].unique()
-		train_sties = site_df.loc[X_train.index,"Plot_ID"].unique()
-		all_site    = np.unique(np.hstack([site_df.loc[X_test.index,"Plot_ID"], site_df.loc[X_train.index,"Plot_ID"]]))
-
-		isuni     = [ts not in train_sties for ts in test_sties]
-		print(sum(isuni)/float(all_site.size) * 100.0)
 
 
 	breakpoint()

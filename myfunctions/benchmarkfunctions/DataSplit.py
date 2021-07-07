@@ -41,44 +41,124 @@ def altsplit(setup, df_site, vi_df, test_size, predvar, dropvar, version,
 		ts2 = np.round(test_size/(1-setup['FullTestSize']), decimals=3)
 
 	gss   = GroupShuffleSplit(n_splits=1, test_size=ts, random_state=random_state)
+	fnl   = f"{folder}{basestr}_TTSlookup.csv"
 	try:
-		group = vi_df["site"]
+		if setup["splitvar"] == "site":
+			group = vi_df["site"]
+		elif setup["splitvar"] == ["site", "yrend"]:
+			df_site["yrend"] = vi_df.ObsGap + df_site.year
+			df_site["grp"]   = df_site.groupby(setup["splitvar"]).grouper.group_info[0]
+			group = df_site["grp"]
+			
+		else:
+			warn.warn("Not implemented yet")
+			breakpoint()
 		y     = vi_df[predvar].astype("float32")
-		X     = vi_df.drop([predvar, 'site']+ dropvar, axis = 1).astype("float32")
+		X     = vi_df.drop([predvar, 'site'] + dropvar, axis = 1).astype("float32")
 		if not columns is None:
 			X = X.loc[:, columns]
 	except:
 		breakpoint()
 	# ========== make the prelim test train group ==========
-	for ptrain, ptest in gss.split(X, y, groups=group):
-		if n_splits == 1:
-			# ========== sace for second splits =====
-			return X.iloc[ptrain], X.iloc[ptest], y.iloc[ptrain], y.iloc[ptest]
+	if setup['FullTestSize'] > 0:
+		for ptrain, ptest in gss.split(X, y, groups=group):
+			# ========== Check and see if the values have already been randomised ==========
+			if np.all(np.diff(X.index.values) > 0):
+				rng = np.random.default_rng(random_state)
+				rng.shuffle(ptest)
+			# else:
+			# 	# ========== go to lookup table ==========
+			# 	dfl = pd.read_csv(fnl, index_col=0)
+			# 	
+			if n_splits == 1:
+				# ========== sace for second splits =====
+				if not _sizecheck(X.iloc[ptrain], X.iloc[ptest], y.iloc[ptrain], y.iloc[ptest]):
+					warn.warn("Size Check failed here")
+					breakpoint()
+				return X.iloc[ptrain], X.iloc[ptest], y.iloc[ptrain], y.iloc[ptest]
+		# ========== loop over the the second gss ==========
+		Xp  = X.iloc[ptrain]
+		yp  = y.iloc[ptrain]
+		gp  = group.iloc[ptrain]
+	else:
+
+		Xp  = X.copy()
+		yp  = y.copy()
+		gp  = group.copy()
+		ptest = []
+
 
 	# ========== Now move on to the alternat split approach ==========	
-	gssM   = GroupShuffleSplit(n_splits=n_splits, test_size=ts2, random_state=random_state)
+	gssM = GroupShuffleSplit(n_splits=n_splits, test_size=ts2, random_state=random_state)
+	dfc  = pd.DataFrame(np.zeros((vi_df.shape[0], n_splits))*np.NaN, index=vi_df.index, columns=np.arange(n_splits))
+	vfc  = np.vectorize(_findcords, excluded=["ptest", "itest","vtest", "vtrain"])
 
-	# ========== loop over the the second gss ==========
-	for num, (train, test) in enumerate(gssM.split(X.loc[ptrain], y.loc[ptrain], groups=group.loc[ptrain])):
+	for num, (train, test) in enumerate(gssM.split(Xp, yp, groups=gp)):
 		print("Building Test/train dataset for version: ", num, pd.Timestamp.now())
-		VI_fnsplit = [folder + "%s_vers%02d_%s.csv" % (basestr,num, sptyp) for sptyp in ["X_train", "X_test", "y_train", "y_test"]]
+		VI_fnsplit = [folder + "%s_vers%02d_%s.csv" % (basestr, num, sptyp) for sptyp in ["X_train", "X_test", "y_train", "y_test"]]
 		# ========== Save them out  ==========
-		# breakpoint()
-		Xt_train =  X.loc[train]
-		yt_train =  y.loc[train]
+		rng = np.random.default_rng(num)
+		rng.shuffle(test)
+		rng.shuffle(train)
+		Xt_train =  Xp.iloc[train]
+		yt_train =  yp.iloc[train]
+		gt_train =  gp.iloc[train]
 		
-		Xt_test  = X.loc[np.hstack([test,ptest])]
-		yt_test  = y.loc[np.hstack([test,ptest])]
+		if setup['FullTestSize'] > 0:
+			Xt_test  = Xp.iloc[test].append(X.iloc[ptest])
+			yt_test  = yp.iloc[test].append(y.iloc[ptest])
+		else:
+			Xt_test  = Xp.iloc[test]
+			yt_test  = yp.iloc[test]
+		# breakpoint()
+		# ========== CHECK THE SIZE ==========
+		if not _sizecheck(Xt_train, Xt_test, yt_train, yt_test):
+			warn.warn("Size Check failed here")
+			breakpoint()
+		# ========== create the validation set ==========
+		gssV = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=num)
+		for vtrain, vtest in gssV.split(Xt_train, yt_train, groups=gt_train):
+			# ========== Create a lookup table ==========
+			dfc.loc[:, num] = vfc(
+				dfc.index.values, 
+				ptest  = ptest, 
+				itest  = yp.index.values[test], 
+				vtest  = yt_train.index.values[vtest], 
+				vtrain = yt_train.index.values[vtrain])
 
+			# breakpoint()
+		
+			
+		# ========== Write the file out ==========
 		for df, fn in zip([Xt_train, Xt_test, yt_train, yt_test ] , VI_fnsplit):
 			df.to_csv(fn)
-
+		
+		# ========== Check and see if its the requested version ==========
 		if num == version:
 			X_train, X_test, y_train, y_test = [Xt_train, Xt_test, yt_train, yt_test]
+		
 
-	# breakpoint()
+	if not _sizecheck(X_train, X_test, y_train, y_test):
+		warn.warn("Size Check failed inside altsplit function")
+		breakpoint()
+	
+	# ========== save the lookup table ==========
+	dfc.to_csv(fnl)
+
 	return X_train, X_test, y_train, y_test
 
+def _findcords(x, ptest, itest, vtest, vtrain):
+	# Function check if x is in different arrays
+	if x in ptest: #multi run fully witheld 
+		return 3
+	elif x in itest: #full witheld fract
+		return 2
+	elif x in vtest: #validation test
+		return 1
+	elif x in vtrain: #training set
+		return 0
+	else:
+		raise ValueError("x not in any index")
 
 def _testtrainbuild(version, VI_fnsplit,  vi_df, test_size, predvar, dropvar):
 	"""Function to make batch producing new ttsplit datasets eays"""
@@ -218,6 +298,16 @@ def _regionbuilder(region_fn, vi_df, predvar):
 
 	return site_df
 
+def _sizecheck(X_train, X_test, y_train, y_test):
+	checks=([
+		X_train.shape[1]== X_test.shape[1], 
+		X_train.shape[0]== y_train.shape[0], 
+		X_test.shape[0]== y_test.shape[0], 
+		not any(X_train.index.duplicated()),
+		not any(X_test.index.duplicated()),  
+		y_test.index.equals(X_test.index), 
+		y_train.index.equals(X_train.index)])
+	return all(checks)
 # ========== Make some simple stats ===========
 def _simplestatus(vi_df, X, df_site):
 	statsOD = OrderedDict()
@@ -255,9 +345,11 @@ def _simplestatus(vi_df, X, df_site):
 			statsOD["%s_sitepos" % region]  = df_full.Region.value_counts()[region]
 			statsOD["%s_sitefrac" % region] = 0.0
 	return statsOD
+
 # ==============================================================================
 # The main part of the function is here
 # ==============================================================================
+
 def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=None, test_size=0.2, dftype="pandas", 
 	cols_keep=None, verbose = True, region=False,  final=False, RStage=True,
 	vi_fn = "./EWS_package/data/models/input_data/vi_df_all_V2.csv", 
@@ -326,7 +418,7 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 		df_site = pd.read_csv(region_fn, index_col=0)
 		df_site.rename({"Plot_ID":"site"}, axis=1, inplace=True)
 
-
+	# breakpoint()
 	# ============Check if the files already exist ============
 	if all([os.path.isfile(fn) for fn in VI_fnsplit]) and not force:
 		# +++++ open existing files +++++
@@ -348,10 +440,9 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 			y_train = y_train[~y_train[predvar].isnull()]
 
 	else:
-		# breakpoint()
 		# here i have some callout method 
 		# Is should save all 10 versions in one go as well as a full withheld cross fraction
-		if setup["FullTestSize"] > 0:
+		if not setup["FullTestSize"] is None:
 			X_train, X_test, y_train, y_test = altsplit(
 				setup, df_site,  vi_df, test_size, predvar, dropvar, version, basestr, folder, 
 				batchsplit=True, n_splits=10, random_state=0, vers = None)
@@ -361,6 +452,10 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 			X_train, X_test, y_train, y_test = _testtrainbuild(version, VI_fnsplit,  vi_df.copy(), test_size, predvar, dropvar)
 
 	# ========== print time taken to get all the files ==========
+	if not _sizecheck(X_train, X_test, y_train, y_test):
+		warn.warn("Size Check failed here 1")
+		breakpoint()
+
 	if verbose:
 		print("loading the files using %s took: " % dftype, pd.Timestamp.now()-t0)
 
@@ -397,6 +492,24 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 	# ========== Droplist for columns ========== 
 	droplist = ['site', "year",  predvar, 'landsatgroup']+dropvar
 	
+
+	# ========== Drop disturbed sites ==========
+	if 'DropDist' in setup.keys():
+		if setup['DropDist']:
+			X_train = X_train[df_site.loc[X_train.index.values]["DistPassed"] == 1]
+			X_test  = X_test [df_site.loc[X_test.index.values]["DistPassed"] == 1]
+			y_train = y_train[df_site.loc[y_train.index.values]["DistPassed"] == 1]
+			y_test  = y_test [df_site.loc[y_test.index.values]["DistPassed"] == 1]
+
+		else:
+			print(f"Adding Disturbance columns at: {pd.Timestamp.now()}")
+			distcols = ["Disturbance",  "DisturbanceGap",   "Burn",  "BurnGap",  "StandAge"]
+			# ========== Add additional columns here ==========
+			X_train =  pd.concat([X_train, df_site.loc[X_train.index, distcols]], axis=1)
+			X_test  =  pd.concat([X_test,  df_site.loc[X_test.index, distcols]], axis=1)
+			y_train =  pd.concat([y_train, df_site.loc[y_train.index, distcols]], axis=1)
+			y_test  =  pd.concat([y_test,  df_site.loc[y_test.index, distcols]], axis=1)
+			# breakpoint()
 	# ============ Filter the rows ============
 	if cols_keep is None:
 		# +++++ A container to hold the kept columns  +++++ 
@@ -413,51 +526,46 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 			else:
 				cols_keep.append(cn)
 
-	# ========== Drop disturbed sites ==========
-	if 'DropDist' in setup.keys():
-		if setup['DropDist']:
-			X_train = X_train[df_site.loc[X_train.index.values]["DistPassed"] == 1]
-			X_test  = X_test [df_site.loc[X_test.index.values]["DistPassed"] == 1]
-			y_train = y_train[df_site.loc[y_train.index.values]["DistPassed"] == 1]
-			y_test  = y_test [df_site.loc[y_test.index.values]["DistPassed"] == 1]
-
-		else:
-			print(f"Adding distance columns at: {pd.Timestamp.now()}")
-			distcols = ["Disturbance",  "DisturbanceGap",   "Burn",  "BurnGap",  "StandAge"]
-			# ========== Add additional columns here ==========
-			X_train =  pd.concat([X_train, df_site.loc[X_train.index, distcols]], axis=1)
-			X_test  =  pd.concat([X_test,  df_site.loc[X_test.index, distcols]], axis=1)
-			y_train =  pd.concat([y_train, df_site.loc[y_train.index, distcols]], axis=1)
-			y_test  =  pd.concat([y_test,  df_site.loc[y_test.index, distcols]], axis=1)
-			# breakpoint()
+	# ========== Drop disturbed sites ==========		
 	if "FutDist" in setup.keys():
 		distcal = df_site.BurnFut + df_site.DisturbanceFut
 		distcal.where(distcal<=100., 100, inplace=True)
+		
 		dst = distcal <= setup["FutDist"]
 		X_train = X_train.loc[dst.loc[X_train.index.values]]
 		X_test  = X_test .loc[dst.loc[X_test.index.values] ]
 		y_train = y_train.loc[dst.loc[y_train.index.values]]
 		y_test  = y_test .loc[dst.loc[y_test.index.values] ]
+
+		if not _sizecheck(X_train, X_test, y_train, y_test):
+			warn.warn("Size Check failed here 2")
+			breakpoint()
 		# breakpoint()
 	# ========== Check sites with NaNs ==========
+
 	if 'DropNAN' in setup.keys() and not setup["DropNAN"] == 0:
-		# ========== Leave the NaNs in up to a specific value ==========
-		X_train = X_train.loc[X_train[cols_keep].isnull().mean(axis=1) <= setup["DropNAN"], cols_keep]
-		X_train.drop(X_train.columns[X_train.std() == 0], axis=1, inplace=True)
-		
 		# =========== Get rid of columnns with les that 10% of value ===========
 		# /// This is to solve a nan correllation problem. 
-		if branch == 0:
-			# ========== add a sneaky column killer here ==========
-			# Changed from 0.01 to speed up first run
-			X_train.drop(X_train.columns[(
-				np.sum(~np.logical_or(X_train.values == 0, 
-					np.isnan(X_train.values)), axis=0) /  X_train.values.shape[0]) < 0.1],axis=1,inplace=True)
+		# ========== add a sneaky column killer here ==========
+		# Changed from 0.01 to speed up first run
+		X_train = X_train[cols_keep]
+		X_train.drop(X_train.columns[(
+			np.sum(~np.logical_or(X_train.values == 0, 
+				np.isnan(X_train.values)), axis=0) /  X_train.values.shape[0]) < 0.01],axis=1,inplace=True)
+		# ========== Leave the NaNs in up to a specific value ==========
+		X_train = X_train.loc[X_train.isnull().mean(axis=1) <= setup["DropNAN"],]
+		X_train.drop(X_train.columns[X_train.std() == 0], axis=1, inplace=True)
+		
+
 
 		X_test  =  X_test.loc[X_test[X_train.columns].isnull().mean(axis=1) <= setup["DropNAN"], X_train.columns]
 		
 		y_train = pd.DataFrame(y_train[predvar][X_train.index])
 		y_test  = pd.DataFrame(y_test[predvar][X_test.index])
+		
+		if not _sizecheck(X_train, X_test, y_train, y_test):
+			warn.warn("Size Check failed here 3")
+			breakpoint()
 	else:
 		# ========== Remove any nans ==========
 
@@ -512,6 +620,9 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 	try:
 		if 'DropNAN' in setup.keys() and not setup["DropNAN"] == 0:
 			Xa = X.copy().dropna()
+			if Xa.shape[0]/X.shape[0] < 0.6:
+				warn.warn("too small fraction")
+				breakpoint()
 			corr = spearmanr(Xa).correlation	
 		else:
 			corr = spearmanr(X).correlation
@@ -544,6 +655,10 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 
 	# ========== Split the data  ==========
 	if final:
+		if not _sizecheck(X_train, X_test, y_train, y_test):
+			warn.warn("Size Check failed at the end")
+			breakpoint()
+
 		print("Returing the true test train set. Loading and processing the files took:",  pd.Timestamp.now()-t0)
 		if setup['Nstage']!=1 and not RStage:
 			return X_train, X_test, y_train, y_test, cols_out, statsOD, corr, df_site, classified
@@ -552,16 +667,32 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 	else:
 		# ========== Non final Need to split the training set ==========
 		# /// This is done so that my test set is pristine when looking at final models \\\
-		if setup["FullTestSize"] > 0:
+		if not setup["FullTestSize"] is None:
+			fnl   = f"{folder}{basestr}_TTSlookup.csv"
+			dfl   = pd.read_csv(fnl, index_col=0)
+			ind   = y_train.index.values
+			# ========== Check to make sure i'm pulling out the right values ==========
+			assert dfl.iloc[ind, version].max() == 1
+			X_trainRec = X_train[dfl.iloc[ind, version] == 0]
+			X_testRec  = X_train[dfl.iloc[ind, version] == 1]
+			y_trainRec = y_train[dfl.iloc[ind, version] == 0]
+			y_testRec  = y_train[dfl.iloc[ind, version] == 1]
+			
+			# dfl.loc[ind, version]
+			# breakpoint()
 			# this will also need to call into the random state
-			X_trainRec, X_testRec, y_trainRec, y_testRec = altsplit(
-				setup, df_site.loc[X_train.index.values],   vi_df.loc[X_train.index.values], test_size, predvar, dropvar, version, basestr, folder, 
-				batchsplit=False, n_splits=1, random_state=branch, vers = None, columns=cols_out)
+			# X_trainRec, X_testRec, y_trainRec, y_testRec = altsplit(
+			# 	setup, df_site.loc[X_train.index.values],   vi_df.loc[X_train.index.values], test_size, predvar, dropvar, version, basestr, folder, 
+			# 	batchsplit=False, n_splits=1, random_state=version, vers = None, columns=cols_out)
 			# breakpoint()
 		else:
+			# In versions pre 410, there was a mistake here where random state was branch not versions
 			X_trainRec, X_testRec, y_trainRec, y_testRec = train_test_split(
-				X_train, y_train, test_size=test_size, random_state=branch)
+				X_train, y_train, test_size=test_size, random_state=version)
 
+		if not _sizecheck(X_trainRec, X_testRec, y_trainRec, y_testRec):
+			warn.warn("Size Check failed at the end 2")
+			breakpoint()
 		# ============ Return the filtered data  ============
 		print("Returing the twice split test train set. Loading and processing the files took:",  pd.Timestamp.now()-t0)
 		if setup['Nstage']!=1 and not RStage:
