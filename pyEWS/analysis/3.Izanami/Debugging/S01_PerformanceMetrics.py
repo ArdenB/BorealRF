@@ -77,27 +77,40 @@ print("seaborn version : ", sns.__version__)
 def main():
 
 	# ========= Load in the observations ==========
-	path  = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/"
-	cols  =  ['experiment','version','R2', 'TotalTime', 'fractrows', 'colcount',]
-	fn  = './pyEWS/experiments/3.ModelBenchmarking/1.Datasets/TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv'
-	dfk        = pd.read_csv(fn, index_col=0)
+	path = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/"
+	cols =  ['experiment','version','R2', 'TotalTime', 'fractrows', 'colcount',]
+	fn   = './pyEWS/experiments/3.ModelBenchmarking/1.Datasets/TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv'
+	dfk  = pd.read_csv(fn, index_col=0)
+	# +++++ PULL OUT THE INDEXS for the full witheld +++++
+	indFW = dfk.index[dfk.iloc[:, 0] == 3].values
 	# breakpoint()
 	# ========== Experiment 1 - Subsetting of data ==========
-	# experiments = {410:"410 - FWH Sites", 415:"415 - FWH-PredYear"}
-	# MMT = True
-
-	# # +++++ PULL OUT THE INDEXS +++++
-	# indFW = dfk.index[dfk.iloc[:, 0] == 3].values
-
-
-	# OpenDatasets("Witholding method", path, cols, experiments, indFW)
+	experiments = {410:"410 - FWH Sites", 415:"415 - FWH-PredYear"}
+	MMT = True
+	OpenDatasets("Witholding method", path, cols, experiments, indFW, MMT)
 
 	# ========== Experiment 2 - Size of multimode full witheld ==========
 	experiments  = {410:"410 - 30% testsize", 412:"412 - 20% test size"}
-	indFW = dfk.index[dfk.iloc[:, 0] == 2].values
-	# breakpoint()
-	OpenDatasets("Test Dataset Size", path, cols, experiments, indFW)
+	OpenDatasets("Test Dataset Size", path, cols, experiments, indFW, False)
+	
+	# ========== Experiment 3 - Future Disturbance ==========
+	exp = [413, 410, 414]
+	experiments  = {413:"413 - All Fut Dist", 410:f"410 - 20% Fut", 414:f"414 - 40% Fut"}
+	OpenDatasets("Disturbance Tollerance", path, cols, experiments, indFW, False)
+
+	# ========== Experiment 4 - Adding some optimsation ==========
+	experiments = {410:"410 - FWH Sites",411:"411 - FWH Sites + opt"}
+	MMT = True
+	OpenDatasets("Witholding method and optimsation", path, cols, experiments, indFW, False, True)
 	breakpoint()
+	
+	
+
+
+
+	# indFW = dfk.index[dfk.iloc[:, 0] == 2].values
+	# breakpoint()
+
 	# MMT  = False
 	# pair = True
 	# breakpoint()
@@ -116,15 +129,11 @@ def main():
 
 
 
-	# ========== Experiment 3 - Future Disturbance ==========
-	exp = [413, 410, 414]
-	MMT  = False
-	pair = True
 
 
 
 # ==============================================================================
-def OpenDatasets(name, path, cols, experiments, indFW):
+def OpenDatasets(name, path, cols, experiments, indFW, MMT, IMT=False):
 		# reslist = []
 	# res = OrderedDict()re
 	res   = []
@@ -184,11 +193,12 @@ def OpenDatasets(name, path, cols, experiments, indFW):
 		# breakpoint()
 
 	dfr  = pd.DataFrame(res)#.T.reset_index()
+	dfr["AbsResidual"] = dfr["Residual"].abs()
 	dfp = pd.concat(perfn)
-	plotmaker(name, experiments, dfr, dfp)
-	breakpoint()
+	plotmaker(name, experiments, dfr, dfp, MMT, IMT)
+	# breakpoint()
 
-def plotmaker(name, exp, dfr, dfp):
+def plotmaker(name, experiments, dfr, dfp, MMT, IMT):
 	font = ({
 		'weight' : 'bold', 
 		'size'   : 9})
@@ -202,47 +212,90 @@ def plotmaker(name, exp, dfr, dfp):
 	mpl.rc('font', **font)
 	mpl.rc('axes', **axes)
 	# plt.subplots(,)
+	Name_order = [experiments[exp] for exp in experiments]
+	# breakpoint()
 
 	# ========== Plot Broad summary  ==========
 	fig, ((ax1, ax2, ax3), (ax4, ax5, ax6)) = plt.subplots(
 		2, 3, figsize=(15,10),num=(name), dpi=130)
 	# +++++ R2 plot +++++
-	sns.barplot(y="R2", x="experiment", data=dfp, ci=0.95, ax=ax1)#, order=exp_names)
-	ax1.set_xlabel("")
-	ax1.set_ylabel(r"$R^{2}$")
-	# ax1.set_xticklabels(ax1.get_xticklabels(), rotation=10, horizontalalignment='right')
-	ax1.set(ylim=(0., 1.))
-	
-	# +++++ time taken plot +++++
-	sns.barplot(y="MAE", x="experiment", data=dfp, ci=0.95, ax=ax2)
-	ax2.set_xlabel("")
-	ax2.set_ylabel(r"Mean Absolute Error")
-	# ax2.set_xticklabels(ax2.get_xticklabels(), rotation=10, horizontalalignment='right')
+	if not IMT:
+		sns.barplot(y="R2", x="experiment", data=dfp, ci="sd", ax=ax1)#, order=exp_names)
+		ax1.set_xlabel("")
+		ax1.set_ylabel(r"$R^{2}$")
+		# ax1.set_xticklabels(ax1.get_xticklabels(), rotation=10, horizontalalignment='right')
+		ax1.set(ylim=(0., 1.))
+		
+		# +++++ time taken plot +++++
+		sns.barplot(y="MAE", x="experiment", data=dfp, ci="sd", ax=ax2)
+		ax2.set_xlabel("")
+		ax2.set_ylabel(r"Mean Absolute Error")
+		# ax2.set_xticklabels(ax2.get_xticklabels(), rotation=10, horizontalalignment='right')
 
-	sns.barplot(y="RMSE", x="experiment", data=dfp, ci=0.95, ax=ax3)
-	ax3.set_xlabel("")
-	ax3.set_ylabel(r"RMSE")
+		sns.barplot(y="RMSE", x="experiment", data=dfp, ci="sd", ax=ax3)
+		ax3.set_xlabel("")
+		ax3.set_ylabel(r"RMSE")
+	else:
+		# breakpoint()
+		sns.barplot(y="R2", x="version", hue="experiment", data=dfp, hue_order = Name_order, ci="sd", ax=ax1)#, order=exp_names)
+		ax1.set_xlabel("")
+		ax1.set_ylabel(r"$R^{2}$")
+		# ax1.set_xticklabels(ax1.get_xticklabels(), rotation=10, horizontalalignment='right')
+		ax1.set(ylim=(0., 1.))
+		
+		# +++++ time taken plot +++++
+		sns.barplot(y="colcount", x="version", hue="experiment", data=dfp, hue_order = Name_order, ci="sd", ax=ax2)
+		ax2.set_xlabel("")
+		ax2.set_ylabel(f"No. Predictors")
+		# ax2.set_xticklabels(ax2.get_xticklabels(), rotation=10, horizontalalignment='right')
+
+		sns.barplot(y="RMSE", x="version", hue="experiment", data=dfp, hue_order = Name_order, ci="sd", ax=ax3)
+		ax3.set_xlabel("")
+		ax3.set_ylabel(f"RMSE")
 	# ax2.set_xticklabels(ax3.get_xticklabels(), rotation=10, horizontalalignment='right')
+	if MMT:
+		dfrx = dfr.groupby(["experiment","SiteFWH"])["winner", "CorrectDir"].mean().reset_index()
+		# breakpoint()
+		
+		# # +++++ site fraction plot +++++
+		sns.barplot(y="winner",  hue="experiment", x="SiteFWH", data=dfrx, ax=ax4)
+		ax4.set_xlabel("")
+		ax4.set_ylabel("Best prediction %")
+		# ax3.set_xticklabels(ax3.get_xticklabels(), rotation=30, horizontalalignment='right')
+		# ax3.set(ylim=(0., 1.))
+		sns.barplot(y="CorrectDir",  hue="experiment", x="SiteFWH", data=dfrx, ax=ax5)
+		ax5.set_xlabel("")
+		ax5.set_ylabel("Correct Direction %")
 
-	dfrx = dfr.groupby(["experiment","SiteFWH"])["winner", "CorrectDir"].mean().reset_index()
-	# breakpoint()
-	
-	# # +++++ site fraction plot +++++
-	sns.barplot(y="winner",  hue="experiment", x="SiteFWH", data=dfrx, ax=ax4)
-	ax4.set_xlabel("")
-	ax4.set_ylabel("Best prediction %")
-	# ax3.set_xticklabels(ax3.get_xticklabels(), rotation=30, horizontalalignment='right')
-	# ax3.set(ylim=(0., 1.))
-	sns.barplot(y="CorrectDir",  hue="experiment", x="SiteFWH", data=dfrx, ax=ax5)
-	ax5.set_xlabel("")
-	ax5.set_ylabel("Correct Direction %")
+
+		def absmean(x):	return np.mean(np.abs(x))
+		dfrr = dfr.groupby(["experiment", "Version","SiteFWH"])["Residual"].apply(absmean).reset_index()
+		sns.barplot(y="Residual",  hue="experiment", x="SiteFWH", data=dfrr, ax=ax6)
+		ax6.set_xlabel("")
+		ax6.set_ylabel("Grouped Mean Absolute Residual")
+	else:
+		dfrx = dfr.groupby(["experiment","Version"])["winner", "CorrectDir"].mean().reset_index()
+		# breakpoint()
+		
+		# # +++++ site fraction plot +++++
+		sns.barplot(y="winner",  hue="experiment", x="Version", data=dfrx, ax=ax4, hue_order=Name_order)
+		ax4.set_xlabel("")
+		ax4.set_ylabel("Best prediction %")
+		# ax3.set_xticklabels(ax3.get_xticklabels(), rotation=30, horizontalalignment='right')
+		# ax3.set(ylim=(0., 1.))
+		sns.barplot(y="CorrectDir",  hue="experiment", x="Version", data=dfrx, ax=ax5, hue_order=Name_order)
+		ax5.set_xlabel("")
+		ax5.set_ylabel("Correct Direction %")
 
 
-	def absmean(x):	return np.mean(np.abs(x))
-	dfrr = dfr.groupby(["experiment", "Version","SiteFWH"])["Residual"].apply(absmean).reset_index()
-	sns.barplot(y="Residual",  hue="experiment", x="SiteFWH", data=dfrr, ax=ax6)
-	ax6.set_xlabel("")
-	ax6.set_ylabel("Grouped Mean Absolute Residual")
+		def absmean(x):	return np.mean(np.abs(x))
+		dfrr = dfr.groupby(["experiment", "Version"])["Residual"].apply(absmean).reset_index()
+
+
+		sns.barplot(y="AbsResidual",  hue="experiment", x="Version", data=dfr, ax=ax6, ci=0.95, hue_order=Name_order)
+		ax6.set_xlabel("")
+		ax6.set_ylabel("Mean Absolute Residual")
+		# breakpoint()
 	# .mean()
 	# ax4.set_xticklabels(ax3.get_xticklabels(), rotation=30, horizontalalignment='right')
 	# ax4.set(ylim=(0., np.ceil(df_set.itterrows.max()/1000)*1000))
