@@ -76,21 +76,56 @@ print("seaborn version : ", sns.__version__)
 # ==============================================================================
 def main():
 
+	# ========= Load in the observations ==========
 	path  = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/"
 	cols  =  ['experiment','version','R2', 'TotalTime', 'fractrows', 'colcount',]
-		# breakpoint()
-	# ========== Experiment 1 - Subsetting of data ==========
-	experiments = {410:"410 - FWH Sites", 415:"415 - FWH-PredYear"}
-	MMT = True
-	fn  = './pyEWS/experiments/3.ModelBenchmarking/1.Datasets/TTS_VI_df_AllSampleyears_10FWH_siteyear_TTSlookup.csv'
-
-	# ========= Load in the observations ==========
+	fn  = './pyEWS/experiments/3.ModelBenchmarking/1.Datasets/TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv'
 	dfk        = pd.read_csv(fn, index_col=0)
-	# df_OP      = pd.concat([load_OBS(ofn) for ofn in OvP_fnames], sort=True)
-	# +++++ PULL OUT THE INDEXS +++++
-	indFW = dfk.index[dfk.iloc[:, 0] == 3].values
+	# breakpoint()
+	# ========== Experiment 1 - Subsetting of data ==========
+	# experiments = {410:"410 - FWH Sites", 415:"415 - FWH-PredYear"}
+	# MMT = True
+
+	# # +++++ PULL OUT THE INDEXS +++++
+	# indFW = dfk.index[dfk.iloc[:, 0] == 3].values
+
+
+	# OpenDatasets("Witholding method", path, cols, experiments, indFW)
+
+	# ========== Experiment 2 - Size of multimode full witheld ==========
+	experiments  = {410:"410 - 30% testsize", 412:"412 - 20% test size"}
+	indFW = dfk.index[dfk.iloc[:, 0] == 2].values
+	# breakpoint()
+	OpenDatasets("Test Dataset Size", path, cols, experiments, indFW)
+	breakpoint()
+	# MMT  = False
+	# pair = True
+	# breakpoint()
+	# dfrx = dfr.groupby(["SiteFWH", "winner"]).count()["Observed"].reset_index()
+	# plt.show()
+
+	# breakpoint()
+	# dfr['count_max'] = dfr.groupby(['index', "Version"])['Residual'].abs().transform(min)
+	# df_mres = pd.concat([pd.read_csv(mrfn, index_col=0).T.loc[:, cols] for mrfn in perfn], sort=True)
+	# sns.barplot(y = "Observed", x = "SiteFWH", hue="winner", data=dfrx)
+	# plt.show()
+
 	
-	# reslist = []
+	breakpoint()
+
+
+
+
+	# ========== Experiment 3 - Future Disturbance ==========
+	exp = [413, 410, 414]
+	MMT  = False
+	pair = True
+
+
+
+# ==============================================================================
+def OpenDatasets(name, path, cols, experiments, indFW):
+		# reslist = []
 	# res = OrderedDict()re
 	res   = []
 	perfn = []
@@ -131,6 +166,7 @@ def main():
 			for nu, (ex, dfpp) in enumerate(zip(experiments, dflist)):
 				# if not ind in indFW:
 				# 	continue
+				# breakpoint()
 				res.append({
 					"index":ind, 
 					"experiment":experiments[ex], 
@@ -149,42 +185,11 @@ def main():
 
 	dfr  = pd.DataFrame(res)#.T.reset_index()
 	dfp = pd.concat(perfn)
-	breakpoint()
-	breakpoint()
-	# dfrx = dfr.groupby(["SiteFWH", "winner"]).count()["Observed"].reset_index()
-	# plt.show()
-
-	# breakpoint()
-	# dfr['count_max'] = dfr.groupby(['index', "Version"])['Residual'].abs().transform(min)
-	# df_mres = pd.concat([pd.read_csv(mrfn, index_col=0).T.loc[:, cols] for mrfn in perfn], sort=True)
-	# sns.barplot(y = "Observed", x = "SiteFWH", hue="winner", data=dfrx)
-	# plt.show()
-
-	plotmaker(exp, dfr, dfp)
-	
+	plotmaker(name, experiments, dfr, dfp)
 	breakpoint()
 
-
-
-	# ========== Experiment 2 - Size of multimode full witheld ==========
-	exp  = [410, 412]
-	MMT  = False
-	pair = True
-
-	# ========== Experiment 3 - Future Disturbance ==========
-	exp = [413, 410, 414]
-	MMT  = False
-	pair = True
-
-
-
-# ==============================================================================
-def OpenDatasets(exp, MMT, pair):
-	pass
-
-def plotmaker(exp, dfr, dfrx, dfp):
+def plotmaker(name, exp, dfr, dfp):
 	font = ({
-		'family' : 'normal',
 		'weight' : 'bold', 
 		'size'   : 9})
 	axes = ({
@@ -200,40 +205,50 @@ def plotmaker(exp, dfr, dfrx, dfp):
 
 	# ========== Plot Broad summary  ==========
 	fig, ((ax1, ax2, ax3), (ax4, ax5, ax6)) = plt.subplots(
-		2, 3, figsize=(15,10),num=("General Summary"), dpi=130)
+		2, 3, figsize=(15,10),num=(name), dpi=130)
 	# +++++ R2 plot +++++
 	sns.barplot(y="R2", x="experiment", data=dfp, ci=0.95, ax=ax1)#, order=exp_names)
 	ax1.set_xlabel("")
 	ax1.set_ylabel(r"$R^{2}$")
-	ax1.set_xticklabels(ax1.get_xticklabels(), rotation=30, horizontalalignment='right')
+	# ax1.set_xticklabels(ax1.get_xticklabels(), rotation=10, horizontalalignment='right')
 	ax1.set(ylim=(0., 1.))
 	
 	# +++++ time taken plot +++++
-	sns.barplot(y="MAE", x="experiment", data=df_set, ci=0.95, ax=ax2)
+	sns.barplot(y="MAE", x="experiment", data=dfp, ci=0.95, ax=ax2)
 	ax2.set_xlabel("")
 	ax2.set_ylabel(r"Mean Absolute Error")
-	ax2.set_xticklabels(ax2.get_xticklabels(), rotation=30, horizontalalignment='right')
+	# ax2.set_xticklabels(ax2.get_xticklabels(), rotation=10, horizontalalignment='right')
 
-	sns.barplot(y="MAE", x="experiment", data=df_set, ci=0.95, ax=ax2)
-	ax2.set_xlabel("")
-	ax2.set_ylabel(r"Mean Absolute Error")
-	ax2.set_xticklabels(ax2.get_xticklabels(), rotation=30, horizontalalignment='right')
+	sns.barplot(y="RMSE", x="experiment", data=dfp, ci=0.95, ax=ax3)
+	ax3.set_xlabel("")
+	ax3.set_ylabel(r"RMSE")
+	# ax2.set_xticklabels(ax3.get_xticklabels(), rotation=10, horizontalalignment='right')
+
+	dfrx = dfr.groupby(["experiment","SiteFWH"])["winner", "CorrectDir"].mean().reset_index()
+	# breakpoint()
 	
 	# # +++++ site fraction plot +++++
-	# sns.barplot(y="fractrows", x="experiment", data=df_set, ci="sd", ax=ax3, order=exp_names)
-	# ax3.set_xlabel("")
-	# ax3.set_ylabel("% of sites")
+	sns.barplot(y="winner",  hue="experiment", x="SiteFWH", data=dfrx, ax=ax4)
+	ax4.set_xlabel("")
+	ax4.set_ylabel("Best prediction %")
 	# ax3.set_xticklabels(ax3.get_xticklabels(), rotation=30, horizontalalignment='right')
 	# ax3.set(ylim=(0., 1.))
-	
-	# # +++++ site fraction plot +++++
-	# sns.barplot(y="itterrows", x="experiment", data=df_set, ci="sd", ax=ax4, order=exp_names)
-	# ax4.set_xlabel("")
-	# ax4.set_ylabel("No. of sites")
+	sns.barplot(y="CorrectDir",  hue="experiment", x="SiteFWH", data=dfrx, ax=ax5)
+	ax5.set_xlabel("")
+	ax5.set_ylabel("Correct Direction %")
+
+
+	def absmean(x):	return np.mean(np.abs(x))
+	dfrr = dfr.groupby(["experiment", "Version","SiteFWH"])["Residual"].apply(absmean).reset_index()
+	sns.barplot(y="Residual",  hue="experiment", x="SiteFWH", data=dfrr, ax=ax6)
+	ax6.set_xlabel("")
+	ax6.set_ylabel("Grouped Mean Absolute Residual")
+	# .mean()
 	# ax4.set_xticklabels(ax3.get_xticklabels(), rotation=30, horizontalalignment='right')
 	# ax4.set(ylim=(0., np.ceil(df_set.itterrows.max()/1000)*1000))
 	plt.tight_layout()
 	plt.show()
+	# breakpoint()
 
 
 def load_OBS(ofn):
