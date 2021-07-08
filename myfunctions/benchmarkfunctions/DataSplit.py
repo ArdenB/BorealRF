@@ -653,17 +653,23 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 
 
 
-	# ========== Split the data  ==========
+	if not _sizecheck(X_train, X_test, y_train, y_test):
+		warn.warn("Size Check failed at the end")
+		breakpoint()
+	# ========== Split the data and return ==========
+	if setup["debug"]:
+		# Container for the debugging stuff
+		dbg = {"X_test":X_test, "y_test":y_test}
+	else:
+		dbg = None
+	
 	if final:
-		if not _sizecheck(X_train, X_test, y_train, y_test):
-			warn.warn("Size Check failed at the end")
-			breakpoint()
 
 		print("Returing the true test train set. Loading and processing the files took:",  pd.Timestamp.now()-t0)
 		if setup['Nstage']!=1 and not RStage:
-			return X_train, X_test, y_train, y_test, cols_out, statsOD, corr, df_site, classified
+			return X_train, X_test, y_train, y_test, cols_out, statsOD, corr, df_site, dbg, classified
 		else:
-			return X_train, X_test, y_train, y_test, cols_out, statsOD, corr, df_site
+			return X_train, X_test, y_train, y_test, cols_out, statsOD, corr, df_site, dbg
 	else:
 		# ========== Non final Need to split the training set ==========
 		# /// This is done so that my test set is pristine when looking at final models \\\
@@ -696,9 +702,9 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 		# ============ Return the filtered data  ============
 		print("Returing the twice split test train set. Loading and processing the files took:",  pd.Timestamp.now()-t0)
 		if setup['Nstage']!=1 and not RStage:
-			return X_trainRec, X_testRec, y_trainRec, y_testRec, cols_out, statsOD, corr, df_site, classified
+			return X_trainRec, X_testRec, y_trainRec, y_testRec, cols_out, statsOD, corr, df_site, dbg, classified
 		else:
-			return X_trainRec, X_testRec, y_trainRec, y_testRec, cols_out, statsOD, corr, df_site
+			return X_trainRec, X_testRec, y_trainRec, y_testRec, cols_out, statsOD, corr, df_site, dbg
 
 
 

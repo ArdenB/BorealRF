@@ -216,7 +216,7 @@ def main(args):
 
 				# breakpoint()
 				# X_train2, X_test2, y_train2, y_test2, col_nms2, loadstats2, corr2, df_site2 = bf.datasplit(setup["predvar"], experiment, version,  branch, setup, final=False,  cols_keep=ColNm, vi_fn=fnamein, region_fn=sfnamein, basestr=bsestr, dropvar=setup["dropvar"])
-				X_train, X_test, y_train, y_test, col_nms, loadstats, corr, df_site = bf.datasplit(
+				X_train, X_test, y_train, y_test, col_nms, loadstats, corr, df_site, dbg = bf.datasplit(
 					setup["predvar"], experiment, version,  branch, setup, final=final,  cols_keep=ColNm, #force=True,
 					vi_fn=fnamein, region_fn=sfnamein, basestr=bsestr, dropvar=setup["dropvar"])
 				# if final:
@@ -240,9 +240,9 @@ def main(args):
 					print("Max Branch is:", setup["maxitter"])
 
 				# ========== Perform the Regression ==========
-				time,  r2, feature_imp, ColNm  = ml_regression(
+				time,  r2, feature_imp, ColNm, score_debug  = ml_regression(
 					X_train, X_test, y_train, y_test, path, col_nms, orig_clnm, experiment, 
-					version, branch,  setup, corr_linkage,fn_RFE, fn_RCV,  verbose=False, final=final)
+					version, branch,  setup, corr_linkage,fn_RFE, fn_RCV, dbg,  verbose=False, final=final)
 
 				if (setup["AltMethod"] in ["BackStep", "RFECV"]) and final:
 					NV = len(ColNm)
@@ -254,6 +254,8 @@ def main(args):
 					"RFtime":time, "TimeCumulative":pd.Timestamp.now() -t0,  
 					"R2":r2, "NumVar":NV,  "SiteFraction":loadstats["fractrows"]
 					})
+				if setup["debug"]:
+					perf["Branch%02d" % branch].update(score_debug)
 				
 
 				# ========== Print out branch performance ==========
@@ -344,7 +346,7 @@ def main(args):
 
 def ml_regression( 
 	X_train, X_test, y_train, y_test, path, col_nms, orig_clnm, 
-	experiment, version, branch, setup, corr_linkage, fn_RFE, fn_RCV, 
+	experiment, version, branch, setup, corr_linkage, fn_RFE, fn_RCV, dbg,
 	verbose=True, perm=True, final = False):
 	"""
 	This function is to test out the  speed of the random forest regressions using
@@ -452,17 +454,24 @@ def ml_regression(
 	# ========== make a list of names ==========
 	clnames = X_train.columns.values
 	r2 = sklMet.r2_score(y_test, y_pred)
-	
+
+	# ========== Do the debug scoring ==========
+	if setup["debug"]:
+		DGBy_pred = regressor.predict(dbg["X_test"].values)
+		score_debug = OrderedDict()
+		score_debug["FWH:R2"]   = sklMet.r2_score(dbg["y_test"], DGBy_pred)
+		score_debug["FWH:MAE"]  = sklMet.mean_absolute_error(dbg["y_test"], DGBy_pred)
+		score_debug["FWH:RMSE"] = np.sqrt(sklMet.mean_squared_error(dbg["y_test"], DGBy_pred))
+		print('DEBUG: r squared score:',        score_debug["FWH:R2"]  )
+		print('DEBUG: Mean Absolute Error:',    score_debug["FWH:MAE"] )
+		print('DEBUG: Root Mean Squared Error:',score_debug["FWH:RMSE"])
+	else:
+		score_debug = None
 	# ========== print all the infomation if verbose ==========
-	if verbose or r2 < 0.5:
+	if verbose or r2 < 0.6:
 		print('r squared score:',         sklMet.r2_score(y_test, y_pred))
 		print('Mean Absolute Error:',     sklMet.mean_absolute_error(y_test, y_pred))
-		print('Mean Squared Error:',      sklMet.mean_squared_error(y_test, y_pred))
 		print('Root Mean Squared Error:', np.sqrt(sklMet.mean_squared_error(y_test, y_pred)))
-		# breakpoint()
-		# ========== print Variable importance ==========
-		# for var, imp in  zip(clnames, regressor.feature_importances_):
-		# 	print("Variable: %s Importance: %06f" % (var, imp))
 
 	# ========== Convert Feature importance to a dictionary ==========
 	FI = OrderedDict()
@@ -521,14 +530,14 @@ def ml_regression(
 
 
 
-		return tDif, r2, FI, col_nms
+		return tDif, r2, FI, col_nms, score_debug
 
 	else:
 		ColNm = Variable_selection(corr_linkage, branch, FI, col_nms, orig_clnm)
 		# if len(ColNm) <=  setup['SlowPoint']:
 		# 	# ========== Implement some fof stopping here ==========
 		# 	breakpoint()
-		return tDif, sklMet.r2_score(y_test, y_pred), FI, ColNm
+		return tDif, sklMet.r2_score(y_test, y_pred), FI, ColNm, score_debug
 
 
 def _predictedVSobserved(y_test, y_pred, experiment, version, branch, setup):
@@ -697,7 +706,8 @@ def experiments(ncores = -1):
 		"window"           :5,
 		"predictwindow"    :5,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -715,7 +725,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :0.0, 
 		"DropDist"         :True,
@@ -737,7 +746,8 @@ def experiments(ncores = -1):
 		"window"           :10,
 		"predictwindow"    :5,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -755,7 +765,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :0.0, 
 		"DropDist"         :True,
@@ -777,7 +786,8 @@ def experiments(ncores = -1):
 		"window"           :15,
 		"predictwindow"    :5,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -795,7 +805,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :0.0, 
 		"DropDist"         :True,
@@ -817,7 +826,8 @@ def experiments(ncores = -1):
 		"window"           :5,
 		"predictwindow"    :10,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -835,7 +845,7 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
+		"debug"            : False,
 		"maxitter"         :10, 
 		"DropNAN"          :0.0, 
 		"DropDist"         :True,
@@ -857,7 +867,8 @@ def experiments(ncores = -1):
 		"window"           :10,
 		"predictwindow"    :10,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -875,7 +886,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :0.0, 
 		"DropDist"         :True,
@@ -897,7 +907,8 @@ def experiments(ncores = -1):
 		"window"           :15,
 		"predictwindow"    :10,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -915,7 +926,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :0.0, 
 		"DropDist"         :True,
@@ -937,7 +947,8 @@ def experiments(ncores = -1):
 		"window"           :5,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -955,7 +966,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :0.0, 
 		"DropDist"         :True,
@@ -978,7 +988,8 @@ def experiments(ncores = -1):
 		"window"           :5,
 		"predictwindow"    :5,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -996,7 +1007,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :20, 
 		"DropNAN"          :0.25, 
 		"DropDist"         :True,
@@ -1018,7 +1028,8 @@ def experiments(ncores = -1):
 		"window"           :5,
 		"predictwindow"    :5,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1036,7 +1047,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :20, 
 		"DropNAN"          :0.50, 
 		"DropDist"         :True,
@@ -1058,7 +1068,8 @@ def experiments(ncores = -1):
 		"window"           :5,
 		"predictwindow"    :5,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1076,7 +1087,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :20, 
 		"DropNAN"          :0.75, 
 		"DropDist"         :True,
@@ -1098,7 +1108,8 @@ def experiments(ncores = -1):
 		"window"           :5,
 		"predictwindow"    :5,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1116,7 +1127,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :20, 
 		"DropNAN"          :1.0, 
 		"DropDist"         :True,
@@ -1138,7 +1148,8 @@ def experiments(ncores = -1):
 		"window"           :5,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1156,7 +1167,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :True,
@@ -1178,7 +1188,8 @@ def experiments(ncores = -1):
 		"window"           :5,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1196,7 +1207,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :1.0, 
 		"DropDist"         :True,
@@ -1218,7 +1228,8 @@ def experiments(ncores = -1):
 		"window"           :5,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1236,7 +1247,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :False,
@@ -1258,7 +1268,8 @@ def experiments(ncores = -1):
 		"window"           :5,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1276,7 +1287,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :True,
@@ -1299,7 +1309,8 @@ def experiments(ncores = -1):
 		"window"           :5,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1317,7 +1328,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :True,
@@ -1339,7 +1349,8 @@ def experiments(ncores = -1):
 		"window"           :5,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1357,7 +1368,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :True,
@@ -1380,7 +1390,8 @@ def experiments(ncores = -1):
 		"window"           :5,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1398,7 +1409,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :True,
@@ -1420,7 +1430,8 @@ def experiments(ncores = -1):
 		"window"           :5,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1438,7 +1449,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :10, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :True,
@@ -1461,7 +1471,8 @@ def experiments(ncores = -1):
 		"window"           :10,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1479,7 +1490,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :14, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :False,
@@ -1501,7 +1511,8 @@ def experiments(ncores = -1):
 		"window"           :10,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1519,7 +1530,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :14, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :False,
@@ -1541,7 +1551,8 @@ def experiments(ncores = -1):
 		"window"           :10,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1559,7 +1570,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :14, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :False,
@@ -1581,7 +1591,8 @@ def experiments(ncores = -1):
 		"window"           :10,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1599,7 +1610,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :14, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :False,
@@ -1621,7 +1631,8 @@ def experiments(ncores = -1):
 		"window"           :10,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1639,7 +1650,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :14, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :False,
@@ -1661,7 +1671,8 @@ def experiments(ncores = -1):
 		"window"           :10,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1679,7 +1690,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :14, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :False,
@@ -1701,7 +1711,8 @@ def experiments(ncores = -1):
 		"window"           :10,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1719,7 +1730,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :14, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :False,
@@ -1741,7 +1751,8 @@ def experiments(ncores = -1):
 		"window"           :10,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1759,7 +1770,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :14, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :False,
@@ -1784,7 +1794,8 @@ def experiments(ncores = -1):
 		"window"           :10,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1802,7 +1813,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :14, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :False,
@@ -1826,7 +1836,8 @@ def experiments(ncores = -1):
 		"window"           :10,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1844,7 +1855,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :14, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :False,
@@ -1868,7 +1878,8 @@ def experiments(ncores = -1):
 		"window"           :10,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1886,7 +1897,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :14, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :False,
@@ -1909,7 +1919,8 @@ def experiments(ncores = -1):
 		"window"           :10,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            :False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1927,7 +1938,6 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
 		"maxitter"         :14, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :False,
@@ -1951,7 +1961,8 @@ def experiments(ncores = -1):
 		"window"           :10,
 		"predictwindow"    :None,
 		"Nstage"           :1, 
-		"Model"            :"XGBoost", 
+		"model"            :"XGBoost",
+		"debug"            : False,
 		# +++++ The Model setup params +++++
 		"ntree"            :10,
 		"nbranch"          :2000,
@@ -1969,7 +1980,90 @@ def experiments(ncores = -1):
 		"ModVar"           :"ntree, max_depth", "dataset"
 		"classifer"        :None, 
 		"cores"            :ncores,
-		"model"            :"XGBoost", 
+		"maxitter"         :14, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :False,
+		"StopPoint"        :5,
+		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"pariedRun"        :None, # identical runs except at the last stage
+		"Step"             :4,
+		"FullTestSize"     :0.1,
+		"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
+		"FutDist"          :20, 
+		"splitvar"         :["site", "yrend"]
+		})
+	expr[416] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :416,
+		"predvar"          :"Delta_biomass",
+		"dropvar"          :["Obs_biomass"],
+		"name"             :"OneStageXGBOOST_AllGap_Debug_Sitesplit",
+		"desc"             :"Testing different prediction approaches with paper final model configuration with an additional split param",
+		"window"           :10,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"model"            :"XGBoost",
+		"debug"            :True,
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
+		"yTransformer"     :None, 
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"maxitter"         :14, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :False,
+		"StopPoint"        :5,
+		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"pariedRun"        :None, # identical runs except at the last stage
+		"Step"             :4,
+		"FullTestSize"     :0.1,
+		"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
+		"FutDist"          :20, 
+		"splitvar"         :"site",
+		})
+	expr[417] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :417,
+		"predvar"          :"Delta_biomass",
+		"dropvar"          :["Obs_biomass"],
+		"name"             :"OneStageXGBOOST_AllGap_Debug_yrfnsplit",
+		"desc"             :"Testing different prediction approaches with paper final model configuration with an additional split param",
+		"window"           :10,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"model"            :"XGBoost",
+		"debug"            :True,
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.2, 
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
+		"yTransformer"     :None, 
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
 		"maxitter"         :14, 
 		"DropNAN"          :0.5, 
 		"DropDist"         :False,
@@ -1984,7 +2078,7 @@ def experiments(ncores = -1):
 		"splitvar"         :["site", "yrend"]
 		})
 	return expr
-	
+
 # ===== Old run with no feature selection =====
 # expr[412] = ({
 # 	# +++++ The experiment name and summary +++++
@@ -1996,7 +2090,8 @@ def experiments(ncores = -1):
 # 	"window"           :10,
 # 	"predictwindow"    :None,
 # 	"Nstage"           :1, 
-# 	"Model"            :"XGBoost", 
+# 	"model"            :"XGBoost",
+# 	"debug"            : False,
 # 	# +++++ The Model setup params +++++
 # 	"ntree"            :10,
 # 	"nbranch"          :2000,
@@ -2014,7 +2109,8 @@ def experiments(ncores = -1):
 # 	"ModVar"           :"ntree, max_depth", "dataset"
 # 	"classifer"        :None, 
 # 	"cores"            :ncores,
-# 	"model"            :"XGBoost", 
+
+# 	"debug"            : False,
 # 	"maxitter"         :14, 
 # 	"DropNAN"          :0.5, 
 # 	"DropDist"         :False,
@@ -2045,4 +2141,4 @@ if __name__ == '__main__':
 	args = parser.parse_args() 
 		
 	# ========== Call the main function ==========
-	main(args
+	main(args)
