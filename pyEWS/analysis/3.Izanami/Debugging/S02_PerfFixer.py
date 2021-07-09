@@ -42,6 +42,7 @@ import scipy as sp
 import glob
 import shutil
 import time
+import ipdb
 # import ipdb
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -70,7 +71,7 @@ import xgboost as xgb
 from tqdm import tqdm
 
 print("seaborn version : ", sns.__version__)
-# print("xgb version : ", xgb.__version__)
+print("xgb version : ", xgb.__version__)
 # breakpoint()
 
 
@@ -94,19 +95,37 @@ def main():
 
 	# ========== Subset the data ==========
 	y, X = datasubset(vi_df, colnm, predvar, df_site,  FutDist=20, DropNAN=0.5,)
+
+
+	# ========== Setup first experiment ==========
+	dfk   = pd.read_csv(f'{dpath}TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv', index_col=0)
 	breakpoint()
-
-	# ---------- Grab the stuff used by some configerations ==========
-
-	fn    = f'{dpath}TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv'
-	dfk   = pd.read_csv(fn, index_col=0)
 
 	# fnin  = "TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv"
 	# dfi   = pd.read_csv(fnin, index_col=0) 
 
 # ==============================================================================
-def lookuptable():
+
+def lookuptable(ind, dfk, in_train = [0, 1], in_test=[2, 3]):
+	"""
+	ind:	 	array
+		The dataframe index as an array
+	dfk:	dataframe
+		coded lookup table
+
+	in_test:	list
+		values included in train set
+	in_train: 	list
+		values included in test set
+	"""
 	
+	indx_dic = OrderedDict()
+	# ========== loop over the dataframes columns ==========
+	for nx in range(dfk.shape[1]):
+		breakpoint()
+
+
+
 
 def datasubset(vi_df, colnm, predvar, df_site, FutDist=20, DropNAN=0.5,):
 	"""
@@ -127,12 +146,18 @@ def datasubset(vi_df, colnm, predvar, df_site, FutDist=20, DropNAN=0.5,):
 
 
 # ==============================================================================
+def _findcords(x, test):
+	# Function check if x is in different arrays
+
+	## I might need to use an xor here
+	return x in test 
+		
 
 def XGBR():
 
 	cpu_dict = ({
 		# +++++ The Model setup params +++++
-		'objective': 'reg:squarederror'
+		'objective': 'reg:squarederror',
 		"ntree"            :10,
 		"nbranch"          :2000,
 		"max_features"     :'auto',
