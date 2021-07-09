@@ -99,6 +99,8 @@ def main():
 
 	# ========== Setup first experiment ==========
 	dfk   = pd.read_csv(f'{dpath}TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv', index_col=0)
+	
+	ptrl, ptsl   = lookuptable(ind, dfk,)
 	breakpoint()
 
 	# fnin  = "TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv"
@@ -119,11 +121,20 @@ def lookuptable(ind, dfk, in_train = [0, 1], in_test=[2, 3]):
 		values included in test set
 	"""
 	
-	indx_dic = OrderedDict()
+	ptrainl = []
+	ptestl  = []
+
 	# ========== loop over the dataframes columns ==========
 	for nx in range(dfk.shape[1]):
-		breakpoint()
+		ftrain = dfk.loc[ind, str(nx)]. apply(_findcords, test=in_train)
+		ftest  = dfk.loc[ind, str(nx)]. apply(_findcords, test=in_test)
+		# \\\ Add an assertion so i can catch errors \\\
+		assert np.logical_xor(ftrain.values,ftest.values).all()
 
+		ptrainl.append(ftrain.loc[ftrain.values])
+		ptestl.append(ftest.loc[ftest.values])
+		# breakpoint()
+	return ptrainl, ptestl 
 
 
 
