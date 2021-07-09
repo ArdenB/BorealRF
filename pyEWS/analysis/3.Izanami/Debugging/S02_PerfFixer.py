@@ -91,6 +91,7 @@ def main():
 	colnm   = pd.read_csv(
 		f"{path}411/Exp411_OneStageXGBOOST_AllGap_50perNA_PermutationImp_RFECV_FINAL_Delta_biomass_altsplit_vers04_PermutationImportance_RFECVfeature.csv", index_col=0)#.index.values
 	colnm   = colnm.loc[colnm.InFinal].index.values
+	# colnm   = colnm.index.values
 	predvar = "Delta_biomass"
 
 	# ========== Subset the data ==========
@@ -100,18 +101,87 @@ def main():
 	# ========== Setup first experiment ==========\
 	# once i get this working it will be a function
 	dfk   = pd.read_csv(f'{dpath}TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv', index_col=0)
+	setup = OrderedDict()
+	setup["30pTest"] = ({"in_train":[0, 1], "in_test":[2, 3]})
+	setup["20pTest"] = ({"in_train":[0, 1, 3], "in_test":[2]})
+	setup["20pVal"] = ({"in_train":[0, 2, 3], "in_test":[1], "Summary":"look at my random validiation splits instead"})
 	
-	ptrl, ptsl   = lookuptable(ind, dfk,)
+	scores = OrderedDict()
+	
+	for expnm in setup:
+	
+		ptrl, ptsl   = lookuptable(y.index.values, dfk,in_train=setup[expnm]["in_train"], in_test=setup[expnm]["in_test"])
 
-	# ========== Iterate over the ecperiments ==========
-	for nx, (train, test) in enumerate(zip(ptrl, ptsl)):
-
-		breakpoint()
+		# ========== Iterate over the ecperiments ==========
+		for useGPU in [False,]:#True
+			for nx, (train, test) in enumerate(zip(ptrl, ptsl)):
+				print(f'EXP:{expnm} {nx} {"Using GPU" if useGPU else ""}')
+				scores[len(scores)] = XGBR(nx, X.loc[train], X.loc[test], y.loc[train], y.loc[test], GPU=useGPU, expnm=expnm)
+	
+	dfs = pd.DataFrame(scores).T
+	print (dfs.groupby(["GPU"])["time"].apply(np.mean))
+	breakpoint()
 
 	# fnin  = "TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv"
 	# dfi   = pd.read_csv(fnin, index_col=0) 
 
 # ==============================================================================
+def XGBR(nx, X_train, X_test, y_train, y_test, GPU=False, expnm=""):
+
+	# skl_rf_params = ({
+	# 	'n_estimators'     :10,
+	# 	'n_jobs'           :-1,
+	# 	'max_depth'        :5,
+	# 	"max_features"     :2000,
+	# 	"min_samples_split":2,
+	# 	"min_samples_leaf" :2,
+	# 	"bootstrap"        :True,
+	# 	})
+	if GPU:
+		XGB_dict = ({
+			'objective': 'reg:squarederror',
+			'num_parallel_tree'     :10,
+			# 'n_jobs'           :-1,
+			'max_depth'        :5,
+			"n_estimators"     :2000,
+			'tree_method': 'gpu_hist',
+			"colsample_bytree":0.3,
+			})
+	else:
+		XGB_dict = ({
+			# +++++ The Model setup params +++++
+			'objective': 'reg:squarederror',
+			'num_parallel_tree'     :10,
+			'n_jobs'           :-1,
+			'max_depth'        :5,
+			"n_estimators"     :2000,
+			"tree_method"      :'hist',
+			"colsample_bytree":0.3,
+			})
+
+	t0 = pd.Timestamp.now()
+	eval_set  = [(X_test.values, y_test.values.ravel())]
+
+	# ========== convert the values ========== 
+	regressor = xgb.XGBRegressor(**XGB_dict)
+	# regGPU = xgb.XGBRegressor(**gpu_dict)
+
+
+	regressor.fit(X_train.values, y_train.values.ravel(), early_stopping_rounds=100, verbose=True, eval_set=eval_set)
+
+	y_pred = regressor.predict(X_test)
+	
+	score = OrderedDict()
+	score["testnm"] = expnm
+	score["expn"]   = nx
+	score["R2"]     = sklMet.r2_score(y_test, y_pred)
+	score["MAE"]    = sklMet.mean_absolute_error(y_test, y_pred)
+	score["RMSE"]   = np.sqrt(sklMet.mean_squared_error(y_test, y_pred))
+	score["time"]   = pd.Timestamp.now()-t0
+	score["GPU"]    = GPU
+	return score
+
+
 
 def lookuptable(ind, dfk, in_train = [0, 1], in_test=[2, 3]):
 	"""
@@ -136,9 +206,8 @@ def lookuptable(ind, dfk, in_train = [0, 1], in_test=[2, 3]):
 		# \\\ Add an assertion so i can catch errors \\\
 		assert np.logical_xor(ftrain.values,ftest.values).all()
 
-		ptrainl.append(ftrain.loc[ftrain.values])
-		ptestl.append(ftest.loc[ftest.values])
-		# breakpoint()
+		ptrainl.append(ftrain.loc[ftrain.values].index.values)
+		ptestl.append(ftest.loc[ftest.values].index.values)
 	return ptrainl, ptestl 
 
 
@@ -157,7 +226,7 @@ def datasubset(vi_df, colnm, predvar, df_site, FutDist=20, DropNAN=0.5,):
 	X = X.loc[dist]
 
 	y = vi_df.loc[X.index, predvar].copy() 
-
+	# y.shape
 	return y, X
 
 
@@ -169,31 +238,6 @@ def _findcords(x, test):
 	return x in test 
 		
 
-def XGBR():
-
-	cpu_dict = ({
-		# +++++ The Model setup params +++++
-		'objective': 'reg:squarederror',
-		"ntree"            :10,
-		"nbranch"          :2000,
-		"max_features"     :'auto',
-		"max_depth"        :5,
-		"min_samples_split":2,
-		"min_samples_leaf" :2,
-		"bootstrap"        :True,
-		})
-
-	gpu_dict = ({
-		'objective': 'reg:squarederror',
-		"ntree"            :10,
-		"nbranch"          :2000,
-		"max_features"     :'auto',
-		"max_depth"        :5,
-		"min_samples_split":2,
-		"min_samples_leaf" :2,
-		"bootstrap"        :True,
-		'tree_method': 'gpu_hist'
-		})
 
 
 
