@@ -82,43 +82,78 @@ def main():
 	
 	# ========== load in the stuff used by every run ==========
 	# Datasets
-	vi_df = pd.read_csv(f"{dpath}ModDataset/VI_df_AllSampleyears_ObsBiomass.csv", index_col=0)
+	vi_df   = pd.read_csv(f"{dpath}ModDataset/VI_df_AllSampleyears_ObsBiomass.csv", index_col=0)
 	df_site = pd.read_csv(f"{dpath}ModDataset/SiteInfo_AllSampleyears_ObsBiomass.csv", index_col=0)
 	df_site.rename({"Plot_ID":"site"}, axis=1, inplace=True)
 	# Column names, THis was chose an s model with not too many vars
-	colnm = pd.read_csv(
-		f"{411}TTS_VI_df_AllSampleyears_10FWH_vers04_X_train.csv", index_col=0).columns.values
+
+	colnm   = pd.read_csv(
+		f"{path}411/Exp411_OneStageXGBOOST_AllGap_50perNA_PermutationImp_RFECV_FINAL_Delta_biomass_altsplit_vers04_PermutationImportance_RFECVfeature.csv", index_col=0)#.index.values
+	colnm   = colnm.loc[colnm.InFinal].index.values
+	predvar = "Delta_biomass"
 
 	# ========== Subset the data ==========
+	y, X = datasubset(vi_df, colnm, predvar, df_site,  FutDist=20, DropNAN=0.5,)
+	breakpoint()
 
 	# ---------- Grab the stuff used by some configerations ==========
 
 	fn    = f'{dpath}TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv'
 	dfk   = pd.read_csv(fn, index_col=0)
 
-	fnin  = "TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv"
-	dfi   = pd.read_csv(fnin, index_col=0) 
-	predvar = "Delta_biomass"
+	# fnin  = "TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv"
+	# dfi   = pd.read_csv(fnin, index_col=0) 
 
 # ==============================================================================
-def datasubset(vi_df, colnm, predvar, FutDist=20, DropNAN=0.5,):
+def lookuptable():
+	
+
+def datasubset(vi_df, colnm, predvar, df_site, FutDist=20, DropNAN=0.5,):
 	"""
 	Function to do the splitting and return the datasets
 	"""
-	# splits=None,  intest = [2,3]
-	pass 
+	# ========== pull out the X values ==========
+	X = vi_df.loc[:, colnm].copy() 
+	nanccal = X.isnull().sum(axis=1)<= DropNAN
+	distcal = df_site.BurnFut + df_site.DisturbanceFut
+	distcal.where(distcal<=100., 100, inplace=True)
+	# +++++ make a sing dist and nan layer +++++
+	dist = (distcal <= FutDist) & nanccal
+	X = X.loc[dist]
+
+	y = vi_df.loc[X.index, predvar].copy() 
+
+	return y, X
 
 
+# ==============================================================================
 
 def XGBR():
-	# +++++ The Model setup params +++++
-	"ntree"            :10,
-	"nbranch"          :2000,
-	"max_features"     :'auto',
-	"max_depth"        :5,
-	"min_samples_split":2,
-	"min_samples_leaf" :2,
-	"bootstrap"        :True,
+
+	cpu_dict = ({
+		# +++++ The Model setup params +++++
+		'objective': 'reg:squarederror'
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		})
+
+	gpu_dict = ({
+		'objective': 'reg:squarederror',
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		'tree_method': 'gpu_hist'
+		})
+
 
 
 
