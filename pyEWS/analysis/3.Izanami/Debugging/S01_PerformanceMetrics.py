@@ -84,6 +84,16 @@ def main():
 	# +++++ PULL OUT THE INDEXS for the full witheld +++++
 	indFW = dfk.index[dfk.iloc[:, 0] == 3].values
 	# breakpoint()
+	experiments = {416:"416 - FWH Sites", 417:"417 - FWH-PredYear"}
+	MMT = True
+	OpenDatasets("Witholding method", path, cols, experiments, indFW, MMT)
+
+	# ========== Experiment 4 - Adding some optimsation ==========
+	experiments = {410:"410 - FWH Sites",411:"411 - FWH Sites + opt"}
+	MMT = True
+	OpenDatasets("Witholding method and optimsation", path, cols, experiments, indFW, False, IMT=True)
+	breakpoint()
+
 	# ========== Experiment 1 - Subsetting of data ==========
 	experiments = {410:"410 - FWH Sites", 415:"415 - FWH-PredYear"}
 	MMT = True
@@ -98,11 +108,6 @@ def main():
 	experiments  = {413:"413 - All Fut Dist", 410:f"410 - 20% Fut", 414:f"414 - 40% Fut"}
 	OpenDatasets("Disturbance Tollerance", path, cols, experiments, indFW, False)
 
-	# ========== Experiment 4 - Adding some optimsation ==========
-	experiments = {410:"410 - FWH Sites",411:"411 - FWH Sites + opt"}
-	MMT = True
-	OpenDatasets("Witholding method and optimsation", path, cols, experiments, indFW, False, True)
-	breakpoint()
 	
 	
 
