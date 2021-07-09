@@ -97,11 +97,16 @@ def main():
 	y, X = datasubset(vi_df, colnm, predvar, df_site,  FutDist=20, DropNAN=0.5,)
 
 
-	# ========== Setup first experiment ==========
+	# ========== Setup first experiment ==========\
+	# once i get this working it will be a function
 	dfk   = pd.read_csv(f'{dpath}TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv', index_col=0)
 	
 	ptrl, ptsl   = lookuptable(ind, dfk,)
-	breakpoint()
+
+	# ========== Iterate over the ecperiments ==========
+	for nx, (train, test) in enumerate(zip(ptrl, ptsl)):
+
+		breakpoint()
 
 	# fnin  = "TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv"
 	# dfi   = pd.read_csv(fnin, index_col=0) 
