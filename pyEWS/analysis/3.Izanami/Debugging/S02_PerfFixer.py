@@ -100,17 +100,50 @@ def main():
 
 	# ========== Setup first experiment ==========\
 	# once i get this working it will be a function
-	dfk   = pd.read_csv(f'{dpath}TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv', index_col=0)
-	setup = OrderedDict()
-	setup["30pTest"] = ({"in_train":[0, 1], "in_test":[2, 3]})
-	setup["20pTest"] = ({"in_train":[0, 1, 3], "in_test":[2]})
-	setup["20pVal"] = ({"in_train":[0, 2, 3], "in_test":[1], "Summary":"look at my random validiation splits instead"})
 	
+	dfksiteyr = pd.read_csv(f'{dpath}TTS_VI_df_AllSampleyears_10FWH_siteyear_TTSlookup.csv', index_col=0)
+	dfksite   = pd.read_csv(f'{dpath}TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv', index_col=0)
+	setup = OrderedDict()
+	setup["30pTest"]       = ({
+		"in_train":[0, 1], "in_test":[2, 3],"dfk":dfksite, "Sorting":"site", 
+		})
+	setup["20pTest"]       = ({
+		"in_train":[0, 1, 3], "in_test":[2],"dfk":dfksite, "Sorting":"site", 
+		})
+	setup["20pVal"]        = ({
+		"in_train":[0, 2, 3], "in_test":[1], "dfk":dfksite, "Sorting":"site", 
+		"Summary":"look at my random validiation splits instead"
+		})
+	setup["20pValTstDrop"] = ({
+		"in_train":[0], "in_test":[1], "dfk":dfksite, "Sorting":"site", 
+		"Summary":"Dropping the test set"
+		})
+	setup["30pTest-SYR"]       = ({
+		"in_train":[0, 1], "in_test":[2, 3],"dfk":dfksiteyr, "Sorting":"site", 
+		})
+	setup["20pTest-SYR"]       = ({
+		"in_train":[0, 1, 3], "in_test":[2],"dfk":dfksiteyr, "Sorting":"site", 
+		})
+	setup["20pVal-SYR"]        = ({
+		"in_train":[0, 2, 3], "in_test":[1], "dfk":dfksiteyr, "Sorting":"site", 
+		"Summary":"look at my random validiation splits instead"
+		})
+	setup["20pValTstDrop-SYR"] = ({
+		"in_train":[0], "in_test":[1], "dfk":dfksiteyr, "Sorting":"site", 
+		"Summary":"Dropping the test set"
+		})
+	
+
 	scores = OrderedDict()
 	
 	for expnm in setup:
 	
-		ptrl, ptsl   = lookuptable(y.index.values, dfk,in_train=setup[expnm]["in_train"], in_test=setup[expnm]["in_test"])
+		ptrl, ptsl   = lookuptable(
+			y.index.values, 
+			setup[expnm]["dfk"],
+			in_train=setup[expnm]["in_train"], 
+			in_test=setup[expnm]["in_test"])
+
 
 		# ========== Iterate over the ecperiments ==========
 		for useGPU in [False,]:#True
@@ -120,13 +153,15 @@ def main():
 	
 	dfs = pd.DataFrame(scores).T
 	print (dfs.groupby(["GPU"])["time"].apply(np.mean))
+	sns.barplot(y="R2", x="expn", hue="testnm", data=dfs)
+	plt.show()
 	breakpoint()
 
 	# fnin  = "TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv"
 	# dfi   = pd.read_csv(fnin, index_col=0) 
 
 # ==============================================================================
-def XGBR(nx, X_train, X_test, y_train, y_test, GPU=False, expnm=""):
+def XGBR(nx, X_train, X_test, y_train, y_test, GPU=False, expnm="", verb=False, esr=40):
 
 	# skl_rf_params = ({
 	# 	'n_estimators'     :10,
@@ -167,7 +202,7 @@ def XGBR(nx, X_train, X_test, y_train, y_test, GPU=False, expnm=""):
 	# regGPU = xgb.XGBRegressor(**gpu_dict)
 
 
-	regressor.fit(X_train.values, y_train.values.ravel(), early_stopping_rounds=100, verbose=True, eval_set=eval_set)
+	regressor.fit(X_train.values, y_train.values.ravel(), early_stopping_rounds=esr, verbose=verb, eval_set=eval_set)
 
 	y_pred = regressor.predict(X_test)
 	
@@ -204,7 +239,7 @@ def lookuptable(ind, dfk, in_train = [0, 1], in_test=[2, 3]):
 		ftrain = dfk.loc[ind, str(nx)]. apply(_findcords, test=in_train)
 		ftest  = dfk.loc[ind, str(nx)]. apply(_findcords, test=in_test)
 		# \\\ Add an assertion so i can catch errors \\\
-		assert np.logical_xor(ftrain.values,ftest.values).all()
+		# assert np.logical_xor(ftrain.values,ftest.values).all()
 
 		ptrainl.append(ftrain.loc[ftrain.values].index.values)
 		ptestl.append(ftest.loc[ftest.values].index.values)
