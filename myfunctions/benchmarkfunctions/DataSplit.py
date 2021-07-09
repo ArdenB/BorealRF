@@ -149,6 +149,8 @@ def altsplit(setup, df_site, vi_df, test_size, predvar, dropvar, version,
 
 def _findcords(x, ptest, itest, vtest, vtrain):
 	# Function check if x is in different arrays
+
+	## I might need to use an xor here
 	if x in ptest: #multi run fully witheld 
 		return 3
 	elif x in itest: #full witheld fract

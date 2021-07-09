@@ -80,17 +80,49 @@ def main():
 	dpath = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/"
 	path  = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/"
 	
-	fn    = './pyEWS/experiments/3.ModelBenchmarking/1.Datasets/TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv'
+	# ========== load in the stuff used by every run ==========
+	# Datasets
+	vi_df = pd.read_csv(f"{dpath}ModDataset/VI_df_AllSampleyears_ObsBiomass.csv", index_col=0)
+	df_site = pd.read_csv(f"{dpath}ModDataset/SiteInfo_AllSampleyears_ObsBiomass.csv", index_col=0)
+	df_site.rename({"Plot_ID":"site"}, axis=1, inplace=True)
+	# Column names, THis was chose an s model with not too many vars
+	colnm = pd.read_csv(
+		f"{411}TTS_VI_df_AllSampleyears_10FWH_vers04_X_train.csv", index_col=0).columns.values
+
+	# ========== Subset the data ==========
+
+	# ---------- Grab the stuff used by some configerations ==========
+
+	fn    = f'{dpath}TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv'
 	dfk   = pd.read_csv(fn, index_col=0)
 
 	fnin  = "TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv"
 	dfi   = pd.read_csv(fnin, index_col=0) 
-	vi_df = pd.read_csv("./ModDataset/VI_df_AllSampleyears_ObsBiomass.csv", index_col=0)
-	colnm = pd.read_csv("TTS_VI_df_AllSampleyears_10FWH_vers00_X_train.csv", index_col=0).columns.values
-	fnout = 'TTS_VI_df_AllSampleyears_10FWH_siteyear_TTSlookup.csv'
-	df_site = pd.read_csv("./ModDataset/SiteInfo_AllSampleyears_ObsBiomass.csv", index_col=0)
-	df_site.rename({"Plot_ID":"site"}, axis=1, inplace=True)
 	predvar = "Delta_biomass"
+
+# ==============================================================================
+def datasubset(vi_df, colnm, predvar, FutDist=20, DropNAN=0.5,):
+	"""
+	Function to do the splitting and return the datasets
+	"""
+	# splits=None,  intest = [2,3]
+	pass 
+
+
+
+def XGBR():
+	# +++++ The Model setup params +++++
+	"ntree"            :10,
+	"nbranch"          :2000,
+	"max_features"     :'auto',
+	"max_depth"        :5,
+	"min_samples_split":2,
+	"min_samples_leaf" :2,
+	"bootstrap"        :True,
+
+
+
+
 
 # ==============================================================================
 if __name__ == '__main__':
