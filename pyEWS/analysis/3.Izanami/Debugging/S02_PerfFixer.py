@@ -112,6 +112,20 @@ def main():
 	setup["30pTest"]       = ({
 		"in_train":[0, 1], "in_test":[2, 3],"dfk":dfksite, "Sorting":"site", 
 		})
+	setup["30pRand-SYR"]       = ({
+		"in_train":[0, 1], "in_test":[2, 3],"dfk":{"testsize":0.3, "n_splits":10}, "Sorting":["site", "yrend"], 
+		})
+	setup["30pTest-SYR"]       = ({
+		"in_train":[0, 1], "in_test":[2, 3],"dfk":dfksiteyr, "Sorting":["site", "yearfn"], 
+		})
+	# setup["20pValTstDrop"] = ({
+	# 	"in_train":[0], "in_test":[1], "dfk":dfksite, "Sorting":"site", 
+	# 	"Summary":"Dropping the test set"
+	# 	})
+	
+	setup["20pRand"]       = ({
+		"in_train":[0, 1], "in_test":[2, 3],"dfk":{"testsize":0.2, "n_splits":10}, "Sorting":"site", 
+		})
 	setup["20pTest"]       = ({
 		"in_train":[0, 1, 3], "in_test":[2],"dfk":dfksite, "Sorting":"site", 
 		})
@@ -119,16 +133,9 @@ def main():
 		"in_train":[0, 2, 3], "in_test":[1], "dfk":dfksite, "Sorting":"site", 
 		"Summary":"look at my random validiation splits instead"
 		})
-	# setup["20pValTstDrop"] = ({
-	# 	"in_train":[0], "in_test":[1], "dfk":dfksite, "Sorting":"site", 
-	# 	"Summary":"Dropping the test set"
-	# 	})
-	
-	setup["30pRand-SYR"]       = ({
-		"in_train":[0, 1], "in_test":[2, 3],"dfk":{"testsize":0.3, "n_splits":10}, "Sorting":["site", "yrend"], 
-		})
-	setup["30pTest-SYR"]       = ({
-		"in_train":[0, 1], "in_test":[2, 3],"dfk":dfksiteyr, "Sorting":["site", "yearfn"], 
+
+	setup["20pRand-SYR"]       = ({
+		"in_train":[0, 1], "in_test":[2, 3],"dfk":{"testsize":0.2, "n_splits":10}, "Sorting":["site", "yearfn"], 
 		})
 	setup["20pTest-SYR"]       = ({
 		"in_train":[0, 1, 3], "in_test":[2],"dfk":dfksiteyr, "Sorting":["site", "yearfn"], 
@@ -173,11 +180,11 @@ def main():
 
 	
 	dfs = pd.DataFrame(scores).T
-	print (dfs.groupby(["GPU"])["time"].apply(np.mean))
-	sns.barplot(y="R2", x="expn", hue="testnm", data=dfs)
-	plt.show()
+	# print (dfs.groupby(["GPU"])["time"].apply(np.mean))
+	# sns.barplot(y="R2", x="expn", hue="testnm", data=dfs)
+	# plt.show()
 
-	sns.boxplot(y="R2", x="testnm", data=dfs, ci="")
+	sns.boxplot(y="R2", x="testnm", data=dfs)
 	plt.show()
 	breakpoint()
 
