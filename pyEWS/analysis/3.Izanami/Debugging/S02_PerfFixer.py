@@ -68,6 +68,7 @@ from sklearn.utils import shuffle
 from scipy.stats import spearmanr
 from scipy.cluster import hierarchy
 import xgboost as xgb
+from sklearn.model_selection import GroupShuffleSplit
 from tqdm import tqdm
 
 print("seaborn version : ", sns.__version__)
@@ -104,6 +105,10 @@ def main():
 	dfksiteyr = pd.read_csv(f'{dpath}TTS_VI_df_AllSampleyears_10FWH_siteyear_TTSlookup.csv', index_col=0)
 	dfksite   = pd.read_csv(f'{dpath}TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv', index_col=0)
 	setup = OrderedDict()
+	
+	setup["30pRand"]       = ({
+		"in_train":[0, 1], "in_test":[2, 3],"dfk":{"testsize":0.3, "n_splits":10}, "Sorting":"site", 
+		})
 	setup["30pTest"]       = ({
 		"in_train":[0, 1], "in_test":[2, 3],"dfk":dfksite, "Sorting":"site", 
 		})
@@ -114,46 +119,65 @@ def main():
 		"in_train":[0, 2, 3], "in_test":[1], "dfk":dfksite, "Sorting":"site", 
 		"Summary":"look at my random validiation splits instead"
 		})
-	setup["20pValTstDrop"] = ({
-		"in_train":[0], "in_test":[1], "dfk":dfksite, "Sorting":"site", 
-		"Summary":"Dropping the test set"
+	# setup["20pValTstDrop"] = ({
+	# 	"in_train":[0], "in_test":[1], "dfk":dfksite, "Sorting":"site", 
+	# 	"Summary":"Dropping the test set"
+	# 	})
+	
+	setup["30pRand-SYR"]       = ({
+		"in_train":[0, 1], "in_test":[2, 3],"dfk":{"testsize":0.3, "n_splits":10}, "Sorting":["site", "yrend"], 
 		})
 	setup["30pTest-SYR"]       = ({
-		"in_train":[0, 1], "in_test":[2, 3],"dfk":dfksiteyr, "Sorting":"site", 
+		"in_train":[0, 1], "in_test":[2, 3],"dfk":dfksiteyr, "Sorting":["site", "yearfn"], 
 		})
 	setup["20pTest-SYR"]       = ({
-		"in_train":[0, 1, 3], "in_test":[2],"dfk":dfksiteyr, "Sorting":"site", 
+		"in_train":[0, 1, 3], "in_test":[2],"dfk":dfksiteyr, "Sorting":["site", "yearfn"], 
 		})
 	setup["20pVal-SYR"]        = ({
-		"in_train":[0, 2, 3], "in_test":[1], "dfk":dfksiteyr, "Sorting":"site", 
+		"in_train":[0, 2, 3], "in_test":[1], "dfk":dfksiteyr, "Sorting":["site", "yearfn"], 
 		"Summary":"look at my random validiation splits instead"
 		})
-	setup["20pValTstDrop-SYR"] = ({
-		"in_train":[0], "in_test":[1], "dfk":dfksiteyr, "Sorting":"site", 
-		"Summary":"Dropping the test set"
-		})
+	# setup["20pValTstDrop-SYR"] = ({
+	# 	"in_train":[0], "in_test":[1], "dfk":dfksiteyr, "Sorting":["site", "yearfn"], 
+	# 	"Summary":"Dropping the test set"
+	# 	})
 	
 
 	scores = OrderedDict()
 	
-	for expnm in setup:
-	
-		ptrl, ptsl   = lookuptable(
-			y.index.values, 
-			setup[expnm]["dfk"],
-			in_train=setup[expnm]["in_train"], 
-			in_test=setup[expnm]["in_test"])
+	for useGPU in [False,]:#True
+		for expnm in setup:
+			print(f'EXP:{expnm} {"Using GPU" if useGPU else ""}')
+			if isinstance(setup[expnm]["dfk"], pd.DataFrame):
+				# ========== Setup to use existing data indexing ==========
+				ptrl, ptsl   = lookuptable(
+					y.index.values, 
+					setup[expnm]["dfk"],
+					in_train=setup[expnm]["in_train"], 
+					in_test=setup[expnm]["in_test"])
+				
 
+				# ========== Iterate over the ecperiments ==========
+				for nx, (train, test) in tqdm(enumerate(zip(ptrl, ptsl)), total=10):
+					scores[len(scores)] = XGBR(
+						nx, X.loc[train], X.loc[test], y.loc[train], y.loc[test], 
+						GPU=useGPU, expnm=expnm, resample=False)
+			else:
+				# breakpoint()
+				itr = TTSspliter(y, X, df_site.loc[y.index.values,], setup[expnm])
+				# ========== Iterate over the ecperiments ==========
+				for nx, (train, test) in tqdm(enumerate(itr), total=setup[expnm]['dfk']['n_splits']):
+					scores[len(scores)] = XGBR(
+						nx, X.iloc[train], X.iloc[test], y.iloc[train], y.iloc[test], 
+						GPU=useGPU, expnm=expnm, resample=True)
 
-		# ========== Iterate over the ecperiments ==========
-		for useGPU in [False,]:#True
-			for nx, (train, test) in enumerate(zip(ptrl, ptsl)):
-				print(f'EXP:{expnm} {nx} {"Using GPU" if useGPU else ""}')
-				scores[len(scores)] = XGBR(nx, X.loc[train], X.loc[test], y.loc[train], y.loc[test], GPU=useGPU, expnm=expnm)
 	
 	dfs = pd.DataFrame(scores).T
 	print (dfs.groupby(["GPU"])["time"].apply(np.mean))
 	sns.barplot(y="R2", x="expn", hue="testnm", data=dfs)
+	plt.show()
+
+	sns.boxplot(y="R2", x="testnm", data=dfs, ci="")
 	plt.show()
 	breakpoint()
 
@@ -161,17 +185,10 @@ def main():
 	# dfi   = pd.read_csv(fnin, index_col=0) 
 
 # ==============================================================================
-def XGBR(nx, X_train, X_test, y_train, y_test, GPU=False, expnm="", verb=False, esr=40):
+def XGBR(
+	nx, X_train, X_test, y_train, y_test, 
+	GPU=False, expnm="", verb=False, esr=40, resample=False):
 
-	# skl_rf_params = ({
-	# 	'n_estimators'     :10,
-	# 	'n_jobs'           :-1,
-	# 	'max_depth'        :5,
-	# 	"max_features"     :2000,
-	# 	"min_samples_split":2,
-	# 	"min_samples_leaf" :2,
-	# 	"bootstrap"        :True,
-	# 	})
 	if GPU:
 		XGB_dict = ({
 			'objective': 'reg:squarederror',
@@ -214,8 +231,35 @@ def XGBR(nx, X_train, X_test, y_train, y_test, GPU=False, expnm="", verb=False, 
 	score["RMSE"]   = np.sqrt(sklMet.mean_squared_error(y_test, y_pred))
 	score["time"]   = pd.Timestamp.now()-t0
 	score["GPU"]    = GPU
+	score["RAND"]   = resample
 	return score
 
+
+# ==============================================================================
+def TTSspliter(y, X, site_df, expset, random_state=42):
+	"""
+	Function to perform new random splits
+	"""
+
+	if expset["Sorting"] == "site":
+		group = site_df["site"]
+	elif expset["Sorting"] == ["site", "yrend"]:
+		site_df["yrend"] = X.ObsGap + site_df.year
+		site_df["grp"]   = site_df.groupby(expset["Sorting"]).grouper.group_info[0]
+		# breakpoint()
+		group = site_df["grp"]	
+	else:
+		warn.warn("Not implemented yet")
+		breakpoint()
+		raise ValueError
+
+
+	gss   = GroupShuffleSplit(
+		n_splits = expset['dfk']['n_splits'], 
+		test_size=expset['dfk']['testsize'], 
+		random_state=random_state)
+
+	return gss.split(X, y, groups=group)
 
 
 def lookuptable(ind, dfk, in_train = [0, 1], in_test=[2, 3]):
