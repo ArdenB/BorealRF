@@ -135,13 +135,13 @@ def main():
 		})
 
 	setup["20pRand-SYR"]       = ({
-		"in_train":[0, 1], "in_test":[2, 3],"dfk":{"testsize":0.2, "n_splits":10}, "Sorting":["site", "yearfn"], 
+		"in_train":[0, 1], "in_test":[2, 3],"dfk":{"testsize":0.2, "n_splits":10}, "Sorting":["site", "yrend"], 
 		})
 	setup["20pTest-SYR"]       = ({
-		"in_train":[0, 1, 3], "in_test":[2],"dfk":dfksiteyr, "Sorting":["site", "yearfn"], 
+		"in_train":[0, 1, 3], "in_test":[2],"dfk":dfksiteyr, "Sorting":["site", "yrend"], 
 		})
 	setup["20pVal-SYR"]        = ({
-		"in_train":[0, 2, 3], "in_test":[1], "dfk":dfksiteyr, "Sorting":["site", "yearfn"], 
+		"in_train":[0, 2, 3], "in_test":[1], "dfk":dfksiteyr, "Sorting":["site", "yrend"], 
 		"Summary":"look at my random validiation splits instead"
 		})
 	# setup["20pValTstDrop-SYR"] = ({
