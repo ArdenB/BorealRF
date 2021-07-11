@@ -152,7 +152,7 @@ def main():
 
 	scores = OrderedDict()
 	
-	for useGPU in [False,]:#True
+	for useGPU in [False,]: #True, False
 		for expnm in setup:
 			print(f'EXP:{expnm} {"Using GPU" if useGPU else ""}')
 			if isinstance(setup[expnm]["dfk"], pd.DataFrame):
