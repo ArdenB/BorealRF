@@ -70,6 +70,7 @@ from scipy.cluster import hierarchy
 import xgboost as xgb
 from sklearn.model_selection import GroupShuffleSplit
 from tqdm import tqdm
+import cudf
 
 print("seaborn version : ", sns.__version__)
 print("xgb version : ", xgb.__version__)
@@ -81,6 +82,9 @@ def main():
 	# ========= make some paths ==========
 	dpath = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/"
 	path  = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/"
+	opath = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/Debugging/"
+	cf.pymkdir(opath)
+	force = False
 	
 	# ========== load in the stuff used by every run ==========
 	# Datasets
@@ -96,104 +100,122 @@ def main():
 	predvar = "Delta_biomass"
 
 	# ========== Subset the data ==========
-	y, X = datasubset(vi_df, colnm, predvar, df_site,  FutDist=20, DropNAN=0.5,)
+	setup = batchmaker(opath, dpath)
+	fnlist = []
+
+	
+	for expnum in setup:
+		scores = OrderedDict()
+		# breakpoint()
+		fnlist.append(f"{setup[expnum]['fnout']}.csv")
+		if os.path.isfile(f"{setup[expnum]['fnout']}.csv") and not force:
+			continue
+		for useGPU in [False]: #True, False
+
+			# ========== Subset the data ==========
+			y, X = datasubset(
+				vi_df, colnm, predvar, df_site, 
+				FutDist=setup[expnum]["FutDist"], 
+				DropNAN=setup[expnum]["DropNAN"])
+
+			print(f'EXP:{expnum} {setup[expnum]["name"]} {"Using GPU" if useGPU else ""}')
+			if isinstance(setup[expnum]["dfk"], pd.DataFrame):
+				# ========== Setup to use existing data indexing ==========
+				ptrl, ptsl   = lookuptable(
+					y.index.values, 
+					setup[expnum]["dfk"],
+					in_train=setup[expnum]["in_train"], 
+					in_test=setup[expnum]["in_test"])
+				
+				if useGPU:
+					# breakpoint()
+					y = cudf.from_pandas(y)
+					X = cudf.from_pandas(X)
+				# ========== Iterate over the ecperiments ==========
+				for nx, (train, test) in tqdm(enumerate(zip(ptrl, ptsl)), total=setup[expnum]['n_splits']):
+					scores[len(scores)] = XGBR(
+						nx, X.loc[train], X.loc[test], y.loc[train], y.loc[test], setup[expnum],
+						GPU=useGPU, expnm=setup[expnum]["name"], resample=False)
+			else:
+				# breakpoint()
+				itr = TTSspliter(y, X, df_site.loc[y.index.values,], setup[expnum])
+				# ========== Iterate over the ecperiments ==========
+				for nx, (train, test) in tqdm(enumerate(itr), total=setup[expnum]['n_splits']):
+					scores[len(scores)] = XGBR(
+						nx, X.iloc[train], X.iloc[test], y.iloc[train], y.iloc[test], setup[expnum],
+						GPU=useGPU, expnm=setup[expnum]["name"], resample=True)
+
+	
+		dfs = pd.DataFrame(scores).T
+		dfs.to_csv(f"{setup[expnum]['fnout']}.csv")
+	
+	# ========== load the multiple results ==========
+
+	df = pd.concat([pd.read_csv(fnp, index_col=0) for fnp in fnlist])
+	# sns.violinplot(y="R2", x="testname", data=df)
+	plt.show()
+	breakpoint()
+	sns.stripplot(y="R2", x="sptname", hue="testname", data=df)
+	sns.stripplot(y="R2", x="testname", data=df)
+	plt.show()
+	breakpoint()
 
 
-	# ========== Setup first experiment ==========\
-	# once i get this working it will be a function
-	
-	dfksiteyr = pd.read_csv(f'{dpath}TTS_VI_df_AllSampleyears_10FWH_siteyear_TTSlookup.csv', index_col=0)
-	dfksite   = pd.read_csv(f'{dpath}TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv', index_col=0)
-	setup = OrderedDict()
-	
-	setup["30pRand"]       = ({
-		"in_train":[0, 1], "in_test":[2, 3],"dfk":{"testsize":0.3, "n_splits":10}, "Sorting":"site", 
-		})
-	setup["30pTest"]       = ({
-		"in_train":[0, 1], "in_test":[2, 3],"dfk":dfksite, "Sorting":"site", 
-		})
-	setup["30pRand-SYR"]       = ({
-		"in_train":[0, 1], "in_test":[2, 3],"dfk":{"testsize":0.3, "n_splits":10}, "Sorting":["site", "yrend"], 
-		})
-	setup["30pTest-SYR"]       = ({
-		"in_train":[0, 1], "in_test":[2, 3],"dfk":dfksiteyr, "Sorting":["site", "yearfn"], 
-		})
+
+	# print (dfs.groupby(["GPU"])["time"].apply(np.mean))
+
+	# sns.barplot(y="R2", x="expn", hue="testnm", data=dfs)
+	# plt.show()
+	# breakpoint()
+	# 	# setup["30pRand"]       = ({
+	# 	"in_train":[0, 1], "in_test":[2, 3],"dfk":{"testsize":0.3, "n_splits":10}, "Sorting":"site", 
+	# 	})
+	# setup["30pTest"]       = ({
+	# 	"in_train":[0, 1], "in_test":[2, 3],"dfk":dfksite, "Sorting":"site", 
+	# 	})
+	# setup["30pRand-SYR"]       = ({
+	# 	"in_train":[0, 1], "in_test":[2, 3],"dfk":{"testsize":0.3, "n_splits":10}, "Sorting":["site", "yrend"], 
+	# 	})
+	# setup["30pTest-SYR"]       = ({
+	# 	"in_train":[0, 1], "in_test":[2, 3],"dfk":dfksiteyr, "Sorting":["site", "yearfn"], 
+	# 	})
 	# setup["20pValTstDrop"] = ({
 	# 	"in_train":[0], "in_test":[1], "dfk":dfksite, "Sorting":"site", 
 	# 	"Summary":"Dropping the test set"
 	# 	})
 	
-	setup["20pRand"]       = ({
-		"in_train":[0, 1], "in_test":[2, 3],"dfk":{"testsize":0.2, "n_splits":10}, "Sorting":"site", 
-		})
-	setup["20pTest"]       = ({
-		"in_train":[0, 1, 3], "in_test":[2],"dfk":dfksite, "Sorting":"site", 
-		})
-	setup["20pVal"]        = ({
-		"in_train":[0, 2, 3], "in_test":[1], "dfk":dfksite, "Sorting":"site", 
-		"Summary":"look at my random validiation splits instead"
-		})
+	# setup["20pRand"]       = ({
+	# 	"in_train":[0, 1], "in_test":[2, 3],"dfk":{"testsize":0.2, "n_splits":10}, "Sorting":"site", 
+	# 	})
+	# setup["20pTest"]       = ({
+	# 	"in_train":[0, 1, 3], "in_test":[2],"dfk":dfksite, "Sorting":"site", 
+	# 	})
+	# setup["20pVal"]        = ({
+	# 	"in_train":[0, 2, 3], "in_test":[1], "dfk":dfksite, "Sorting":"site", 
+	# 	"Summary":"look at my random validiation splits instead"
+	# 	})
 
-	setup["20pRand-SYR"]       = ({
-		"in_train":[0, 1], "in_test":[2, 3],"dfk":{"testsize":0.2, "n_splits":10}, "Sorting":["site", "yrend"], 
-		})
-	setup["20pTest-SYR"]       = ({
-		"in_train":[0, 1, 3], "in_test":[2],"dfk":dfksiteyr, "Sorting":["site", "yrend"], 
-		})
-	setup["20pVal-SYR"]        = ({
-		"in_train":[0, 2, 3], "in_test":[1], "dfk":dfksiteyr, "Sorting":["site", "yrend"], 
-		"Summary":"look at my random validiation splits instead"
-		})
+	# setup["20pRand-SYR"]       = ({
+	# 	"in_train":[0, 1], "in_test":[2, 3],"dfk":{"testsize":0.2, "n_splits":10}, "Sorting":["site", "yrend"], 
+	# 	})
+	# setup["20pTest-SYR"]       = ({
+	# 	"in_train":[0, 1, 3], "in_test":[2],"dfk":dfksiteyr, "Sorting":["site", "yrend"], 
+	# 	})
+	# setup["20pVal-SYR"]        = ({
+	# 	"in_train":[0, 2, 3], "in_test":[1], "dfk":dfksiteyr, "Sorting":["site", "yrend"], 
+	# 	"Summary":"look at my random validiation splits instead"
+	# 	})
 	# setup["20pValTstDrop-SYR"] = ({
 	# 	"in_train":[0], "in_test":[1], "dfk":dfksiteyr, "Sorting":["site", "yearfn"], 
 	# 	"Summary":"Dropping the test set"
 	# 	})
-	
-
-	scores = OrderedDict()
-	
-	for useGPU in [False,]: #True, False
-		for expnm in setup:
-			print(f'EXP:{expnm} {"Using GPU" if useGPU else ""}')
-			if isinstance(setup[expnm]["dfk"], pd.DataFrame):
-				# ========== Setup to use existing data indexing ==========
-				ptrl, ptsl   = lookuptable(
-					y.index.values, 
-					setup[expnm]["dfk"],
-					in_train=setup[expnm]["in_train"], 
-					in_test=setup[expnm]["in_test"])
-				
-
-				# ========== Iterate over the ecperiments ==========
-				for nx, (train, test) in tqdm(enumerate(zip(ptrl, ptsl)), total=10):
-					scores[len(scores)] = XGBR(
-						nx, X.loc[train], X.loc[test], y.loc[train], y.loc[test], 
-						GPU=useGPU, expnm=expnm, resample=False)
-			else:
-				# breakpoint()
-				itr = TTSspliter(y, X, df_site.loc[y.index.values,], setup[expnm])
-				# ========== Iterate over the ecperiments ==========
-				for nx, (train, test) in tqdm(enumerate(itr), total=setup[expnm]['dfk']['n_splits']):
-					scores[len(scores)] = XGBR(
-						nx, X.iloc[train], X.iloc[test], y.iloc[train], y.iloc[test], 
-						GPU=useGPU, expnm=expnm, resample=True)
-
-	
-	dfs = pd.DataFrame(scores).T
-	# print (dfs.groupby(["GPU"])["time"].apply(np.mean))
-	# sns.barplot(y="R2", x="expn", hue="testnm", data=dfs)
-	# plt.show()
-
-	sns.boxplot(y="R2", x="testnm", data=dfs)
-	plt.show()
-	breakpoint()
 
 	# fnin  = "TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv"
 	# dfi   = pd.read_csv(fnin, index_col=0) 
 
 # ==============================================================================
 def XGBR(
-	nx, X_train, X_test, y_train, y_test, 
+	nx, X_train, X_test, y_train, y_test, stinfo,
 	GPU=False, expnm="", verb=False, esr=40, resample=False):
 
 	if GPU:
@@ -219,27 +241,46 @@ def XGBR(
 			})
 
 	t0 = pd.Timestamp.now()
-	eval_set  = [(X_test.values, y_test.values.ravel())]
 
 	# ========== convert the values ========== 
+	# breakpoint()
 	regressor = xgb.XGBRegressor(**XGB_dict)
 	# regGPU = xgb.XGBRegressor(**gpu_dict)
 
+	if GPU:
+		eval_set  = [(X_test.values, y_test)]
+		regressor.fit(X_train.values, y_train, 
+			early_stopping_rounds=esr, verbose=verb, eval_set=eval_set)
+		y_test = y_test.values.get()
+	else:
 
-	regressor.fit(X_train.values, y_train.values.ravel(), early_stopping_rounds=esr, verbose=verb, eval_set=eval_set)
+		eval_set  = [(X_test.values, y_test.values.ravel())]
+		regressor.fit(X_train.values, y_train.values.ravel(), 
+			early_stopping_rounds=esr, verbose=verb, eval_set=eval_set)
 
 	y_pred = regressor.predict(X_test)
-	
-	score = OrderedDict()
-	score["testnm"] = expnm
-	score["expn"]   = nx
-	score["R2"]     = sklMet.r2_score(y_test, y_pred)
-	score["MAE"]    = sklMet.mean_absolute_error(y_test, y_pred)
-	score["RMSE"]   = np.sqrt(sklMet.mean_squared_error(y_test, y_pred))
-	score["time"]   = pd.Timestamp.now()-t0
-	score["GPU"]    = GPU
-	score["RAND"]   = resample
-	return score
+
+	try:
+
+		score = OrderedDict()
+		score["testname"]  = expnm
+		score["expn"]      = nx
+		score["group"]     = stinfo["group"]
+		score["sptname"]   = stinfo["sptname"]
+		score["R2"]        = sklMet.r2_score(y_test, y_pred)
+		score["MAE"]       = sklMet.mean_absolute_error(y_test, y_pred)
+		score["RMSE"]      = np.sqrt(sklMet.mean_squared_error(y_test, y_pred))
+		score["time"]      = pd.Timestamp.now()-t0
+		score["GPU"]       = GPU
+		score["RAND"]      = resample
+		score["test_size"] = stinfo["test_size"]
+		score["FutDist"]   = stinfo["FutDist"]  
+		score["DropNAN"]   = stinfo["DropNAN"]  
+		score["obsnum"]    = y_test.size + y_train.size
+		return score
+	except Exception as er:
+		breakpoint()
+		raise er
 
 
 # ==============================================================================
@@ -262,9 +303,9 @@ def TTSspliter(y, X, site_df, expset, random_state=42):
 
 
 	gss   = GroupShuffleSplit(
-		n_splits = expset['dfk']['n_splits'], 
-		test_size=expset['dfk']['testsize'], 
-		random_state=random_state)
+		n_splits     = expset['n_splits'], 
+		test_size    = expset['test_size'], 
+		random_state = random_state)
 
 	return gss.split(X, y, groups=group)
 
@@ -294,11 +335,12 @@ def lookuptable(ind, dfk, in_train = [0, 1], in_test=[2, 3]):
 
 		ptrainl.append(ftrain.loc[ftrain.values].index.values)
 		ptestl.append(ftest.loc[ftest.values].index.values)
+	
 	return ptrainl, ptestl 
 
 
 
-def datasubset(vi_df, colnm, predvar, df_site, FutDist=20, DropNAN=0.5,):
+def datasubset(vi_df, colnm, predvar, df_site, FutDist=20, DropNAN=0.5):
 	"""
 	Function to do the splitting and return the datasets
 	"""
@@ -312,11 +354,159 @@ def datasubset(vi_df, colnm, predvar, df_site, FutDist=20, DropNAN=0.5,):
 	X = X.loc[dist]
 
 	y = vi_df.loc[X.index, predvar].copy() 
-	# y.shape
+	if bn.anynan(y):
+		X = X.loc[~y.isnull()]
+		y = y.loc[~y.isnull()]
+	
 	return y, X
+
+def batchmaker(opath, dpath):
+	"""
+	Place to setup the batch experiments
+	
+	"""
+	setup = OrderedDict()
+	# ========== Experimant 1 ========== 
+	# ///// recreating the existing results \\\\\
+	for sptvar in ["site", ["site", "yrend"]]:
+		# +++++ This is the site vs fully withlf validation +++++
+		for testgroup in ["Test", "Vali"]:
+			# experiments with constant testsize +++++
+			setup[len(setup)] = expgroup(
+				sptvar, testgroup, opath, dpath, test_size=0.3, 
+				FutDist=20, n_splits=10, dropCFWH=False, DropNAN=0.5)
+
+	# ========== Experimant 2 ========== 
+	# ///// Building matched random results \\\\\
+	for sptvar in ["site", ["site", "yrend"]]:
+		# +++++ This is the site vs fully withlf validation +++++
+		# experiments with constant testsize +++++
+		setup[len(setup)] = expgroup(
+			sptvar, "Rand", opath, dpath, test_size=0.3, 
+			FutDist=20, n_splits=30, dropCFWH=False, DropNAN=0.5)
+	
+
+
+	# ========== Experimant 3 ========== 
+	# ///// Varying th disturbance \\\\\
+	for sptvar in ["site", ["site", "yrend"]]:
+		# +++++ This is the site vs fully withlf validation +++++
+		# experiments with constant testsize +++++
+		for FutDist in [0, 5, 10, 20, 50, 75, 100]:
+			setup[len(setup)] = expgroup(
+				sptvar, "Rand", opath, dpath, test_size=0.3, 
+				FutDist=FutDist, n_splits=30, dropCFWH=False, DropNAN=0.5)
+
+	# ========== Experimant 4 ========== 
+	# ///// Varying the test size \\\\\
+	for sptvar in ["site", ["site", "yrend"]]:
+		# +++++ This is the site vs fully withlf validation +++++
+		# experiments with constant testsize +++++
+		for test_size in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]:
+			setup[len(setup)] = expgroup(
+				sptvar, "Rand", opath, dpath, test_size=test_size, 
+				FutDist=20, n_splits=30, dropCFWH=False, DropNAN=0.5)
+	
+	# ========== Experimant 5 ========== 
+	# ///// Varying the test size \\\\\
+	for sptvar in ["site", ["site", "yrend"]]:
+		# +++++ This is the site vs fully withlf validation +++++
+		# experiments with constant testsize +++++
+		for DropNAN in np.arange(0, 1.01, 0.1):
+			setup[len(setup)] = expgroup(
+				sptvar, "Rand", opath, dpath, test_size=0.3, 
+				FutDist=20, n_splits=30, dropCFWH=False, DropNAN=DropNAN)
+	return setup
+
+
+def expgroup(sptvar, testgroup, opath, dpath, test_size=0.3, 
+	FutDist=20, n_splits=10, dropCFWH=False, DropNAN=0.5):
+	
+	"""
+	Container for my experiments to go, returns the requested experiment
+	args:
+		sptvar   	THe var that the split is made on. must be either site
+					or kist of site and year
+		testgroup:	str 
+			must be either Rand, Test, Vali
+	returns:
+		expnm
+		Filename
+		setup
+	"""
+	# ========== 
+	# ========== Setup first experiment ==========\
+	# Check to see 
+	assert testgroup in ["Rand", "Test", "Vali"]
+
+
+	# setup    = OrderedDict()
+	dfk      = None
+	in_train = [None]
+	in_test  = [None]
+
+	if sptvar == "site":
+		# ========== The container of the predone splits ==========
+		spn = "Site"
+		if not testgroup == "Rand":
+			dfk = pd.read_csv(f'{dpath}TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv', index_col=0)
+			if testgroup == "Test":
+				in_train = [0, 1]
+				in_test  = [2, 3]
+			else:
+				in_train = [0, 2]
+				in_test  = [1, 3]
+		
+	elif sptvar == ["site", "yrend"]:
+		spn = "SiteYF"
+		if not testgroup == "Rand":
+			dfk = pd.read_csv(f'{dpath}TTS_VI_df_AllSampleyears_10FWH_siteyear_TTSlookup.csv', index_col=0)
+			if testgroup == "Test":
+				in_train = [0, 1]
+				in_test  = [2, 3]
+			else:
+				in_train = [0, 2]
+				in_test  = [1, 3]
+			if dropCFWH:
+				warn.warn("Not implemented yet")
+				breakpoint()
+		
+	else:
+		warn.warn("Not implemented yet")
+		breakpoint()
+		raise ValueError
+	# ========== Remove the FWH set ==========
+
+	if dropCFWH:
+		for ls in [in_train, in_test]:
+			if 3 in ls:
+				ls.remove(3)
+	
+	expn = f"DBG_{testgroup}_{spn}_{int(test_size*100)}TstSz_{FutDist}FDis_{int(DropNAN*100)}NaN"
+	expsetup = ({
+		"name"    :expn, 
+		"group"   :testgroup,
+		"dfk"     :dfk, 
+		"Sorting" :sptvar,
+		"sptname" :spn,
+		"in_train":in_train, 
+		"in_test" :in_test, 
+		"FutDist" :FutDist, 
+		"n_splits":n_splits, 
+		"dropCFWH":dropCFWH, 
+		"test_size":test_size,
+		"FutDist" :FutDist,
+		"DropNAN" :DropNAN, 
+		"fnout"   :f"{opath}{expn}"
+		})
+
+	# breakpoint()
+	return expsetup
 
 
 # ==============================================================================
+
+
 def _findcords(x, test):
 	# Function check if x is in different arrays
 
