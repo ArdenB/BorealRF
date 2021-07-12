@@ -153,7 +153,7 @@ def main():
 
 	df = pd.concat([pd.read_csv(fnp, index_col=0) for fnp in fnlist])
 	# sns.violinplot(y="R2", x="testname", data=df)
-	plt.show()
+	# plt.show()
 	breakpoint()
 	sns.stripplot(y="R2", x="sptname", hue="testname", data=df)
 	sns.stripplot(y="R2", x="testname", data=df)
