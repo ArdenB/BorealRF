@@ -392,7 +392,7 @@ def batchmaker(opath, dpath):
 	for sptvar in ["site", ["site", "yrend"]]:
 		# +++++ This is the site vs fully withlf validation +++++
 		# experiments with constant testsize +++++
-		for FutDist in [0, 5, 10, 20, 50, 75, 100]:
+		for FutDist in np.arange(0, 101, 5):
 			setup[len(setup)] = expgroup(
 				sptvar, "Rand", opath, dpath, test_size=0.3, 
 				FutDist=FutDist, n_splits=30, dropCFWH=False, DropNAN=0.5)
@@ -402,20 +402,20 @@ def batchmaker(opath, dpath):
 	for sptvar in ["site", ["site", "yrend"]]:
 		# +++++ This is the site vs fully withlf validation +++++
 		# experiments with constant testsize +++++
-		for test_size in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]:
+		for test_size in np.arange(0.05, 1., 0.05):
 			setup[len(setup)] = expgroup(
 				sptvar, "Rand", opath, dpath, test_size=test_size, 
 				FutDist=20, n_splits=30, dropCFWH=False, DropNAN=0.5)
 	
 	# ========== Experimant 5 ========== 
-	# ///// Varying the test size \\\\\
-	for sptvar in ["site", ["site", "yrend"]]:
-		# +++++ This is the site vs fully withlf validation +++++
-		# experiments with constant testsize +++++
-		for DropNAN in np.arange(0, 1.01, 0.1):
-			setup[len(setup)] = expgroup(
-				sptvar, "Rand", opath, dpath, test_size=0.3, 
-				FutDist=20, n_splits=30, dropCFWH=False, DropNAN=DropNAN)
+	# ///// Varying the nan fraction \\\\\
+	# for sptvar in ["site", ["site", "yrend"]]:
+	# 	# +++++ This is the site vs fully withlf validation +++++
+	# 	# experiments with constant testsize +++++
+	# 	for DropNAN in np.arange(0, 1.01, 0.1):
+	# 		setup[len(setup)] = expgroup(
+	# 			sptvar, "Rand", opath, dpath, test_size=0.3, 
+	# 			FutDist=20, n_splits=30, dropCFWH=False, DropNAN=DropNAN)
 	return setup
 
 

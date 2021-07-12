@@ -95,11 +95,121 @@ def main():
 	benchmarkvalidation(path, df, sitern=416, siteyrn=417)
 
 	# ========== Do the R2 fall within the random sorting range ==========
-	# sns.stripplot(y="R2", x="sptname", hue="testname", data=df)
+	matchedrandom(path, df)
 
 	# ========== Test size ==========
-	# ========== Future Dist ==========
+	Testsize(path, df, metric="R2")
+	
+	# ========== Future Disturbance ==========
+	FutureDisturbance(path, df, metric="R2")
+
 	# ========== NaN Fraction ==========
+	# NanFraction(path, df, metric="R2")
+
+	# ========== Test out optimisation ==========
+
+# ==============================================================================
+def NanFraction(path, df, metric="R2"):
+	"""
+	Check and see how the runs compare to random sampling
+	"""
+	stack = []
+	for splitvar in ["Site", "SiteYF"]:
+		# ========== subset the df to the test set ==========
+		l1 = np.logical_and(df.group=="Rand", df.sptname==splitvar)
+		l2 = np.logical_and(df.test_size==0.3, df.FutDist==20)
+		df_sub = df.loc[np.logical_and(l1, l2)]#["testname", "expn", "R2"]
+		# breakpoint()
+		# ========== Make the indivdual plots ==========
+		ax = sns.boxplot(y=metric, x="DropNAN", data=df_sub, color='.8')
+		ax = sns.stripplot(y=metric, x="DropNAN", data=df_sub)
+		plt.show()
+		stack.append(df_sub.copy())
+	
+	dfs = pd.concat(stack)
+	ax = sns.boxplot(y=metric, x="DropNAN", hue="sptname", data=dfs)#, color='.8')
+	# ax = sns.stripplot(y=metric, hue="sptname", x="FutDist", data=dfs)
+	plt.show()
+	sns.barplot(y="obsnum", x="DropNAN", hue="sptname", data=dfs)
+	plt.show()
+
+# ==============================================================================
+def FutureDisturbance(path, df, metric="R2"):
+	"""
+	Check and see how the runs compare to random sampling
+	"""
+	stack = []
+	for splitvar in ["Site", "SiteYF"]:
+		# ========== subset the df to the test set ==========
+		l1 = np.logical_and(df.group=="Rand", df.sptname==splitvar)
+		l2 = np.logical_and(df.test_size==0.3, df.DropNAN==0.5)
+		df_sub = df.loc[np.logical_and(l1, l2)]#["testname", "expn", "R2"]
+		# breakpoint()
+		# ========== Make the indivdual plots ==========
+		ax = sns.boxplot(y=metric, x="FutDist", data=df_sub, color='.8')
+		ax = sns.stripplot(y=metric, x="FutDist", data=df_sub)
+		plt.show()
+		stack.append(df_sub.copy())
+	
+	dfs = pd.concat(stack)
+	ax = sns.boxplot(y=metric, x="FutDist", hue="sptname", data=dfs)#, color='.8')
+	# ax = sns.stripplot(y=metric, hue="sptname", x="FutDist", data=dfs)
+	plt.show()
+	sns.barplot(y="obsnum", x="FutDist", hue="sptname", data=dfs)
+	plt.show()
+	# ADD some form of action here to look at the number of sites that are veing included 
+
+
+
+# ==============================================================================
+def Testsize(path, df, metric="R2"):
+	"""
+	Check and see how the runs compare to random sampling
+	"""
+	stack = []
+	for splitvar in ["Site", "SiteYF"]:
+		# ========== subset the df to the test set ==========
+		l1 = np.logical_and(df.group=="Rand", df.sptname==splitvar)
+		l2 = np.logical_and(df.FutDist==20, df.DropNAN==0.5)
+		df_sub = df.loc[np.logical_and(l1, l2)]#["testname", "expn", "R2"]
+		# breakpoint()
+		# ========== Make the indivdual plots ==========
+		# ax = sns.boxplot(y=metric, x="group", data=df_sub, color='.8')
+		ax = sns.stripplot(y=metric, x="test_size", data=df_sub)
+		plt.show()
+		stack.append(df_sub.copy())
+	
+	dfs = pd.concat(stack)
+	# ax = sns.boxplot(y=metric, x="sptname", data=dfs, color='.8')
+	ax = sns.stripplot(y=metric, hue="sptname", x="test_size", data=dfs)
+	plt.show()
+	# breakpoint()
+
+
+
+# ==============================================================================
+def matchedrandom(path, df, metric="R2"):
+	"""
+	Check and see how the runs compare to random sampling
+	"""
+	stack = []
+	for splitvar in ["Site", "SiteYF"]:
+		# ========== subset the df to the test set ==========
+		l1 = np.logical_and(df.test_size==0.3, df.sptname==splitvar)
+		l2 = np.logical_and(df.FutDist==20, df.DropNAN==0.5)
+		df_sub = df.loc[np.logical_and(l1, l2)]#["testname", "expn", "R2"]
+
+		# ========== Make the indivdual plots ==========
+		ax = sns.boxplot(y=metric, x="group", data=df_sub, color='.8')
+		ax = sns.stripplot(y=metric, x="group", data=df_sub)
+		plt.show()
+		stack.append(df_sub.copy())
+	
+	dfs = pd.concat(stack)
+	ax = sns.boxplot(y=metric, x="sptname", data=dfs, color='.8')
+	ax = sns.stripplot(y=metric, x="sptname", hue="group", data=dfs)
+	plt.show()
+	breakpoint()
 
 # ==============================================================================
 def benchmarkvalidation(path, df, sitern=416, siteyrn=417):
@@ -128,7 +238,7 @@ def benchmarkvalidation(path, df, sitern=416, siteyrn=417):
 def testsetscore(path, sitern=416, siteyrn=417):
 
 	# ========== setup the runs and open the files =========
-	pass
+	breakpoint()
 
 
 if __name__ == '__main__':
