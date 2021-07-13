@@ -71,6 +71,7 @@ import xgboost as xgb
 from sklearn.model_selection import GroupShuffleSplit
 from tqdm import tqdm
 import cudf
+import cuml
 
 print("seaborn version : ", sns.__version__)
 print("xgb version : ", xgb.__version__)
@@ -85,6 +86,7 @@ def main():
 	opath = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/Debugging/"
 	cf.pymkdir(opath)
 	force = False
+	fix   = False
 	
 	# ========== load in the stuff used by every run ==========
 	# Datasets
@@ -109,14 +111,25 @@ def main():
 		# breakpoint()
 		fnlist.append(f"{setup[expnum]['fnout']}.csv")
 		if os.path.isfile(f"{setup[expnum]['fnout']}.csv") and not force:
+			if fix:
+				save=False
+				df_check = pd.read_csv(f"{setup[expnum]['fnout']}.csv", index_col=0)
+				for clm in ["preclean", "hyperp"]:
+					if not clm in df_check.columns:
+						df_check[clm] = False
+						save=True
+				if save:
+					df_check.to_csv(f"{setup[expnum]['fnout']}.csv")
+
 			continue
+
 		for useGPU in [False]: #True, False
 
 			# ========== Subset the data ==========
 			y, X = datasubset(
-				vi_df, colnm, predvar, df_site, 
+				vi_df, colnm, predvar, df_site, setup[expnum],
 				FutDist=setup[expnum]["FutDist"], 
-				DropNAN=setup[expnum]["DropNAN"])
+				DropNAN=setup[expnum]["DropNAN"],)
 
 			print(f'EXP:{expnum} {setup[expnum]["name"]} {"Using GPU" if useGPU else ""}')
 			if isinstance(setup[expnum]["dfk"], pd.DataFrame):
@@ -139,79 +152,26 @@ def main():
 			else:
 				# breakpoint()
 				itr = TTSspliter(y, X, df_site.loc[y.index.values,], setup[expnum])
+
+				if useGPU:
+					# breakpoint()
+					y = cudf.from_pandas(y)
+					X = cudf.from_pandas(X)
 				# ========== Iterate over the ecperiments ==========
 				for nx, (train, test) in tqdm(enumerate(itr), total=setup[expnum]['n_splits']):
 					scores[len(scores)] = XGBR(
 						nx, X.iloc[train], X.iloc[test], y.iloc[train], y.iloc[test], setup[expnum],
 						GPU=useGPU, expnm=setup[expnum]["name"], resample=True)
-
 	
 		dfs = pd.DataFrame(scores).T
 		dfs.to_csv(f"{setup[expnum]['fnout']}.csv")
 	
 	# ========== load the multiple results ==========
 
-	df = pd.concat([pd.read_csv(fnp, index_col=0) for fnp in fnlist])
+	# df = pd.concat([pd.read_csv(fnp, index_col=0) for fnp in fnlist])
 	# sns.violinplot(y="R2", x="testname", data=df)
 	# plt.show()
 	breakpoint()
-	sns.stripplot(y="R2", x="sptname", hue="testname", data=df)
-	sns.stripplot(y="R2", x="testname", data=df)
-	plt.show()
-	breakpoint()
-
-
-
-	# print (dfs.groupby(["GPU"])["time"].apply(np.mean))
-
-	# sns.barplot(y="R2", x="expn", hue="testnm", data=dfs)
-	# plt.show()
-	# breakpoint()
-	# 	# setup["30pRand"]       = ({
-	# 	"in_train":[0, 1], "in_test":[2, 3],"dfk":{"testsize":0.3, "n_splits":10}, "Sorting":"site", 
-	# 	})
-	# setup["30pTest"]       = ({
-	# 	"in_train":[0, 1], "in_test":[2, 3],"dfk":dfksite, "Sorting":"site", 
-	# 	})
-	# setup["30pRand-SYR"]       = ({
-	# 	"in_train":[0, 1], "in_test":[2, 3],"dfk":{"testsize":0.3, "n_splits":10}, "Sorting":["site", "yrend"], 
-	# 	})
-	# setup["30pTest-SYR"]       = ({
-	# 	"in_train":[0, 1], "in_test":[2, 3],"dfk":dfksiteyr, "Sorting":["site", "yearfn"], 
-	# 	})
-	# setup["20pValTstDrop"] = ({
-	# 	"in_train":[0], "in_test":[1], "dfk":dfksite, "Sorting":"site", 
-	# 	"Summary":"Dropping the test set"
-	# 	})
-	
-	# setup["20pRand"]       = ({
-	# 	"in_train":[0, 1], "in_test":[2, 3],"dfk":{"testsize":0.2, "n_splits":10}, "Sorting":"site", 
-	# 	})
-	# setup["20pTest"]       = ({
-	# 	"in_train":[0, 1, 3], "in_test":[2],"dfk":dfksite, "Sorting":"site", 
-	# 	})
-	# setup["20pVal"]        = ({
-	# 	"in_train":[0, 2, 3], "in_test":[1], "dfk":dfksite, "Sorting":"site", 
-	# 	"Summary":"look at my random validiation splits instead"
-	# 	})
-
-	# setup["20pRand-SYR"]       = ({
-	# 	"in_train":[0, 1], "in_test":[2, 3],"dfk":{"testsize":0.2, "n_splits":10}, "Sorting":["site", "yrend"], 
-	# 	})
-	# setup["20pTest-SYR"]       = ({
-	# 	"in_train":[0, 1, 3], "in_test":[2],"dfk":dfksiteyr, "Sorting":["site", "yrend"], 
-	# 	})
-	# setup["20pVal-SYR"]        = ({
-	# 	"in_train":[0, 2, 3], "in_test":[1], "dfk":dfksiteyr, "Sorting":["site", "yrend"], 
-	# 	"Summary":"look at my random validiation splits instead"
-	# 	})
-	# setup["20pValTstDrop-SYR"] = ({
-	# 	"in_train":[0], "in_test":[1], "dfk":dfksiteyr, "Sorting":["site", "yearfn"], 
-	# 	"Summary":"Dropping the test set"
-	# 	})
-
-	# fnin  = "TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv"
-	# dfi   = pd.read_csv(fnin, index_col=0) 
 
 # ==============================================================================
 def XGBR(
@@ -251,6 +211,8 @@ def XGBR(
 		eval_set  = [(X_test.values, y_test)]
 		regressor.fit(X_train.values, y_train, 
 			early_stopping_rounds=esr, verbose=verb, eval_set=eval_set)
+		# ========== Use cuml metrics instead here =====
+		# https://docs.rapids.ai/api/cuml/stable/api.html#cuml.metrics.regression.r2_score
 		y_test = y_test.values.get()
 	else:
 
@@ -277,6 +239,10 @@ def XGBR(
 		score["FutDist"]   = stinfo["FutDist"]  
 		score["DropNAN"]   = stinfo["DropNAN"]  
 		score["obsnum"]    = y_test.size + y_train.size
+		score["preclean"]  = stinfo["preclean"]
+		score["hyperp"]    = stinfo["hyperp"]
+
+		# breakpoint()
 		return score
 	except Exception as er:
 		breakpoint()
@@ -340,7 +306,7 @@ def lookuptable(ind, dfk, in_train = [0, 1], in_test=[2, 3]):
 
 
 
-def datasubset(vi_df, colnm, predvar, df_site, FutDist=20, DropNAN=0.5):
+def datasubset(vi_df, colnm, predvar, df_site, info, FutDist=20, DropNAN=0.5):
 	"""
 	Function to do the splitting and return the datasets
 	"""
@@ -354,6 +320,11 @@ def datasubset(vi_df, colnm, predvar, df_site, FutDist=20, DropNAN=0.5):
 	X = X.loc[dist]
 
 	y = vi_df.loc[X.index, predvar].copy() 
+	# setup[expnum]
+	if info['preclean']:
+		rate = y/X["ObsGap"]
+		y.loc[(rate>20)]= np.NaN
+		# breakpoint()
 	if bn.anynan(y):
 		X = X.loc[~y.isnull()]
 		y = y.loc[~y.isnull()]
@@ -368,44 +339,48 @@ def batchmaker(opath, dpath):
 	setup = OrderedDict()
 	# ========== Experimant 1 ========== 
 	# ///// recreating the existing results \\\\\
-	for sptvar in ["site", ["site", "yrend"]]:
-		# +++++ This is the site vs fully withlf validation +++++
-		for testgroup in ["Test", "Vali"]:
+	for dspre in [False, True]:
+		for sptvar in ["site", ["site", "yrend"]]:
+			# +++++ This is the site vs fully withlf validation +++++
+			for testgroup in ["Test", "Vali"]:
+				# experiments with constant testsize +++++
+				setup[len(setup)] = expgroup(
+					sptvar, testgroup, opath, dpath, test_size=0.3, 
+					FutDist=20, n_splits=10, dropCFWH=False, DropNAN=0.5, 
+					dspre=dspre)
+
+		# ========== Experimant 2 ========== 
+		# ///// Building matched random results \\\\\
+		for sptvar in ["site", ["site", "yrend"]]:
+			# +++++ This is the site vs fully withlf validation +++++
 			# experiments with constant testsize +++++
 			setup[len(setup)] = expgroup(
-				sptvar, testgroup, opath, dpath, test_size=0.3, 
-				FutDist=20, n_splits=10, dropCFWH=False, DropNAN=0.5)
-
-	# ========== Experimant 2 ========== 
-	# ///// Building matched random results \\\\\
-	for sptvar in ["site", ["site", "yrend"]]:
-		# +++++ This is the site vs fully withlf validation +++++
-		# experiments with constant testsize +++++
-		setup[len(setup)] = expgroup(
-			sptvar, "Rand", opath, dpath, test_size=0.3, 
-			FutDist=20, n_splits=30, dropCFWH=False, DropNAN=0.5)
-	
-
-
-	# ========== Experimant 3 ========== 
-	# ///// Varying th disturbance \\\\\
-	for sptvar in ["site", ["site", "yrend"]]:
-		# +++++ This is the site vs fully withlf validation +++++
-		# experiments with constant testsize +++++
-		for FutDist in np.arange(0, 101, 5):
-			setup[len(setup)] = expgroup(
 				sptvar, "Rand", opath, dpath, test_size=0.3, 
-				FutDist=FutDist, n_splits=30, dropCFWH=False, DropNAN=0.5)
+				FutDist=20, n_splits=30, dropCFWH=False, DropNAN=0.5, 
+				dspre=dspre)
+		
 
-	# ========== Experimant 4 ========== 
-	# ///// Varying the test size \\\\\
-	for sptvar in ["site", ["site", "yrend"]]:
-		# +++++ This is the site vs fully withlf validation +++++
-		# experiments with constant testsize +++++
-		for test_size in np.arange(0.05, 1., 0.05):
-			setup[len(setup)] = expgroup(
-				sptvar, "Rand", opath, dpath, test_size=test_size, 
-				FutDist=20, n_splits=30, dropCFWH=False, DropNAN=0.5)
+
+		# ========== Experimant 3 ========== 
+		# ///// Varying th disturbance \\\\\
+		for sptvar in ["site", ["site", "yrend"]]:
+			# +++++ This is the site vs fully withlf validation +++++
+			# experiments with constant testsize +++++
+			for FutDist in np.arange(0, 101, 5):
+				setup[len(setup)] = expgroup(
+					sptvar, "Rand", opath, dpath, test_size=0.3, 
+					FutDist=FutDist, n_splits=30, dropCFWH=False, 
+					DropNAN=0.5, dspre=dspre)
+
+		# ========== Experimant 4 ========== 
+		# ///// Varying the test size \\\\\
+		for sptvar in ["site", ["site", "yrend"]]:
+			# +++++ This is the site vs fully withlf validation +++++
+			# experiments with constant testsize +++++
+			for test_size in np.arange(0.05, 1., 0.05):
+				setup[len(setup)] = expgroup(
+					sptvar, "Rand", opath, dpath, test_size=test_size, 
+					FutDist=20, n_splits=30, dropCFWH=False, DropNAN=0.5, dspre=dspre)
 	
 	# ========== Experimant 5 ========== 
 	# ///// Varying the nan fraction \\\\\
@@ -420,7 +395,8 @@ def batchmaker(opath, dpath):
 
 
 def expgroup(sptvar, testgroup, opath, dpath, test_size=0.3, 
-	FutDist=20, n_splits=10, dropCFWH=False, DropNAN=0.5):
+	FutDist=20, n_splits=10, dropCFWH=False, DropNAN=0.5, dspre=False, 
+	modpost=False):
 	
 	"""
 	Container for my experiments to go, returns the requested experiment
@@ -483,6 +459,12 @@ def expgroup(sptvar, testgroup, opath, dpath, test_size=0.3,
 				ls.remove(3)
 	
 	expn = f"DBG_{testgroup}_{spn}_{int(test_size*100)}TstSz_{FutDist}FDis_{int(DropNAN*100)}NaN"
+	if dspre:
+		expn += "_precleaned"
+
+	if modpost:
+		expn += "_hyperp"
+
 	expsetup = ({
 		"name"    :expn, 
 		"group"   :testgroup,
@@ -497,7 +479,9 @@ def expgroup(sptvar, testgroup, opath, dpath, test_size=0.3,
 		"test_size":test_size,
 		"FutDist" :FutDist,
 		"DropNAN" :DropNAN, 
-		"fnout"   :f"{opath}{expn}"
+		"fnout"   :f"{opath}{expn}",
+		"preclean":dspre,
+		"hyperp"  :modpost
 		})
 
 	# breakpoint()
