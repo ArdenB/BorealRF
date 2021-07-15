@@ -68,10 +68,14 @@ from sklearn.utils import shuffle
 from scipy.stats import spearmanr
 from scipy.cluster import hierarchy
 import xgboost as xgb
-from sklearn.model_selection import GroupShuffleSplit
+from sklearn.model_selection import GroupShuffleSplit, GroupKFold
 from tqdm import tqdm
 import cudf
 import cuml
+import optuna 
+from optuna.samplers import TPESampler
+from optuna.integration import XGBoostPruningCallback
+import joblib
 
 print("seaborn version : ", sns.__version__)
 print("xgb version : ", xgb.__version__)
@@ -85,6 +89,7 @@ def main():
 	path  = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/"
 	opath = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/Debugging/"
 	cf.pymkdir(opath)
+	cf.pymkdir(opath+"hyperp")
 	force = False
 	fix   = False
 	
@@ -123,48 +128,71 @@ def main():
 
 			continue
 
-		for useGPU in [False]: #True, False
+		# for useGPU in [True]: #True, FalseTrue, 
+		if setup[expnum]['hyperp']:
+			useGPU=True 
+		else:
+			useGPU=False 
+		# ========== Subset the data ==========
+		y, X, group = datasubset(
+			vi_df, colnm, predvar, df_site, setup[expnum],
+			FutDist=setup[expnum]["FutDist"], 
+			DropNAN=setup[expnum]["DropNAN"],)
 
-			# ========== Subset the data ==========
-			y, X = datasubset(
-				vi_df, colnm, predvar, df_site, setup[expnum],
-				FutDist=setup[expnum]["FutDist"], 
-				DropNAN=setup[expnum]["DropNAN"],)
-
-			print(f'EXP:{expnum} {setup[expnum]["name"]} {"Using GPU" if useGPU else ""}')
-			if isinstance(setup[expnum]["dfk"], pd.DataFrame):
-				# ========== Setup to use existing data indexing ==========
-				ptrl, ptsl   = lookuptable(
-					y.index.values, 
-					setup[expnum]["dfk"],
-					in_train=setup[expnum]["in_train"], 
-					in_test=setup[expnum]["in_test"])
-				
-				if useGPU:
-					# breakpoint()
-					y = cudf.from_pandas(y)
-					X = cudf.from_pandas(X)
-				# ========== Iterate over the ecperiments ==========
-				for nx, (train, test) in tqdm(enumerate(zip(ptrl, ptsl)), total=setup[expnum]['n_splits']):
-					scores[len(scores)] = XGBR(
-						nx, X.loc[train], X.loc[test], y.loc[train], y.loc[test], setup[expnum],
-						GPU=useGPU, expnm=setup[expnum]["name"], resample=False)
-			else:
+		print(f'EXP:{expnum} {setup[expnum]["name"]} {"Using GPU" if useGPU else ""}')
+		if isinstance(setup[expnum]["dfk"], pd.DataFrame):
+			# ========== Setup to use existing data indexing ==========
+			ptrl, ptsl   = lookuptable(
+				y.index.values, 
+				setup[expnum]["dfk"],
+				in_train=setup[expnum]["in_train"], 
+				in_test=setup[expnum]["in_test"])
+			
+			if useGPU:
 				# breakpoint()
-				itr = TTSspliter(y, X, df_site.loc[y.index.values,], setup[expnum])
+				y = cudf.from_pandas(y)
+				X = cudf.from_pandas(X)
+			# ========== Iterate over the ecperiments ==========
+			for nx, (train, test) in tqdm(enumerate(zip(ptrl, ptsl)), total=setup[expnum]['n_splits']):
+				scores[len(scores)] = XGBR(
+					nx, X.loc[train], X.loc[test], y.loc[train], 
+					y.loc[test], group.loc[train], setup[expnum], opath, 
+					GPU=useGPU, expnm=setup[expnum]["name"], resample=False)
+				# ========== Added an indent here so that it saves slow runs more often ==========
+				if nx >=1  and setup[expnum]['hyperp']:
+					try:
+						dfs = pd.DataFrame(scores).T
+						dfs.to_csv(f"{setup[expnum]['fnout']}.csv")
+					except Exception as er:
+						warn.warn(str(er))
+						breakpoint()
+		else:
+			# breakpoint()
+			itr = TTSspliter(y, X, df_site.loc[y.index.values,], setup[expnum])
 
-				if useGPU:
-					# breakpoint()
-					y = cudf.from_pandas(y)
-					X = cudf.from_pandas(X)
-				# ========== Iterate over the ecperiments ==========
-				for nx, (train, test) in tqdm(enumerate(itr), total=setup[expnum]['n_splits']):
-					scores[len(scores)] = XGBR(
-						nx, X.iloc[train], X.iloc[test], y.iloc[train], y.iloc[test], setup[expnum],
-						GPU=useGPU, expnm=setup[expnum]["name"], resample=True)
-	
+			if useGPU:
+				# breakpoint()
+				y = cudf.from_pandas(y)
+				X = cudf.from_pandas(X)
+			# ========== Iterate over the ecperiments ==========
+			for nx, (train, test) in tqdm(enumerate(itr), total=setup[expnum]['n_splits']):
+				scores[len(scores)] = XGBR(
+					nx, X.iloc[train], X.iloc[test], 
+					y.iloc[train], y.iloc[test], group.iloc[train],
+					setup[expnum],  opath, GPU=useGPU, expnm=setup[expnum]["name"], 
+					resample=True)
+				# breakpoint()
+				# ========== Added an indent here so that it saves slow runs more often ==========
+				if nx >=1  and setup[expnum]['hyperp']:
+					try:
+						dfs = pd.DataFrame(scores).T
+						dfs.to_csv(f"{setup[expnum]['fnout']}.csv")
+					except Exception as er:
+						warn.warn(str(er))
+						breakpoint()
 		dfs = pd.DataFrame(scores).T
 		dfs.to_csv(f"{setup[expnum]['fnout']}.csv")
+		# breakpoint()
 	
 	# ========== load the multiple results ==========
 
@@ -174,53 +202,141 @@ def main():
 	breakpoint()
 
 # ==============================================================================
-def XGBR(
-	nx, X_train, X_test, y_train, y_test, stinfo,
-	GPU=False, expnm="", verb=False, esr=40, resample=False):
 
+def Objective(trial, X_train, y_train, g_train, 
+	random_state=42,
+	n_splits=3,	n_repeats=2,
+	# n_jobs=1,
+	early_stopping_rounds=40,
+	GPU=False
+	):
+	"""
+	A function to be optimised using baysian search
+	"""
+	# XGBoost parameters
+	params = ({
+
+		"verbosity": 0,  # 0 (silent) - 3 (debug)
+		"objective": "reg:squarederror",
+		"n_estimators": 10000,
+		"max_depth": trial.suggest_int("max_depth", 3, 12),
+		"num_parallel_tree":trial.suggest_int("num_parallel_tree", 1, 20),
+		"learning_rate": trial.suggest_loguniform("learning_rate", 0.005, 0.05),
+		"colsample_bytree": trial.suggest_loguniform("colsample_bytree", 0.2, 0.6),
+		"subsample": trial.suggest_loguniform("subsample", 0.4, 0.8),
+		"alpha": trial.suggest_loguniform("alpha", 0.01, 10.0),
+		"lambda": trial.suggest_loguniform("lambda", 1e-8, 10.0),
+		"gamma": trial.suggest_loguniform("lambda", 1e-8, 10.0),
+		"min_child_weight": trial.suggest_loguniform("min_child_weight", 10, 1000),
+		})
+	# ========== Make GPU and CPU mods ==========
 	if GPU:
-		XGB_dict = ({
-			'objective': 'reg:squarederror',
-			'num_parallel_tree'     :10,
-			# 'n_jobs'           :-1,
-			'max_depth'        :5,
-			"n_estimators"     :2000,
-			'tree_method': 'gpu_hist',
-			"colsample_bytree":0.3,
-			})
+		params['tree_method'] = 'gpu_hist'
+		mfunc  = cuml.metrics.mean_squared_error
+		y_pred = np.zeros_like(y_train)
 	else:
-		XGB_dict = ({
-			# +++++ The Model setup params +++++
-			'objective': 'reg:squarederror',
-			'num_parallel_tree'     :10,
-			'n_jobs'           :-1,
-			'max_depth'        :5,
-			"n_estimators"     :2000,
-			"tree_method"      :'hist',
-			"colsample_bytree":0.3,
-			})
+		params['n_jobs']      = -1
+		mfunc  = sklMet.mean_squared_error
+		y_pred = y_train.copy() * 0
 
-	t0 = pd.Timestamp.now()
-
-	# ========== convert the values ========== 
+	# ========== Make the Regressor and the Kfold ==========
+	regressor        = xgb.XGBRegressor(**params)
+	pruning_callback = XGBoostPruningCallback(trial, "validation_0-rmse")
+	gkf              = GroupKFold(n_splits=n_splits, )#, n_repeats=n_repeats,) #random_state=random_state
+	
+	# ========== setup my values and loop through the grouped kfold splits ==========
+	for train_index, test_index in gkf.split(X_train, y_train, groups=g_train):
+		X_A, X_B = X_train.iloc[train_index, :], X_train.iloc[test_index, :]
+		y_A, y_B = y_train.iloc[train_index], y_train.iloc[test_index]
+		regressor.fit(
+			X_A,
+			y_A,
+			eval_set=[(X_B, y_B)],
+			eval_metric="rmse",
+			verbose=0,
+			callbacks=[pruning_callback],
+			early_stopping_rounds=early_stopping_rounds,
+		)
+		try:
+			y_pred.iloc[test_index] = regressor.predict(X_B)
+		except Exception as er: 
+			warn.warn(str(er))
+			breakpoint()
+	# y_pred /= n_repeats
 	# breakpoint()
+	return np.sqrt(mfunc(y_train, y_pred))
+
+# ==============================================================================
+
+def XGBR(
+	nx, X_train, X_test, y_train, y_test, g_train, stinfo, opath, 
+	GPU=False, expnm="", verb=False, esr=40, resample=False, n_trials=5):
+	
+	# ========== Create the hyperprams ==========
+	t0 = pd.Timestamp.now()
+	if stinfo["hyperp"]:
+		# Objective(trial, X_train, y_train, g_train, 
+		# 	n_splits=3,	n_repeats=2, early_stopping_rounds=esr,
+		# 	GPU=GPU)
+		fnout = f"{opath}hyperp/optuna_{stinfo['name']}_v{nx:02d}{'_GPU' if GPU else ''}.pkl"
+		if os.path.isfile(fnout):
+			print(f"Loading existing Hyperpram Optimisation")
+			study = joblib.load(fnout)
+			if not len(study.trials) == n_trials:
+				print("Additional studies required")
+				breakpoint()
+				# study.optimize(objective, n_trials=3)
+		else:
+			t0x = pd.Timestamp.now()
+			sampler = TPESampler(multivariate=True)
+			study   = optuna.create_study(direction="minimize", sampler=sampler)
+			study.optimize(
+				lambda trial: Objective(trial,
+					X_train, y_train, g_train, n_splits=3,
+					n_repeats=2, early_stopping_rounds=esr,	GPU=GPU
+				),
+				n_trials=5,
+				n_jobs=1,
+			)
+			joblib.dump(study, fnout)
+			print(f"Hyperpram Optimisation took: {pd.Timestamp.now() - t0x}")
+		
+		hp = study.best_params
+		XGB_dict = _XGBdict(GPU, XGB_dict=hp)
+		# breakpoint()
+	else:
+		XGB_dict = _XGBdict(GPU)
+
+
+	# ========== create the XGBoost object ========== 
 	regressor = xgb.XGBRegressor(**XGB_dict)
-	# regGPU = xgb.XGBRegressor(**gpu_dict)
 
 	if GPU:
 		eval_set  = [(X_test.values, y_test)]
 		regressor.fit(X_train.values, y_train, 
 			early_stopping_rounds=esr, verbose=verb, eval_set=eval_set)
+		
 		# ========== Use cuml metrics instead here =====
-		# https://docs.rapids.ai/api/cuml/stable/api.html#cuml.metrics.regression.r2_score
-		y_test = y_test.values.get()
+		y_pred = regressor.predict(X_test).astype(np.float64)
+		# breakpoint()
+		try:
+
+			R2     = cuml.metrics.r2_score( y_test, y_pred)
+			MAE    = cuml.metrics.mean_absolute_error(y_test, y_pred)
+			RMSE   = np.sqrt(cuml.metrics.mean_squared_error(y_test, y_pred))
+		except Exception as er:
+			breakpoint()
+
 	else:
 
 		eval_set  = [(X_test.values, y_test.values.ravel())]
 		regressor.fit(X_train.values, y_train.values.ravel(), 
 			early_stopping_rounds=esr, verbose=verb, eval_set=eval_set)
 
-	y_pred = regressor.predict(X_test)
+		y_pred = regressor.predict(X_test)
+		R2     = sklMet.r2_score(y_test, y_pred)
+		MAE    = sklMet.mean_absolute_error(y_test, y_pred)
+		RMSE   = np.sqrt(sklMet.mean_squared_error(y_test, y_pred))
 
 	try:
 
@@ -229,9 +345,9 @@ def XGBR(
 		score["expn"]      = nx
 		score["group"]     = stinfo["group"]
 		score["sptname"]   = stinfo["sptname"]
-		score["R2"]        = sklMet.r2_score(y_test, y_pred)
-		score["MAE"]       = sklMet.mean_absolute_error(y_test, y_pred)
-		score["RMSE"]      = np.sqrt(sklMet.mean_squared_error(y_test, y_pred))
+		score["R2"]        = R2
+		score["MAE"]       = MAE
+		score["RMSE"]      = RMSE
 		score["time"]      = pd.Timestamp.now()-t0
 		score["GPU"]       = GPU
 		score["RAND"]      = resample
@@ -254,6 +370,7 @@ def TTSspliter(y, X, site_df, expset, random_state=42):
 	"""
 	Function to perform new random splits
 	"""
+	# breakpoint()
 
 	if expset["Sorting"] == "site":
 		group = site_df["site"]
@@ -273,7 +390,7 @@ def TTSspliter(y, X, site_df, expset, random_state=42):
 		test_size    = expset['test_size'], 
 		random_state = random_state)
 
-	return gss.split(X, y, groups=group)
+	return gss.split(X, y, groups=group) #, group
 
 
 def lookuptable(ind, dfk, in_train = [0, 1], in_test=[2, 3]):
@@ -329,7 +446,19 @@ def datasubset(vi_df, colnm, predvar, df_site, info, FutDist=20, DropNAN=0.5):
 		X = X.loc[~y.isnull()]
 		y = y.loc[~y.isnull()]
 	
-	return y, X
+	if info["Sorting"] == "site":
+		group = df_site["site"].loc[y.index]
+	elif info["Sorting"] == ["site", "yrend"]:
+		site_df = df_site.loc[y.index].copy()
+		site_df["yrend"] = X.ObsGap + site_df.year
+		site_df["grp"]   = site_df.groupby(info["Sorting"]).grouper.group_info[0]
+		# breakpoint()
+		group = site_df["grp"]	
+	# group =
+	# breakpoint()
+	return y, X, group
+
+# ==============================================================================
 
 def batchmaker(opath, dpath):
 	"""
@@ -339,16 +468,19 @@ def batchmaker(opath, dpath):
 	setup = OrderedDict()
 	# ========== Experimant 1 ========== 
 	# ///// recreating the existing results \\\\\
-	for dspre in [False, True]:
+	for dspre, modpost in zip([False, True, True], [False, False, True]):
 		for sptvar in ["site", ["site", "yrend"]]:
 			# +++++ This is the site vs fully withlf validation +++++
 			for testgroup in ["Test", "Vali"]:
 				# experiments with constant testsize +++++
+				if modpost and testgroup == "Vali":
+					# Way to skip runs quickly
+					continue
+
 				setup[len(setup)] = expgroup(
 					sptvar, testgroup, opath, dpath, test_size=0.3, 
 					FutDist=20, n_splits=10, dropCFWH=False, DropNAN=0.5, 
-					dspre=dspre)
-
+					dspre=dspre, modpost=modpost)
 		# ========== Experimant 2 ========== 
 		# ///// Building matched random results \\\\\
 		for sptvar in ["site", ["site", "yrend"]]:
@@ -357,9 +489,12 @@ def batchmaker(opath, dpath):
 			setup[len(setup)] = expgroup(
 				sptvar, "Rand", opath, dpath, test_size=0.3, 
 				FutDist=20, n_splits=30, dropCFWH=False, DropNAN=0.5, 
-				dspre=dspre)
+				dspre=dspre, modpost=modpost)
 		
 
+		if modpost:
+			# Way to skip runs quickly
+			continue
 
 		# ========== Experimant 3 ========== 
 		# ///// Varying th disturbance \\\\\
@@ -370,7 +505,7 @@ def batchmaker(opath, dpath):
 				setup[len(setup)] = expgroup(
 					sptvar, "Rand", opath, dpath, test_size=0.3, 
 					FutDist=FutDist, n_splits=30, dropCFWH=False, 
-					DropNAN=0.5, dspre=dspre)
+					DropNAN=0.5, dspre=dspre, modpost=modpost)
 
 		# ========== Experimant 4 ========== 
 		# ///// Varying the test size \\\\\
@@ -380,7 +515,8 @@ def batchmaker(opath, dpath):
 			for test_size in np.arange(0.05, 1., 0.05):
 				setup[len(setup)] = expgroup(
 					sptvar, "Rand", opath, dpath, test_size=test_size, 
-					FutDist=20, n_splits=30, dropCFWH=False, DropNAN=0.5, dspre=dspre)
+					FutDist=20, n_splits=30, dropCFWH=False, DropNAN=0.5, 
+					dspre=dspre, modpost=modpost)
 	
 	# ========== Experimant 5 ========== 
 	# ///// Varying the nan fraction \\\\\
@@ -490,6 +626,26 @@ def expgroup(sptvar, testgroup, opath, dpath, test_size=0.3,
 
 # ==============================================================================
 
+def _XGBdict(GPU, XGB_dict=None):
+	if XGB_dict is None:
+		XGB_dict = ({
+			'objective'         : 'reg:squarederror',
+			'num_parallel_tree' :10,
+			'max_depth'         :5,
+			"n_estimators"      :2000,
+			"colsample_bytree"  :0.3,
+			})
+	else:
+		XGB_dict['objective']    = 'reg:squarederror'
+		XGB_dict["n_estimators"] = 2000
+
+
+	if GPU:
+		XGB_dict['tree_method'] = 'gpu_hist'
+	else:
+		XGB_dict['n_jobs']      = -1
+	return XGB_dict
+
 
 def _findcords(x, test):
 	# Function check if x is in different arrays
@@ -497,9 +653,6 @@ def _findcords(x, test):
 	## I might need to use an xor here
 	return x in test 
 		
-
-
-
 
 
 

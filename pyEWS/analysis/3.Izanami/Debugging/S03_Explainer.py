@@ -80,6 +80,11 @@ print("xgb version : ", xgb.__version__)
 
 # ==============================================================================
 def main():
+	# ========== Create the matplotlib params ==========
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':12, "axes.labelweight":"bold",})
+	font = {'weight' : 'bold', 'size'   : 12}
+	mpl.rc('font', **font)
+	sns.set_style("whitegrid")
 	# ========= make some paths ==========
 	dpath = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/"
 	path  = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/"
@@ -92,35 +97,37 @@ def main():
 
 
 	# ========== Compare validation and test sets in models ==========
-	testsetscore(path, sitern=416, siteyrn=417)
+	# testsetscore(path, sitern=416, siteyrn=417)
 
-	# ========== test method Method validation ==========
-	benchmarkvalidation(path, df.loc[~df.preclean.astype(bool)], sitern=416, siteyrn=417)
+	# # ========== test method Method validation ==========
+	# benchmarkvalidation(path, df.loc[~df.preclean.astype(bool)], sitern=416, siteyrn=417)
 
-	# ========== Do the R2 fall within the random sorting range ==========
-	matchedrandom(path, df.loc[~df.preclean.astype(bool)])
+	# # ========== Do the R2 fall within the random sorting range ==========
+	# matchedrandom(path, df.loc[~df.preclean.astype(bool)])
 	
 	# ========== Explain the gaps ==========
 	# This need more work to explain 
 	gapexplainer(dpath, path, df, sitern=416, siteyrn=417)
 
 	# ========== Do the R2 fall within the random sorting range ==========
-	matchedrandom(path, df, hue="preclean")
+	benchmarkvalidation(path, df.loc[~df.hyperp.astype(bool)], sitern=416, siteyrn=417)
+	matchedrandom(path, df.loc[~df.hyperp.astype(bool)], hue="preclean")
 
 	# ========== Future Disturbance ==========
-	FutureDisturbance(path, df.loc[df.preclean.astype(bool)], metric="R2")
-
-
+	FutureDisturbance(path, df.loc[np.logical_and(df.preclean.astype(bool), ~df.hyperp.astype(bool))], metric="R2")
 
 	# ========== Test size ==========
 	Testsize(path, df.loc[df.preclean.astype(bool)], metric="R2")
 	
+	# ========== Test out hyperps ==========
+	benchmarkvalidation(path, df, sitern=416, siteyrn=417)
+	# ========== Test out optimisation ==========
+	matchedrandom(path, df, hue=["preclean", "hyperp"])
 	breakpoint()
 
 	# ========== NaN Fraction ==========
 	# NanFraction(path, df, metric="R2")
 
-	# ========== Test out optimisation ==========
 # ==============================================================================
 def gapexplainer(dpath, path, df, sitern=416, siteyrn=417):
 	"""
@@ -177,7 +184,11 @@ def gapexplainer(dpath, path, df, sitern=416, siteyrn=417):
 	# 		breakpoint()
 
 	# ========== Plot the metrics ==========
-	sns.barplot(y="R2", x="index",hue="splitvar",  data=dfp.reset_index())
+	# breakpoint()
+	ax = sns.barplot(y="R2", x="index",hue="splitvar",  data=dfp.reset_index())
+	ax.set_xticklabels(ax.get_xticklabels(),  rotation=20, horizontalalignment='right')
+	ax.set_xlabel("")
+	plt.tight_layout()
 	plt.show()
 
 	# breakpoint()
@@ -189,20 +200,21 @@ def NanFraction(path, df, metric="R2"):
 	Check and see how the runs compare to random sampling
 	"""
 	stack = []
-	for splitvar in ["Site", "SiteYF"]:
+	f, (ax1, ax2, ax3) = plt.subplots(3, 1)
+	for splitvar, ax in zip(["Site", "SiteYF"], [ax1, ax2]):
 		# ========== subset the df to the test set ==========
 		l1 = np.logical_and(df.group=="Rand", df.sptname==splitvar)
 		l2 = np.logical_and(df.test_size==0.3, df.FutDist==20)
 		df_sub = df.loc[np.logical_and(l1, l2)]#["testname", "expn", "R2"]
 		# breakpoint()
 		# ========== Make the indivdual plots ==========
-		ax = sns.boxplot(y=metric, x="DropNAN", data=df_sub, color='.8')
-		ax = sns.stripplot(y=metric, x="DropNAN", data=df_sub)
+		sns.boxplot(y=metric, x="DropNAN", data=df_sub, color='.8', ax = ax)
+		sns.stripplot(y=metric, x="DropNAN", data=df_sub, ax = ax)
 		plt.show()
 		stack.append(df_sub.copy())
 	
 	dfs = pd.concat(stack)
-	ax = sns.boxplot(y=metric, x="DropNAN", hue="sptname", data=dfs)#, color='.8')
+	sns.boxplot(y=metric, x="DropNAN", hue="sptname", data=dfs, ax=ax3)#, color='.8')
 	# ax = sns.stripplot(y=metric, hue="sptname", x="FutDist", data=dfs)
 	plt.show()
 	sns.barplot(y="obsnum", x="DropNAN", hue="sptname", data=dfs)
@@ -214,7 +226,8 @@ def FutureDisturbance(path, df, metric="R2"):
 	Check and see how the runs compare to random sampling
 	"""
 	stack = []
-	for splitvar in ["Site", "SiteYF"]:
+	f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+	for splitvar, ax in zip(["Site", "SiteYF"], [ax1, ax2]):
 		# ========== subset the df to the test set ==========
 		l1 = np.logical_and(df.group=="Rand", df.sptname==splitvar)
 		l2 = np.logical_and(df.test_size==0.3, df.DropNAN==0.5)
@@ -222,9 +235,10 @@ def FutureDisturbance(path, df, metric="R2"):
 		df_sub.loc[:, 'FutDist'] =  df_sub['FutDist'].round(decimals=2).values
 		# breakpoint()
 		# ========== Make the indivdual plots ==========
-		ax = sns.boxplot(y=metric, x="FutDist", data=df_sub, color='.8')
-		ax = sns.stripplot(y=metric, x="FutDist", data=df_sub)
-		plt.show()
+		sns.boxplot(y=metric, x="FutDist", data=df_sub, color='.8', ax = ax)
+		sns.stripplot(y=metric, x="FutDist", data=df_sub, ax = ax)
+		ax.set(ylim=(0.15, 0.60))
+		# plt.show()
 		# ax = sns.boxplot(y=metric, x="FutDist", hue="preclean", data=df_sub, color='.8')
 		# ax = sns.stripplot(y=metric, x="FutDist", hue="preclean", data=df_sub, dodge=True)
 		# plt.show()
@@ -232,10 +246,11 @@ def FutureDisturbance(path, df, metric="R2"):
 		stack.append(df_sub.copy())
 	
 	dfs = pd.concat(stack)
-	ax  = sns.boxplot(y=metric, x="FutDist", hue="sptname", data=dfs)#, color='.8')
+	sns.boxplot(y=metric, x="FutDist", hue="sptname", data=dfs, ax  = ax3)#, color='.8')
+	ax3.set(ylim=(0.15, 0.60))
 	# ax = sns.stripplot(y=metric, hue="sptname", x="FutDist", data=dfs)
-	plt.show()
-	sns.barplot(y="obsnum", x="FutDist", hue="sptname", data=dfs)
+	# plt.show()
+	sns.barplot(y="obsnum", x="FutDist", hue="sptname", data=dfs, ax=ax4)
 	plt.show()
 	# ADD some form of action here to look at the number of sites that are veing included 
 
@@ -246,7 +261,8 @@ def Testsize(path, df, metric="R2"):
 	Check and see how the runs compare to random sampling
 	"""
 	stack = []
-	for splitvar in ["Site", "SiteYF"]:
+	f, (ax1, ax2, ax3) = plt.subplots(3, 1)
+	for splitvar, ax in zip(["Site", "SiteYF"], [ax1, ax2]):
 		# ========== subset the df to the test set ==========
 		l1 = np.logical_and(df.group=="Rand", df.sptname==splitvar)
 		l2 = np.logical_and(df.FutDist==20, df.DropNAN==0.5)
@@ -256,13 +272,13 @@ def Testsize(path, df, metric="R2"):
 		# ========== Make the indivdual plots ==========
 		# ax = sns.boxplot(y=metric, x="group", data=df_sub, color='.8')
 		# breakpoint()
-		ax = sns.stripplot(y=metric, x="test_size", data=df_sub)
-		plt.show()
+		sns.stripplot(y=metric, x="test_size", data=df_sub, ax=ax)
+		# plt.show()
 		stack.append(df_sub.copy())
 	
 	dfs = pd.concat(stack)
 	# ax = sns.boxplot(y=metric, x="sptname", data=dfs, color='.8')
-	ax = sns.stripplot(y=metric, hue="sptname", x="test_size", data=dfs, dodge=True)
+	sns.stripplot(y=metric, hue="sptname", x="test_size", data=dfs, dodge=True, ax=ax3)
 	plt.show()
 	# breakpoint()
 
@@ -274,17 +290,34 @@ def matchedrandom(path, df, metric="R2", hue=None):
 	Check and see how the runs compare to random sampling
 	"""
 	stack = []
-	for splitvar in ["Site", "SiteYF"]:
+	# if hue is None:
+	# 	f, (ax1, ax2, ax3) = plt.subplots(3, 1)
+	# else:
+	f, (ax1, ax2, ax3) = plt.subplots(1, 3)
+	for splitvar, ax in zip(["Site", "SiteYF"], [ax1, ax2]):
 		# ========== subset the df to the test set ==========
 		l1 = np.logical_and(df.test_size==0.3, df.sptname==splitvar)
 		l2 = np.logical_and(df.FutDist==20, df.DropNAN==0.5)
 		df_sub = df.loc[np.logical_and(l1, l2)]#["testname", "expn", "R2"]
 
 		# ========== Make the indivdual plots ==========
-		ax = sns.boxplot(y=metric, x="group", hue=hue, data=df_sub, color='.8')
-		ax = sns.stripplot(y=metric, x="group", hue=hue, data=df_sub, dodge=True)
-		plt.show()
-		# breakpoint()
+		if hue is None or isinstance(hue, str):
+			sns.boxplot(y=metric, x="group", hue=hue, data=df_sub, color='.8', ax = ax)
+			sns.stripplot(y=metric, x="group", hue=hue, data=df_sub, dodge=True, ax = ax)
+		else:
+			va = ("_").join(hue) + "_sptname"
+			if hue == ['preclean', 'hyperp']:
+				df_sub[va] = "fix"+(df_sub["preclean"].astype(str))+ "_" +"hyper"+(df_sub["hyperp"].astype(str)) + "_" + df_sub["sptname"]
+				order   = ["fixFalse_hyperFalse_Site", "fixFalse_hyperFalse_SiteYF", "fixTrue_hyperFalse_Site", "fixTrue_hyperFalse_SiteYF", "fixTrue_hyperTrue_Site", "fixTrue_hyperTrue_SiteYF"]
+			else:
+				breakpoint()
+			sns.boxplot(y=metric, x="group", hue=va, data=df_sub, color='.8', ax = ax)
+			sns.stripplot(y=metric, x="group", hue=va, data=df_sub, dodge=True, ax = ax)
+
+		# plt.show()
+		ax.set_title(splitvar, loc="left")
+		ax.set_ylabel("")
+		ax.set(ylim=(0, 0.75))
 		stack.append(df_sub.copy())
 	
 	dfs = pd.concat(stack)
@@ -297,8 +330,11 @@ def matchedrandom(path, df, metric="R2", hue=None):
 		order   = ["fixFalse_Site", "fixFalse_SiteYF", "fixTrue_Site", "fixTrue_SiteYF"]
 	# ax = sns.catplot(y=metric, x="sptname", data=dfs, color='.8', col="preclean", kind="box")
 	# ax = sns.catplot(y=metric, x="sptname", hue="group",data=dfs, col="preclean", kind="strip")
-	ax = sns.boxplot(y=metric, x=va, order=order, data=dfs, color='.8')
-	ax = sns.stripplot(y=metric, x=va, order=order, hue="group", data=dfs)
+	sns.boxplot(y=metric, x=va, order=order, data=dfs, color='.8', ax = ax3)
+	sns.stripplot(y=metric, x=va, order=order, hue="group", data=dfs, ax = ax3)
+	ax3.set_ylabel("")
+	ax3.set(ylim=(0, 0.75))
+	ax3.set_xticklabels(ax3.get_xticklabels(),  rotation=20, horizontalalignment='right')
 	plt.show()
 	# breakpoint()
 
@@ -309,9 +345,10 @@ def benchmarkvalidation(path, df, sitern=416, siteyrn=417):
 	"""
 	cols =  ['experiment','version','R2']
 	# ========== setup the runs and open the files =========
+	f, (ax1, ax2) = plt.subplots(2, 1,  sharex=True)# figsize=(7, 5),
 	
 	# ========== subset the df to the test set ==========
-	for rn, splitvar in zip([sitern, siteyrn], ["Site", "SiteYF"]):
+	for rn, splitvar, ax in zip([sitern, siteyrn], ["Site", "SiteYF"], [ax1, ax2]):
 		# pull out the nex experiment set 
 		df_sub = df.loc[np.logical_and(df.group=="Test", df.sptname==splitvar), ["testname", "expn", "R2"]]
 		# pull out the old set
@@ -320,10 +357,12 @@ def benchmarkvalidation(path, df, sitern=416, siteyrn=417):
 		dft = pd.concat([dfx, df_sub])
 		dft = dft.apply(pd.to_numeric, errors='ignore')
 
-		sns.barplot(y="R2", x="expn", hue="testname", data=dft)
+		sns.barplot(y="R2", x="expn", hue="testname", data=dft, ax=ax)
 		dfx = pd.concat([pd.read_csv(fnx, index_col=0).T for fnx in glob.glob(f"{path}{rn}/Exp{rn}*_Results.csv")]).loc[:, cols]
-
-		plt.show()
+		ax.set_title(splitvar, loc="left")
+	
+	plt.tight_layout()
+	plt.show()
 	# breakpoint()
 
 
@@ -331,6 +370,8 @@ def testsetscore(path, sitern=416, siteyrn=417):
 
 	# ========== setup the runs and open the files =========
 	cols =  ['experiment','version','R2', 'FWH:R2']
+	dfls = []
+
 	for rn, splitvar in zip([sitern, siteyrn], ["Site", "SiteYF"]):
 		fns = glob.glob(f"{path}{rn}/Exp{rn}*_BranchItteration.csv")
 		# .iloc[:-1,]
@@ -338,12 +379,19 @@ def testsetscore(path, sitern=416, siteyrn=417):
 		dfx.rename({"R2":"Validation", "FWH:R2":"Test"}, axis=1, inplace=True)
 		# pd.wide_to_long(dfx, stubnames='R2', i=['experiment', 'version'], j='R2')
 		dfm = pd.melt(dfx, id_vars=['experiment', 'version', 'index'], value_vars=["Validation","Test"])
+		# dfm["sptname"] = f"{dfm.version}{splitvar}"
+		dfm["sptname"] = splitvar
+		dfls.append(dfm.copy())
 		# ========== Make the plot ==========
 		
-		sns.relplot(
-		    data=dfm, x="index", y="value", col="version",
-		    hue="variable", kind="line",col_wrap=5)
-		plt.show()
+	dfmc = pd.concat(dfls)
+	# breakpoint()
+	dfmc["RN"] = dfmc["version"].astype(str) + "." + dfmc["sptname"]
+	sns.relplot(
+	    data=dfmc, x="index", y="value", col="RN",
+	    hue="variable", style="sptname", kind="line",col_wrap=5)
+	plt.show()
+	# breakpoint()
 		# breakpoint()
 		# Exp416_OneStageXGBOOST_AllGap_Debug_Sitesplit_vers00_BranchItteration.csv
 	# breakpoint()
