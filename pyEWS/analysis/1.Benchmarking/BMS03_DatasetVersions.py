@@ -112,19 +112,33 @@ def main(args):
 
 
 			# ========== Allow for version skipping ==========
-			if experiment < 400:
+			if experiment < 420:
 				warn.warn("Skipping this one so everything else can finish")
 				continue
 			
+			# ========== create a base string ==========
+			if not setup['predictwindow'] is None:
+				basestr = f"TTS_VI_df_{setup['predictwindow']}years"
+			else:
+				if (setup["predvar"] == "lagged_biomass") or inheritrows :
+					basestr = f"TTS_VI_df_AllSampleyears" 
+				else:
+					basestr = f"TTS_VI_df_AllSampleyears_{setup['predvar']}" 
 
-
+				if not setup["FullTestSize"] is None:
+					basestr += f"_{int(setup['FullTestSize']*100)}FWH"
+					if setup["splitvar"] == ["site", "yrend"]:
+						basestr += f"_siteyear{setup["splitmethod"]}"
+					elif setup["splitvar"] == "site":
+						basestr += f"_siteyear{setup["splitmethod"]}"
+			breakpoint()
 
 			# ========== load in the data ==========
 			if all([os.path.isfile(fn) for fn in [fn_br, fn_res, fn_PI]]) and not force:
 				print ("Experiment:", experiment, setup["name"], " version:", version, "complete")
 				# ========== Fixing the broken site counts ==========
 				if fix:
-					Region_calculation(experiment, version, setup, path, fn_PI, fn_res)
+					Region_calculation(basestr, experiment, version, setup, path, fn_PI, fn_res)
 				continue
 			else:
 				print ("\nExperiment:", experiment, setup["name"], " version:", version)
@@ -178,6 +192,7 @@ def main(args):
 			corr_linkage = None # will be replaced after the 0 itteration
 			orig_clnm    = None # Original Column names
 
+
 			# ////// To do, ad a way to record when a feature falls out \\\\\\
 			# ========== Loop over the branchs ===========
 			while not final:
@@ -198,19 +213,6 @@ def main(args):
 					breakpoint()
 					final = True
 					# setup["BranchDepth"] = branch
-					
-				if not setup['predictwindow'] is None:
-					bsestr = f"TTS_VI_df_{setup['predictwindow']}years"
-				else:
-					if (setup["predvar"] == "lagged_biomass") or inheritrows :
-						bsestr = f"TTS_VI_df_AllSampleyears" 
-					else:
-						bsestr = f"TTS_VI_df_AllSampleyears_{setup['predvar']}" 
-
-					if not setup["FullTestSize"] is None:
-						bsestr += f"_{int(setup['FullTestSize']*100)}FWH"
-						if setup["splitvar"] == ["site", "yrend"]:
-							bsestr += "_siteyear"
 
 						# breakpoint()
 
@@ -218,7 +220,7 @@ def main(args):
 				# X_train2, X_test2, y_train2, y_test2, col_nms2, loadstats2, corr2, df_site2 = bf.datasplit(setup["predvar"], experiment, version,  branch, setup, final=False,  cols_keep=ColNm, vi_fn=fnamein, region_fn=sfnamein, basestr=bsestr, dropvar=setup["dropvar"])
 				X_train, X_test, y_train, y_test, col_nms, loadstats, corr, df_site, dbg = bf.datasplit(
 					setup["predvar"], experiment, version,  branch, setup, final=final,  cols_keep=ColNm, #force=True,
-					vi_fn=fnamein, region_fn=sfnamein, basestr=bsestr, dropvar=setup["dropvar"])
+					vi_fn=fnamein, region_fn=sfnamein, basestr=basestr, dropvar=setup["dropvar"])
 				# if final:
 				# 	breakpoint()
 
@@ -322,7 +324,7 @@ def main(args):
 				{"index":"Variable"}, axis=1)
 			df_perm.to_csv(fn_PI)
 			try:
-				Region_calculation(experiment, version, setup, path, fn_PI, fn_res, fnamein, sfnamein, res=res)
+				Region_calculation(basestr, experiment, version, setup, path, fn_PI, fn_res, fnamein, sfnamein, res=res)
 			except  Exception as er:
 				print(str(er))
 				breakpoint()
@@ -528,8 +530,6 @@ def ml_regression(
 				warn.warn("Model save failed. going interactive to stop model loss")
 				breakpoint()
 
-
-
 		return tDif, r2, FI, col_nms, score_debug
 
 	else:
@@ -614,7 +614,7 @@ def Variable_selection(corr_linkage, branch, feature_imp, col_nms, orig_clnm):
 
 	return ColNm
 
-def Region_calculation(experiment, version, setup, path, fn_PI, fn_res,fnamein, sfnamein, res=None):
+def Region_calculation(basestr, experiment, version, setup, path, fn_PI, fn_res,fnamein, sfnamein, res=None):
 	"""
 	This function exists so i can repair my regions, in future this should be 
 	exported without calling this function
@@ -626,23 +626,23 @@ def Region_calculation(experiment, version, setup, path, fn_PI, fn_res,fnamein, 
 	# 	'./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/%d/Exp%d_TwoStageRF_vers%02d_OBSvsPREDICTEDClas_y_test.csv' % (experiment, experiment, version), 
 	# 	'./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/%d/Exp%d_TwoStageRF_vers%02d_OBSvsPREDICTEDClas_y_train.csv' % (experiment, experiment, version)])
 	
-	# ========== load in the data ==========
-	 # bf.datasplit(experiment, version,  0, setup, final=True, cols_keep=ColNm, 
-	if not setup['predictwindow'] is None:
-		bsestr = f"TTS_VI_df_{setup['predictwindow']}years"
-	else:
-		bsestr = f"TTS_VI_df_AllSampleyears" 
+	# # ========== load in the data ==========
+	#  # bf.datasplit(experiment, version,  0, setup, final=True, cols_keep=ColNm, 
+	# if not setup['predictwindow'] is None:
+	# 	bsestr = f"TTS_VI_df_{setup['predictwindow']}years"
+	# else:
+	# 	bsestr = f"TTS_VI_df_AllSampleyears" 
 
-		if not setup["FullTestSize"] is None:
-			bsestr += f"_{int(setup['FullTestSize']*100)}FWH"
-			if setup["splitvar"] == ["site", "yrend"]:
-				bsestr += "_siteyear"
+	# 	if not setup["FullTestSize"] is None:
+	# 		bsestr += f"_{int(setup['FullTestSize']*100)}FWH"
+	# 		if setup["splitvar"] == ["site", "yrend"]:
+	# 			bsestr += "_siteyear"
 
 	# breakpoint()
 	# breakpoint()
 	loadstats = bf.datasplit(setup["predvar"], experiment, version,  0, setup, 
 		final=True,  cols_keep=ColNm, RStage=True, sitefix=True, 
-		vi_fn=fnamein, region_fn=sfnamein, basestr=bsestr)
+		vi_fn=fnamein, region_fn=sfnamein, basestr=basestr)
 
 	
 	# ========== Create a new data file ==========
@@ -1781,7 +1781,9 @@ def experiments(ncores = -1):
 		"FullTestSize"     :0.1,
 		"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
 		"FutDist"          :20, 
-		"splitvar"         :"site"
+		"splitmethod"      :"",
+		"splitvar"         :"site",
+		"Hyperpram"        :False,
 		})
 
 	expr[411] = ({
@@ -1866,7 +1868,9 @@ def experiments(ncores = -1):
 		"FullTestSize"     :0,
 		"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
 		"FutDist"          :20, 
-		"splitvar"         :"site"
+		"splitmethod"      :"",
+		"splitvar"         :"site",
+		"Hyperpram"        :False,
 		})
 	expr[413] = ({
 		# +++++ The experiment name and summary +++++
@@ -1907,7 +1911,9 @@ def experiments(ncores = -1):
 		"Step"             :4,
 		"FullTestSize"     :0.1,
 		"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
-		"splitvar"         :"site"
+		"splitmethod"      :"",
+		"splitvar"         :"site",
+		"Hyperpram"        :False,
 		})
 	expr[414] = ({
 		# +++++ The experiment name and summary +++++
@@ -1949,7 +1955,9 @@ def experiments(ncores = -1):
 		"FullTestSize"     :0.1,
 		"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
 		"FutDist"          :40,
-		"splitvar"         :"site"
+		"splitmethod"      :"",
+		"splitvar"         :"site",
+		"Hyperpram"        :False,
 		})
 	expr[415] = ({
 		# +++++ The experiment name and summary +++++
@@ -1991,7 +1999,9 @@ def experiments(ncores = -1):
 		"FullTestSize"     :0.1,
 		"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
 		"FutDist"          :20, 
-		"splitvar"         :["site", "yrend"]
+		"splitmethod"      :"",
+		"splitvar"         :["site", "yrend"],
+		"Hyperpram"        :False,
 		})
 	expr[416] = ({
 		# +++++ The experiment name and summary +++++
@@ -2033,7 +2043,9 @@ def experiments(ncores = -1):
 		"FullTestSize"     :0.1,
 		"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
 		"FutDist"          :20, 
+		"splitmethod"      :"",
 		"splitvar"         :"site",
+		"Hyperpram"        :False,
 		})
 	expr[417] = ({
 		# +++++ The experiment name and summary +++++
@@ -2075,8 +2087,236 @@ def experiments(ncores = -1):
 		"FullTestSize"     :0.1,
 		"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
 		"FutDist"          :20, 
-		"splitvar"         :["site", "yrend"]
+		"splitmethod"      :"",
+		"splitvar"         :["site", "yrend"],
+		"Hyperpram"        :False,
 		})
+	
+	# ==========================================================================
+	# ==========================================================================
+	# ========== new params after digging into the performance issues ==========
+	expr[420] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :420,
+		"predvar"          :"Delta_biomass",
+		"dropvar"          :["Obs_biomass"],
+		"name"             :"XGBAllGap_Debug_yrfnsplit_CV",
+		"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
+		"window"           :10,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"model"            :"XGBoost",
+		"debug"            :True,
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.1, 
+		"FullTestSize"     :0.05,
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
+		"yTransformer"     :None, 
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"maxitter"         :14, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :False,
+		"StopPoint"        :5,
+		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"pariedRun"        :None, # identical runs except at the last stage
+		"Step"             :4,
+		"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
+		"FutDist"          :0, 
+		"splitmethod"      :"GroupCV",
+		"splitvar"         :["site", "yrend"],
+		"Hyperpram"        :False,
+		})
+	expr[421] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :421,
+		"predvar"          :"Delta_biomass",
+		"dropvar"          :["Obs_biomass"],
+		"name"             :"XGBAllGap_Debug_yrfnsplit_Futdis_CV",
+		"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
+		"window"           :10,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"model"            :"XGBoost",
+		"debug"            :True,
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.1, 
+		"FullTestSize"     :0.05,
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
+		"yTransformer"     :None, 
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"maxitter"         :14, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :False,
+		"StopPoint"        :5,
+		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"pariedRun"        :None, # identical runs except at the last stage
+		"Step"             :4,
+		"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
+		"FutDist"          :100, 
+		"splitmethod"      :"GroupCV",
+		"splitvar"         :["site", "yrend"],
+		"Hyperpram"        :False,
+		})
+	expr[422] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :422,
+		"predvar"          :"Delta_biomass",
+		"dropvar"          :["Obs_biomass"],
+		"name"             :"XGBAllGap_Debug_yrfnsplit_Futdis_CV_NoMultivalidationset",
+		"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
+		"window"           :10,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"model"            :"XGBoost",
+		"debug"            :True,
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.1, 
+		"FullTestSize"     :0,
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
+		"yTransformer"     :None, 
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"maxitter"         :14, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :False,
+		"StopPoint"        :5,
+		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"pariedRun"        :None, # identical runs except at the last stage
+		"Step"             :4,
+		"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
+		"FutDist"          :100, 
+		"splitmethod"      :"GroupCV",
+		"splitvar"         :["site", "yrend"],
+		"Hyperpram"        :False,
+		})
+	# ===============================================================================
+	expr[430] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :430,
+		"predvar"          :"Delta_biomass",
+		"dropvar"          :["Obs_biomass"],
+		"name"             :"XGBAllGap_Debug_sitesplit_CV",
+		"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
+		"window"           :10,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"model"            :"XGBoost",
+		"debug"            :True,
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.1, 
+		"FullTestSize"     :0.05,
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
+		"yTransformer"     :None, 
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"maxitter"         :14, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :False,
+		"StopPoint"        :5,
+		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"pariedRun"        :None, # identical runs except at the last stage
+		"Step"             :4,
+		"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
+		"FutDist"          :0, 
+		"splitmethod"      :"GroupCV",
+		"splitvar"         :"site",
+		"Hyperpram"        :False,
+		})
+	expr[431] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :431,
+		"predvar"          :"Delta_biomass",
+		"dropvar"          :["Obs_biomass"],
+		"name"             :"XGBAllGap_Debug_sitesplit_Futdis_CV",
+		"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
+		"window"           :10,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"model"            :"XGBoost",
+		"debug"            :True,
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.1, 
+		"FullTestSize"     :0.05,
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
+		"yTransformer"     :None, 
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"maxitter"         :14, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :False,
+		"StopPoint"        :5,
+		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"pariedRun"        :None, # identical runs except at the last stage
+		"Step"             :4,
+		"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
+		"FutDist"          :0, 
+		"splitmethod"      :"GroupCV",
+		"splitvar"         :"site",
+		"Hyperpram"        :False,
+		})
+
 	return expr
 
 # ===== Old run with no feature selection =====

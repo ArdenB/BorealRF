@@ -89,6 +89,8 @@ def altsplit(setup, df_site, vi_df, test_size, predvar, dropvar, version,
 
 
 	# ========== Now move on to the alternat split approach ==========	
+	# setup["splitmethod"]
+	breakpoint()
 	gssM = GroupShuffleSplit(n_splits=n_splits, test_size=ts2, random_state=random_state)
 	dfc  = pd.DataFrame(np.zeros((vi_df.shape[0], n_splits))*np.NaN, index=vi_df.index, columns=np.arange(n_splits))
 	vfc  = np.vectorize(_findcords, excluded=["ptest", "itest","vtest", "vtrain"])
@@ -408,6 +410,7 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 	# ============ Setup the file names ============
 	VI_fnsplit = [folder + "%s_vers%02d_%s.csv" % (basestr,version, sptyp) for sptyp in ["X_train", "X_test", "y_train", "y_test"]]
 	vi_df  = pd.read_csv( vi_fn, index_col=0)
+	breakpoint()
 
 	# ========== Look for a region file ==========
 	if region_fn is None:
@@ -444,6 +447,7 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 	else:
 		# here i have some callout method 
 		# Is should save all 10 versions in one go as well as a full withheld cross fraction
+		
 		if not setup["FullTestSize"] is None:
 			X_train, X_test, y_train, y_test = altsplit(
 				setup, df_site,  vi_df, test_size, predvar, dropvar, version, basestr, folder, 

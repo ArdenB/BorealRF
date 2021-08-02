@@ -90,7 +90,7 @@ def main():
 	opath = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/Debugging/"
 	cf.pymkdir(opath)
 	cf.pymkdir(opath+"hyperp")
-	force = False
+	force = True
 	fix   = False
 	
 	# ========== load in the stuff used by every run ==========
@@ -98,13 +98,18 @@ def main():
 	vi_df   = pd.read_csv(f"{dpath}ModDataset/VI_df_AllSampleyears_ObsBiomass.csv", index_col=0)
 	df_site = pd.read_csv(f"{dpath}ModDataset/SiteInfo_AllSampleyears_ObsBiomass.csv", index_col=0)
 	df_site.rename({"Plot_ID":"site"}, axis=1, inplace=True)
-	# Column names, THis was chose an s model with not too many vars
+	predvar = "Delta_biomass"
 
+	# ========== Deal with the rate and site problem ==========
+	# df_site["rate"] = vi_df[predvar]/vi_df["ObsGap"]
+	# dfrate = df_site[["site", "rate"]].groupby("site").max()
+
+
+	# Column names, THis was chose an s model with not too many vars
 	colnm   = pd.read_csv(
 		f"{path}411/Exp411_OneStageXGBOOST_AllGap_50perNA_PermutationImp_RFECV_FINAL_Delta_biomass_altsplit_vers04_PermutationImportance_RFECVfeature.csv", index_col=0)#.index.values
 	colnm   = colnm.loc[colnm.InFinal].index.values
 	# colnm   = colnm.index.values
-	predvar = "Delta_biomass"
 
 	# ========== Subset the data ==========
 	setup = batchmaker(opath, dpath)
@@ -112,6 +117,10 @@ def main():
 
 	
 	for expnum in setup:
+		if setup[expnum]['hyperp']:
+			force=True 
+		else:
+			force=False
 		scores = OrderedDict()
 		# breakpoint()
 		fnlist.append(f"{setup[expnum]['fnout']}.csv")
@@ -119,9 +128,9 @@ def main():
 			if fix:
 				save=False
 				df_check = pd.read_csv(f"{setup[expnum]['fnout']}.csv", index_col=0)
-				for clm in ["preclean", "hyperp"]:
+				for clm in ["OptunaSt"]:#["preclean", "hyperp"
 					if not clm in df_check.columns:
-						df_check[clm] = False
+						df_check[clm] = ""
 						save=True
 				if save:
 					df_check.to_csv(f"{setup[expnum]['fnout']}.csv")
@@ -129,10 +138,11 @@ def main():
 			continue
 
 		# for useGPU in [True]: #True, FalseTrue, 
-		if setup[expnum]['hyperp']:
-			useGPU=True 
-		else:
-			useGPU=False 
+		# if setup[expnum]['hyperp']:
+		# 	useGPU=True 
+		# else:
+		# 	useGPU=False 
+		useGPU=True
 		# ========== Subset the data ==========
 		y, X, group = datasubset(
 			vi_df, colnm, predvar, df_site, setup[expnum],
@@ -208,27 +218,44 @@ def Objective(trial, X_train, y_train, g_train,
 	n_splits=3,	n_repeats=2,
 	# n_jobs=1,
 	early_stopping_rounds=40,
-	GPU=False
+	GPU=False, fullset=True, 
 	):
 	"""
 	A function to be optimised using baysian search
 	"""
 	# XGBoost parameters
-	params = ({
+	if fullset:
+		params = ({
 
-		"verbosity": 0,  # 0 (silent) - 3 (debug)
-		"objective": "reg:squarederror",
-		"n_estimators": 10000,
-		"max_depth": trial.suggest_int("max_depth", 3, 12),
-		"num_parallel_tree":trial.suggest_int("num_parallel_tree", 1, 20),
-		"learning_rate": trial.suggest_loguniform("learning_rate", 0.005, 0.05),
-		"colsample_bytree": trial.suggest_loguniform("colsample_bytree", 0.2, 0.6),
-		"subsample": trial.suggest_loguniform("subsample", 0.4, 0.8),
-		"alpha": trial.suggest_loguniform("alpha", 0.01, 10.0),
-		"lambda": trial.suggest_loguniform("lambda", 1e-8, 10.0),
-		"gamma": trial.suggest_loguniform("lambda", 1e-8, 10.0),
-		"min_child_weight": trial.suggest_loguniform("min_child_weight", 10, 1000),
-		})
+			"verbosity": 0,  # 0 (silent) - 3 (debug)
+			"objective": "reg:squarederror",
+			"n_estimators": 10000,
+			"max_depth": trial.suggest_int("max_depth", 3, 12),
+			"num_parallel_tree":trial.suggest_int("num_parallel_tree", 2, 20),
+			"learning_rate": trial.suggest_float("learning_rate", 0, 1),
+			"colsample_bytree": trial.suggest_float("colsample_bytree", 0.2, 1.),
+			"subsample": trial.suggest_float("subsample", 0, 1),
+			"alpha": trial.suggest_float("alpha", 0.00, 1),
+			"lambda": trial.suggest_float("lambda", 1e-8, 2),
+			"gamma": trial.suggest_float("gamma", 0, 2),
+			"min_child_weight": trial.suggest_int("min_child_weight", 1, 200),
+			})
+	else:
+		params = ({
+
+			"verbosity": 0,  # 0 (silent) - 3 (debug)
+			"objective": "reg:squarederror",
+			"n_estimators": 10000,
+			"max_depth": trial.suggest_int("max_depth", 3, 12),
+			# "num_parallel_tree":trial.suggest_int("num_parallel_tree", 2, 20),
+			"learning_rate": trial.suggest_float("learning_rate", 0, 1),
+			# "colsample_bytree": trial.suggest_float("colsample_bytree", 0.2, 1.),
+			"subsample": trial.suggest_float("subsample", 0, 1),
+			"alpha": trial.suggest_float("alpha", 0.00, 1),
+			# "lambda": trial.suggest_float("lambda", 1e-8, 2),
+			# "gamma": trial.suggest_float("gamma", 0, 2),
+			"min_child_weight": trial.suggest_int("min_child_weight", 1, 200),
+			})
 	# ========== Make GPU and CPU mods ==========
 	if GPU:
 		params['tree_method'] = 'gpu_hist'
@@ -286,21 +313,57 @@ def XGBR(
 				print("Additional studies required")
 				breakpoint()
 				# study.optimize(objective, n_trials=3)
+			breakpoint()
 		else:
 			t0x = pd.Timestamp.now()
 			sampler = TPESampler(multivariate=True)
 			study   = optuna.create_study(direction="minimize", sampler=sampler)
+			# breakpoint()
+			if stinfo["OptunaSt"] in ["", "bestpar", "defualt", "both", ]:
+				n_trials=10
+				fullset = True
+				if stinfo["OptunaSt"] =="bestpar":
+					fullset = False
+			elif stinfo["OptunaSt"] in ["long"]:
+				n_trials = 50
+				fullset  = True
+			else:
+				breakpoint()
+
+			# A study with origial defualts
+			if stinfo["OptunaSt"] in ["defualt", "both", "long"]:
+				study.enqueue_trial({
+					'num_parallel_tree' :10,
+					'max_depth'         :5,
+					"colsample_bytree"  :0.3,
+					"learning_rate"     :0.3,
+					"subsample"         :1, 
+					"alpha"             :0, 
+					"lambda"            :1,
+					"min_child_weight"  :1,
+					"gamma"             :0
+					})
+			# A study with some best guess defualts
+			if stinfo["OptunaSt"] in ["both", "long"]:
+				study.enqueue_trial({ 
+					"max_depth": 7,
+					"num_parallel_tree":15,
+					"alpha":0.15, 
+					"lambda":0.001, 
+					})
+			# breakpoint()
 			study.optimize(
 				lambda trial: Objective(trial,
 					X_train, y_train, g_train, n_splits=3,
-					n_repeats=2, early_stopping_rounds=esr,	GPU=GPU
+					n_repeats=2, early_stopping_rounds=esr,	GPU=GPU, 
+					fullset=fullset
 				),
-				n_trials=5,
+				n_trials=n_trials,
 				n_jobs=1,
 			)
 			joblib.dump(study, fnout)
 			print(f"Hyperpram Optimisation took: {pd.Timestamp.now() - t0x}")
-		
+		# breakpoint()
 		hp = study.best_params
 		XGB_dict = _XGBdict(GPU, XGB_dict=hp)
 		# breakpoint()
@@ -357,6 +420,7 @@ def XGBR(
 		score["obsnum"]    = y_test.size + y_train.size
 		score["preclean"]  = stinfo["preclean"]
 		score["hyperp"]    = stinfo["hyperp"]
+		score["OptunaSt"]  = stinfo["OptunaSt"]
 
 		# breakpoint()
 		return score
@@ -384,11 +448,15 @@ def TTSspliter(y, X, site_df, expset, random_state=42):
 		breakpoint()
 		raise ValueError
 
+	if expset["group"] == "RandCV":
+		gss = GroupKFold(n_splits=expset['n_splits'])
 
-	gss   = GroupShuffleSplit(
-		n_splits     = expset['n_splits'], 
-		test_size    = expset['test_size'], 
-		random_state = random_state)
+	else:
+
+		gss   = GroupShuffleSplit(
+			n_splits     = expset['n_splits'], 
+			test_size    = expset['test_size'], 
+			random_state = random_state)
 
 	return gss.split(X, y, groups=group) #, group
 
@@ -427,8 +495,12 @@ def datasubset(vi_df, colnm, predvar, df_site, info, FutDist=20, DropNAN=0.5):
 	"""
 	Function to do the splitting and return the datasets
 	"""
+	# ========== Implement some form of nan filling here ==========
+
 	# ========== pull out the X values ==========
 	X = vi_df.loc[:, colnm].copy() 
+
+	# ========= nan foltering here ==========
 	nanccal = X.isnull().sum(axis=1)<= DropNAN
 	distcal = df_site.BurnFut + df_site.DisturbanceFut
 	distcal.where(distcal<=100., 100, inplace=True)
@@ -440,6 +512,9 @@ def datasubset(vi_df, colnm, predvar, df_site, info, FutDist=20, DropNAN=0.5):
 	# setup[expnum]
 	if info['preclean']:
 		rate = y/X["ObsGap"]
+		# brksites = df_site.loc[y.loc[(rate>20)].index, "site"].unique()
+		# for bks in brksites:
+		# 	breakpoint()
 		y.loc[(rate>20)]= np.NaN
 		# breakpoint()
 	if bn.anynan(y):
@@ -466,57 +541,81 @@ def batchmaker(opath, dpath):
 	
 	"""
 	setup = OrderedDict()
-	# ========== Experimant 1 ========== 
-	# ///// recreating the existing results \\\\\
-	for dspre, modpost in zip([False, True, True], [False, False, True]):
-		for sptvar in ["site", ["site", "yrend"]]:
-			# +++++ This is the site vs fully withlf validation +++++
-			for testgroup in ["Test", "Vali"]:
-				# experiments with constant testsize +++++
-				if modpost and testgroup == "Vali":
-					# Way to skip runs quickly
-					continue
 
-				setup[len(setup)] = expgroup(
-					sptvar, testgroup, opath, dpath, test_size=0.3, 
-					FutDist=20, n_splits=10, dropCFWH=False, DropNAN=0.5, 
-					dspre=dspre, modpost=modpost)
-		# ========== Experimant 2 ========== 
-		# ///// Building matched random results \\\\\
-		for sptvar in ["site", ["site", "yrend"]]:
+	# ========== Experiment 0 ==========
+	# \\\\\ The benchmarking experiments \\\\\
+	dspre   = True
+	modpost = True
+	for modpost, optext in zip([True, False], ["long", ""]):
+		for sptvar in [["site", "yrend"], "site"]:
+
+			setup[len(setup)] = expgroup(
+				sptvar, "Test", opath, dpath, test_size=0.3, 
+				FutDist=0, n_splits=10, dropCFWH=False, DropNAN=0.5, 
+				dspre=dspre, modpost=modpost, optext=optext)
+
+			# ///// Building matched random results \\\\\
 			# +++++ This is the site vs fully withlf validation +++++
 			# experiments with constant testsize +++++
 			setup[len(setup)] = expgroup(
-				sptvar, "Rand", opath, dpath, test_size=0.3, 
-				FutDist=20, n_splits=30, dropCFWH=False, DropNAN=0.5, 
-				dspre=dspre, modpost=modpost)
+				sptvar, "RandCV", opath, dpath, test_size=0.1, 
+				FutDist=0, n_splits=10, dropCFWH=False, DropNAN=0.5, 
+				dspre=dspre, modpost=modpost, optext=optext)
+
+
+	# ========== Experimant 1 ========== 
+	# ///// recreating the existing results \\\\\
+	# for dspre, modpost in zip([False, True, True], [False, False, True]):
+	# 	for sptvar in ["site", ["site", "yrend"]]:
+	# 		# +++++ This is the site vs fully withlf validation +++++
+	# 		for testgroup in ["Test", "Vali"]:
+	# 			# experiments with constant testsize +++++
+	# 			if modpost and testgroup == "Vali":
+	# 				# Way to skip runs quickly
+	# 				continue
+	# 			for optext in ['bestpar', "defualt", "both", "long", ""]:
+	# 				setup[len(setup)] = expgroup(
+	# 					sptvar, testgroup, opath, dpath, test_size=0.3, 
+	# 					FutDist=20, n_splits=10, dropCFWH=False, DropNAN=0.5, 
+	# 					dspre=dspre, modpost=modpost, optext=optext)
 		
 
-		if modpost:
-			# Way to skip runs quickly
-			continue
+		# # ========== Experimant 2 ========== 
+		# # ///// Building matched random results \\\\\
+		# for sptvar in ["site", ["site", "yrend"]]:
+		# 	# +++++ This is the site vs fully withlf validation +++++
+		# 	# experiments with constant testsize +++++
+		# 	setup[len(setup)] = expgroup(
+		# 		sptvar, "Rand", opath, dpath, test_size=0.3, 
+		# 		FutDist=20, n_splits=30, dropCFWH=False, DropNAN=0.5, 
+		# 		dspre=dspre, modpost=modpost)
+		
 
-		# ========== Experimant 3 ========== 
-		# ///// Varying th disturbance \\\\\
-		for sptvar in ["site", ["site", "yrend"]]:
-			# +++++ This is the site vs fully withlf validation +++++
-			# experiments with constant testsize +++++
-			for FutDist in np.arange(0, 101, 5):
-				setup[len(setup)] = expgroup(
-					sptvar, "Rand", opath, dpath, test_size=0.3, 
-					FutDist=FutDist, n_splits=30, dropCFWH=False, 
-					DropNAN=0.5, dspre=dspre, modpost=modpost)
+		# if modpost:
+		# 	# Way to skip runs quickly
+		# 	continue
 
-		# ========== Experimant 4 ========== 
-		# ///// Varying the test size \\\\\
-		for sptvar in ["site", ["site", "yrend"]]:
-			# +++++ This is the site vs fully withlf validation +++++
-			# experiments with constant testsize +++++
-			for test_size in np.arange(0.05, 1., 0.05):
-				setup[len(setup)] = expgroup(
-					sptvar, "Rand", opath, dpath, test_size=test_size, 
-					FutDist=20, n_splits=30, dropCFWH=False, DropNAN=0.5, 
-					dspre=dspre, modpost=modpost)
+		# # ========== Experimant 3 ========== 
+		# # ///// Varying th disturbance \\\\\
+		# for sptvar in ["site", ["site", "yrend"]]:
+		# 	# +++++ This is the site vs fully withlf validation +++++
+		# 	# experiments with constant testsize +++++
+		# 	for FutDist in np.arange(0, 101, 5):
+		# 		setup[len(setup)] = expgroup(
+		# 			sptvar, "Rand", opath, dpath, test_size=0.3, 
+		# 			FutDist=FutDist, n_splits=30, dropCFWH=False, 
+		# 			DropNAN=0.5, dspre=dspre, modpost=modpost)
+
+		# # ========== Experimant 4 ========== 
+		# # ///// Varying the test size \\\\\
+		# for sptvar in ["site", ["site", "yrend"]]:
+		# 	# +++++ This is the site vs fully withlf validation +++++
+		# 	# experiments with constant testsize +++++
+		# 	for test_size in np.arange(0.05, 1., 0.05):
+		# 		setup[len(setup)] = expgroup(
+		# 			sptvar, "Rand", opath, dpath, test_size=test_size, 
+		# 			FutDist=20, n_splits=30, dropCFWH=False, DropNAN=0.5, 
+		# 			dspre=dspre, modpost=modpost)
 	
 	# ========== Experimant 5 ========== 
 	# ///// Varying the nan fraction \\\\\
@@ -532,7 +631,7 @@ def batchmaker(opath, dpath):
 
 def expgroup(sptvar, testgroup, opath, dpath, test_size=0.3, 
 	FutDist=20, n_splits=10, dropCFWH=False, DropNAN=0.5, dspre=False, 
-	modpost=False):
+	modpost=False, optext=""):
 	
 	"""
 	Container for my experiments to go, returns the requested experiment
@@ -549,7 +648,7 @@ def expgroup(sptvar, testgroup, opath, dpath, test_size=0.3,
 	# ========== 
 	# ========== Setup first experiment ==========\
 	# Check to see 
-	assert testgroup in ["Rand", "Test", "Vali"]
+	assert testgroup in ["Rand", "RandCV", "Test", "Vali"]
 
 
 	# setup    = OrderedDict()
@@ -560,7 +659,7 @@ def expgroup(sptvar, testgroup, opath, dpath, test_size=0.3,
 	if sptvar == "site":
 		# ========== The container of the predone splits ==========
 		spn = "Site"
-		if not testgroup == "Rand":
+		if not testgroup in  ["Rand", "RandCV"]:
 			dfk = pd.read_csv(f'{dpath}TTS_VI_df_AllSampleyears_10FWH_TTSlookup.csv', index_col=0)
 			if testgroup == "Test":
 				in_train = [0, 1]
@@ -571,7 +670,7 @@ def expgroup(sptvar, testgroup, opath, dpath, test_size=0.3,
 		
 	elif sptvar == ["site", "yrend"]:
 		spn = "SiteYF"
-		if not testgroup == "Rand":
+		if not testgroup in  ["Rand", "RandCV"]:
 			dfk = pd.read_csv(f'{dpath}TTS_VI_df_AllSampleyears_10FWH_siteyear_TTSlookup.csv', index_col=0)
 			if testgroup == "Test":
 				in_train = [0, 1]
@@ -599,7 +698,7 @@ def expgroup(sptvar, testgroup, opath, dpath, test_size=0.3,
 		expn += "_precleaned"
 
 	if modpost:
-		expn += "_hyperp"
+		expn += f"_hyperp{optext}"
 
 	expsetup = ({
 		"name"    :expn, 
@@ -617,7 +716,8 @@ def expgroup(sptvar, testgroup, opath, dpath, test_size=0.3,
 		"DropNAN" :DropNAN, 
 		"fnout"   :f"{opath}{expn}",
 		"preclean":dspre,
-		"hyperp"  :modpost
+		"hyperp"  :modpost,
+		"OptunaSt":optext
 		})
 
 	# breakpoint()

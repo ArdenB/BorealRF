@@ -97,13 +97,13 @@ def main():
 
 
 	# ========== Compare validation and test sets in models ==========
-	# testsetscore(path, sitern=416, siteyrn=417)
+	testsetscore(path, sitern=416, siteyrn=417)
 
 	# # ========== test method Method validation ==========
-	# benchmarkvalidation(path, df.loc[~df.preclean.astype(bool)], sitern=416, siteyrn=417)
+	benchmarkvalidation(path, df.loc[~df.preclean.astype(bool)], sitern=416, siteyrn=417)
 
 	# # ========== Do the R2 fall within the random sorting range ==========
-	# matchedrandom(path, df.loc[~df.preclean.astype(bool)])
+	matchedrandom(path, df.loc[~df.preclean.astype(bool)])
 	
 	# ========== Explain the gaps ==========
 	# This need more work to explain 
@@ -113,10 +113,10 @@ def main():
 	benchmarkvalidation(path, df.loc[~df.hyperp.astype(bool)], sitern=416, siteyrn=417)
 	matchedrandom(path, df.loc[~df.hyperp.astype(bool)], hue="preclean")
 
-	# ========== Future Disturbance ==========
+	# # ========== Future Disturbance ==========
 	FutureDisturbance(path, df.loc[np.logical_and(df.preclean.astype(bool), ~df.hyperp.astype(bool))], metric="R2")
 
-	# ========== Test size ==========
+	# # ========== Test size ==========
 	Testsize(path, df.loc[df.preclean.astype(bool)], metric="R2")
 	
 	# ========== Test out hyperps ==========
