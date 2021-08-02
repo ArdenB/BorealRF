@@ -88,10 +88,13 @@ def main():
 	# ========== open the VI dataset ==========
 	fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears_ObsBiomass.csv"
 	sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears_ObsBiomass.csv"
+	vi_df  = pd.read_csv( fnamein, index_col=0)[["site", "year", "biomass", 'Delta_biomass', "ObsGap"]]
+	# ["site", "year", "biomass", 'Delta_biomass' "ObsGap"]
 	
-	vi_df  = pd.read_csv( fnamein, index_col=0)
-	breakpoint()
-	
+	# ========== Create the new columns ==========
+	vi_df["AnnualDelta"] = vi_df["Delta_biomass"]/vi_df["ObsGap"]
+	breakoint()
+
 
 if __name__ == '__main__':
 	main()

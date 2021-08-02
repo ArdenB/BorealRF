@@ -403,6 +403,8 @@ def ml_regression(
 	elif setup["model"] == "XGBoost":
 
 		# ========== convert the values ==========\
+		breakpoint() # ========= Try the GPU version here =========
+		
 		reg = xgb.XGBRegressor(objective ='reg:squarederror', 
 			tree_method='hist', colsample_bytree = 0.3, 
 			learning_rate = 0.1, max_depth = setup['max_depth'], 
