@@ -70,12 +70,12 @@ from scipy.cluster import hierarchy
 import xgboost as xgb
 from sklearn.model_selection import GroupShuffleSplit, GroupKFold
 from tqdm import tqdm
-import cudf
-import cuml
-import optuna 
-from optuna.samplers import TPESampler
-from optuna.integration import XGBoostPruningCallback
-import joblib
+# import cudf
+# import cuml
+# import optuna 
+# from optuna.samplers import TPESampler
+# from optuna.integration import XGBoostPruningCallback
+# import joblib
 
 print("seaborn version : ", sns.__version__)
 print("xgb version : ", xgb.__version__)
@@ -93,8 +93,14 @@ def main():
 	
 	# ========== Create the new columns ==========
 	vi_df["AnnualDelta"] = vi_df["Delta_biomass"]/vi_df["ObsGap"]
-	breakoint()
+	sns.kdeplot(x="AnnualDelta", data=vi_df)
+	plt.show()
 
+	vi_df.AnnualDelta.hist(bins=2000)
+	plt.show()
+	breakpoint()
+
+# ==============================================================================
 
 if __name__ == '__main__':
 	main()
