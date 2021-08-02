@@ -24,7 +24,7 @@ from sklearn.model_selection import train_test_split
 import myfunctions.corefunctions as cf
 from scipy.stats import spearmanr
 import bottleneck as bn
-from sklearn.model_selection import GroupShuffleSplit
+from sklearn.model_selection import GroupShuffleSplit, GroupKFold
 
 
 def altsplit(setup, df_site, vi_df, test_size, predvar, dropvar, version, 
@@ -89,9 +89,11 @@ def altsplit(setup, df_site, vi_df, test_size, predvar, dropvar, version,
 
 
 	# ========== Now move on to the alternat split approach ==========	
-	# setup["splitmethod"]
-	breakpoint()
-	gssM = GroupShuffleSplit(n_splits=n_splits, test_size=ts2, random_state=random_state)
+	if setup["splitmethod"] == 'GroupCV':
+		gssM = GroupKFold(n_splits=n_splits)
+	else:
+		gssM = GroupShuffleSplit(n_splits=n_splits, test_size=ts2, random_state=random_state)
+
 	dfc  = pd.DataFrame(np.zeros((vi_df.shape[0], n_splits))*np.NaN, index=vi_df.index, columns=np.arange(n_splits))
 	vfc  = np.vectorize(_findcords, excluded=["ptest", "itest","vtest", "vtrain"])
 
@@ -118,7 +120,7 @@ def altsplit(setup, df_site, vi_df, test_size, predvar, dropvar, version,
 			warn.warn("Size Check failed here")
 			breakpoint()
 		# ========== create the validation set ==========
-		gssV = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=num)
+		gssV = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=num)
 		for vtrain, vtest in gssV.split(Xt_train, yt_train, groups=gt_train):
 			# ========== Create a lookup table ==========
 			dfc.loc[:, num] = vfc(
@@ -410,7 +412,15 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 	# ============ Setup the file names ============
 	VI_fnsplit = [folder + "%s_vers%02d_%s.csv" % (basestr,version, sptyp) for sptyp in ["X_train", "X_test", "y_train", "y_test"]]
 	vi_df  = pd.read_csv( vi_fn, index_col=0)
-	breakpoint()
+
+	# ============ Remove the insane values ============
+	if "Delta_biomass" in vi_df.columns:
+		rate  = vi_df["Delta_biomass"]/vi_df["ObsGap"]
+		badst = vi_df.loc[(rate>20), "site"].unique()
+		vi_df.loc[vi_df['site'].isin(badst), vi_df.columns[1:]] = np.NaN
+	else:
+		warn.warn("I need to implement my filter system here")
+		breakpoint()
 
 	# ========== Look for a region file ==========
 	if region_fn is None:

@@ -90,7 +90,7 @@ def main():
 	opath = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/Debugging/"
 	cf.pymkdir(opath)
 	cf.pymkdir(opath+"hyperp")
-	force = True
+	force = False
 	fix   = False
 	
 	# ========== load in the stuff used by every run ==========

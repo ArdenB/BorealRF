@@ -128,10 +128,9 @@ def main(args):
 				if not setup["FullTestSize"] is None:
 					basestr += f"_{int(setup['FullTestSize']*100)}FWH"
 					if setup["splitvar"] == ["site", "yrend"]:
-						basestr += f"_siteyear{setup["splitmethod"]}"
+						basestr += f"_siteyear{setup['splitmethod']}"
 					elif setup["splitvar"] == "site":
-						basestr += f"_siteyear{setup["splitmethod"]}"
-			breakpoint()
+						basestr += f"_siteyear{setup['splitmethod']}"
 
 			# ========== load in the data ==========
 			if all([os.path.isfile(fn) for fn in [fn_br, fn_res, fn_PI]]) and not force:
@@ -2185,50 +2184,50 @@ def experiments(ncores = -1):
 		"splitvar"         :["site", "yrend"],
 		"Hyperpram"        :False,
 		})
-	expr[422] = ({
-		# +++++ The experiment name and summary +++++
-		"Code"             :422,
-		"predvar"          :"Delta_biomass",
-		"dropvar"          :["Obs_biomass"],
-		"name"             :"XGBAllGap_Debug_yrfnsplit_Futdis_CV_NoMultivalidationset",
-		"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
-		"window"           :10,
-		"predictwindow"    :None,
-		"Nstage"           :1, 
-		"model"            :"XGBoost",
-		"debug"            :True,
-		# +++++ The Model setup params +++++
-		"ntree"            :10,
-		"nbranch"          :2000,
-		"max_features"     :'auto',
-		"max_depth"        :5,
-		"min_samples_split":2,
-		"min_samples_leaf" :2,
-		"bootstrap"        :True,
-		# +++++ The experiment details +++++
-		"test_size"        :0.1, 
-		"FullTestSize"     :0,
-		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Permutation",
-		"Transformer"      :None,
-		"yTransformer"     :None, 
-		"ModVar"           :"ntree, max_depth", "dataset"
-		"classifer"        :None, 
-		"cores"            :ncores,
-		"maxitter"         :14, 
-		"DropNAN"          :0.5, 
-		"DropDist"         :False,
-		"StopPoint"        :5,
-		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
-		"maxR2drop"        :0.025,
-		"pariedRun"        :None, # identical runs except at the last stage
-		"Step"             :4,
-		"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
-		"FutDist"          :100, 
-		"splitmethod"      :"GroupCV",
-		"splitvar"         :["site", "yrend"],
-		"Hyperpram"        :False,
-		})
+	# expr[422] = ({
+	# 	# +++++ The experiment name and summary +++++
+	# 	"Code"             :422,
+	# 	"predvar"          :"Delta_biomass",
+	# 	"dropvar"          :["Obs_biomass"],
+	# 	"name"             :"XGBAllGap_Debug_yrfnsplit_Futdis_CV_NoMultivalidationset",
+	# 	"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
+	# 	"window"           :10,
+	# 	"predictwindow"    :None,
+	# 	"Nstage"           :1, 
+	# 	"model"            :"XGBoost",
+	# 	"debug"            :True,
+	# 	# +++++ The Model setup params +++++
+	# 	"ntree"            :10,
+	# 	"nbranch"          :2000,
+	# 	"max_features"     :'auto',
+	# 	"max_depth"        :5,
+	# 	"min_samples_split":2,
+	# 	"min_samples_leaf" :2,
+	# 	"bootstrap"        :True,
+	# 	# +++++ The experiment details +++++
+	# 	"test_size"        :0.1, 
+	# 	"FullTestSize"     :0,
+	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
+	# 	"ImportanceMet"    :"Permutation",
+	# 	"Transformer"      :None,
+	# 	"yTransformer"     :None, 
+	# 	"ModVar"           :"ntree, max_depth", "dataset"
+	# 	"classifer"        :None, 
+	# 	"cores"            :ncores,
+	# 	"maxitter"         :14, 
+	# 	"DropNAN"          :0.5, 
+	# 	"DropDist"         :False,
+	# 	"StopPoint"        :5,
+	# 	"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+	# 	"maxR2drop"        :0.025,
+	# 	"pariedRun"        :None, # identical runs except at the last stage
+	# 	"Step"             :4,
+	# 	"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
+	# 	"FutDist"          :100, 
+	# 	"splitmethod"      :"GroupCV",
+	# 	"splitvar"         :["site", "yrend"],
+	# 	"Hyperpram"        :False,
+	# 	})
 	# ===============================================================================
 	expr[430] = ({
 		# +++++ The experiment name and summary +++++
