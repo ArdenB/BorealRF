@@ -98,6 +98,7 @@ def main():
 
 	# ========== Heatmaps ==========
 	confusion_plotter(keys, ppath, df_setup, df_OvsP, df_mres)
+	confusion_plotter(keys, ppath, df_setup, _matchedfinder(df_OvsP, keys, ret_matched=True), df_mres)
 	breakpoint()
 
 
@@ -108,14 +109,13 @@ def confusion_plotter(keys, ppath, df_setup, df_OvsP, df_mres):
 	gap    = 10 
 	# split  = np.hstack([np.min([-maxval ,-1000.]),np.arange(-400., 401, 10), np.max([1000., maxval])])
 	split  = np.arange(minval, maxval+1, gap)
+	fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
 
-	for exp in df_OvsP.experiment.unique():
-		fig, ax = plt.subplots()
+	for exp, ax in zip(df_OvsP.experiment.unique(), [ax1, ax2, ax3, ax4]):
 		_confusion_plots(df_OvsP, keys, exp, fig, ax, split)
-		plt.show()
-		breakpoint()
-
-
+	
+	plt.show()
+	# breakpoint()
 
 
 
@@ -141,7 +141,7 @@ def basiccomparison(path, ppath, df_setup, df_mres, keys, df_OvsP):
 	sns.barplot(y="count", x="rank", hue="experiment", data = df_rank, ax=ax4)
 	ax4.set_title("Min ABs Residual Rank (1st, 2nd, 3rd)")
 	plt.show()
-	breakpoint()
+	# breakpoint()
 
 
 # ==============================================================================
@@ -174,7 +174,7 @@ def _confusion_plots(
 		sptsze = len(split)
 	
 	df_c.sort_values(obsvar, axis=0, ascending=True, inplace=True)
-	r2 = sklMet.accuracy_score(df_c[obsvar], df_c[estvar])
+	r2 = sklMet.r2_score(df_c[obsvar], df_c[estvar]).round(decimals=4)
 	print(exp, r2)
 	
 	# ========== Calculate the confusion matrix ==========
@@ -198,7 +198,7 @@ def _confusion_plots(
 
 
 	g = sns.heatmap(df_cm, annot=ann, vmin=0, vmax=1, ax = ax, cbar=cbar, square=True, cmap=cmap)
-	ax.plot(np.flip(np.arange(expsize+1)), np.arange(expsize+1), "w", alpha=0.5)
+	ax.plot(np.flip(np.arange(expsize+1)), np.arange(expsize+1), "k", alpha=0.1)
 	# plt.title(expr[exp])
 	# ========== fix the labels +++++
 	if (sptsze > 10):
@@ -242,16 +242,18 @@ def _confusion_plots(
 		ax.set_xticklabels(np.round(split, 2), rotation=90)
 		ax.set_yticks(location)
 		ax.set_yticklabels(np.flip(np.round(split, 2)), rotation=0)
+		# az.set_ylabel("")
 
 
 	ax.set_title(f"{exp}-{keys[exp]} $R^{2}$ {r2}", loc= 'left')
-	ax.set_xlabel(obsvar)
+	# ax.set_xlabel(obsvar)
+	ax.set_xlabel("")
 	ax.set_ylabel(estvar)
 	# plt.show()()
 
 # ============================================================================================
 
-def _matchedfinder(df_OvsP, keys):
+def _matchedfinder(df_OvsP, keys, ret_matched=False):
 	df_obsm = df_OvsP.drop(["version"], axis=1).reset_index().groupby(["experiment","index"]).mean().reset_index()
 	dfpm    = df_obsm.pivot(index='index', columns='experiment', values='Estimated').dropna()
 	dfob    = df_obsm.pivot(index='index', columns='experiment', values='Observed').dropna()
@@ -270,7 +272,12 @@ def _matchedfinder(df_OvsP, keys):
 	df_rank = dfrs.abs().rank(axis=1).melt().groupby(["experiment", "value"]).size().reset_index()
 	df_rank.rename({0:"count", "value":"rank"},axis=1, inplace=True)
 	df_rank["experiment"].replace(keys, inplace=True)
-	return df_rank, df_score
+	# breakpoint()
+	if ret_matched:
+		return df_OvsP.loc[dfpm.index,]
+	else:
+		return df_rank, df_score
+
 
 def Experiment_name(df, df_setup, var = "experiment"):
 	keys = {}
