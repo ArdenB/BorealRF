@@ -100,75 +100,80 @@ def main():
 	df.loc[~df.hyperp.astype(bool), "OptunaSt"] = "None"
 
 	# ========== seperate the power transforms from the other data ==========
-	dftrans = df.loc[np.logical_and(np.logical_and(df.test_size==0.3, df.group == "Test"), df.preclean)]#, np.logical_and(df.FutDist==0,  df.DropNAN==0.5) )
+	dftrans = df.loc[np.logical_and(np.logical_and(df.test_size==0.3, df.group == "Test"), np.logical_and(df.preclean, ~df.hyperp))]#, np.logical_and(df.FutDist==0,  df.DropNAN==0.5) )
 	
 	# Remove the transformed runs from the results 
 	df = df.loc[df["Xtransf"]=="None"]
 
 	# ========== Check the transforms ==========
 	Transformass(dftrans)
-	
-	# ========== CREATE a randCV assessment ==========
-	# randCVassessment(dpath, path, df[df['FutDist']==0])
+	# breakpoint()
 	
 	# ========== NaN Fraction ==========
-	# NanFraction(path, df.loc[df.preclean.astype(bool)], metric="R2")
+	NanFraction(path, df.loc[df.preclean.astype(bool)], metric="R2")
 	
 	# ========== Compare validation and test sets in models ==========
 	# testsetscore(path, sitern=416, siteyrn=417)
-	breakpoint()
+	# breakpoint()
 
 	# # ========== test method Method validation ==========
-	benchmarkvalidation(path, df.loc[~df.preclean.astype(bool)], sitern=416, siteyrn=417)
+	# benchmarkvalidation(path, df.loc[~df.preclean.astype(bool)], sitern=416, siteyrn=417)
 
 
 	# # ========== Do the R2 fall within the random sorting range ==========
-	matchedrandom(path, df.loc[~df.preclean.astype(bool)])
-	breakpoint()
+	# matchedrandom(path, df.loc[~df.preclean.astype(bool)])
+	# breakpoint()
 	
 	# ========== Explain the gaps ==========
 	# This need more work to explain 
-	gapexplainer(dpath, path, df, sitern=416, siteyrn=417)
+	# gapexplainer(dpath, path, df, sitern=416, siteyrn=417)
+	# breakpoint()
 
 	# ========== Do the R2 fall within the random sorting range ==========
-	benchmarkvalidation(path, df.loc[~df.hyperp.astype(bool)], sitern=416, siteyrn=417)
-	matchedrandom(path, df.loc[~df.hyperp.astype(bool)], hue="preclean")
-
+	# benchmarkvalidation(path, df.loc[~df.hyperp.astype(bool)], sitern=416, siteyrn=417)
+	# matchedrandom(path, df.loc[~df.hyperp.astype(bool)], hue="preclean")
+	# breakpoint()
 	# # ========== Future Disturbance ==========
 	FutureDisturbance(path, df.loc[np.logical_and(df.preclean.astype(bool), ~df.hyperp.astype(bool))], metric="R2")
-
+	# breakpoint()
 	# # ========== Test size ==========
 	Testsize(path, df.loc[df.preclean.astype(bool)], metric="R2")
+	# breakpoint()
+	# ========== CREATE a randCV assessment ==========
+	randCVassessment(dpath, path, df[df['FutDist']==0])
 	
 	# ========== Test out hyperps ==========
 	benchmarkvalidation(path, df, sitern=416, siteyrn=417)
-	
+	# breakpoint()
 	# ========== Test out optimisation ==========
-	matchedrandom(path, df, hue=["preclean", "hyperp"])
-	breakpoint()
+	# matchedrandom(path, df, hue=["preclean", "hyperp"])
+	# breakpoint()
 
 
 # ==============================================================================
 def Transformass(df):
-	for splitvar in ["Site", "SiteYF"]:
+	f, (ax1, ax2, ) = plt.subplots(2, 1)
+	for splitvar, ax  in zip(["Site", "SiteYF"], [ax1, ax2]):
 		df_sub = df.loc[df.sptname==splitvar]
-		# sns.boxplot(y=metric, x="DropNAN", data=df_sub, color='.8', ax = ax)
-		sns.stripplot(y="R2", x="Xtransf", data=df_sub)#, ax = ax)
-		plt.show()
-	breakpoint()
+		sns.barplot(y="R2", x="expn", hue="Xtransf", data=df_sub, ax = ax)
+		ax.set_title(splitvar, loc="left")
+		# sns.stripplot(y="R2", x="Xtransf", data=df_sub)#, ax = ax)
+	plt.show()
 
 def randCVassessment(dpath, path, df):
-
-	for splitvar in ["Site", "SiteYF"]:
-		breakpoint()
-		for group in ["RandCV", "Test"]:
+	f, ((ax1, ax2),(ax3, ax4) ) = plt.subplots(2, 2)
+	for splitvar, axs  in zip(["Site", "SiteYF"], [[ax1, ax2],[ax3, ax4]]):
+		for group, ax in zip(["RandCV", "Test"], axs):
 			# ========== subset the df to the test set ==========
 			l1 = df.sptname==splitvar
 			l2 = df.group==group
 			df_sub = df.loc[np.logical_and(l1, l2)]#["testname", "expn", "R2"]
-			sns.barplot(y="R2", x="expn", hue="OptunaSt", data=df_sub)#, color='.8', ax = ax)
-			plt.show()
-	breakpoint()
+			# breakpoint()
+			sns.barplot(y="R2", x="expn", hue="OptunaSt", hue_order=["None", "long"], data=df_sub, ax = ax)
+			ax.set_title(f"{splitvar} - {group}", loc="left")
+			ax.set(ylim=(0., 0.70))
+	plt.show()
+	# breakpoint()
 
 def gapexplainer(dpath, path, df, sitern=416, siteyrn=417):
 	"""
@@ -393,7 +398,7 @@ def benchmarkvalidation(path, df, sitern=416, siteyrn=417):
 	for rn, splitvar, ax in zip([sitern, siteyrn], ["Site", "SiteYF"], [ax1, ax2]):
 		# pull out the nex experiment set 
 		df_sub = df.loc[np.logical_and(df.group=="Test", df.sptname==splitvar), ["testname", "expn", "R2"]]
-		breakpoint()
+		# breakpoint()
 		# pull out the old set
 		dfx = pd.concat([pd.read_csv(fnx, index_col=0).T for fnx in glob.glob(f"{path}{rn}/Exp{rn}*_Results.csv")]).loc[:, cols]
 		dfx.rename({"experiment":"testname", "version":"expn"}, axis=1, inplace=True)

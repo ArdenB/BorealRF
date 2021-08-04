@@ -94,7 +94,7 @@ def main():
 	df_branch  = pd.concat([load_OBS(mrfn) for mrfn in branch], sort=True)
 
 	# ========== basic comparison ==========
-	# basiccomparison(path, ppath, df_setup, df_mres, keys, df_OvsP)
+	basiccomparison(path, ppath, df_setup, df_mres, keys, df_OvsP)
 
 	# ========== Heatmaps ==========
 	confusion_plotter(keys, ppath, df_setup, df_OvsP, df_mres)

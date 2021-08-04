@@ -84,7 +84,11 @@ print("xgb version : ", xgb.__version__)
 
 # ==============================================================================
 def main():
-
+	# ========== Create the matplotlib params ==========
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':12, "axes.labelweight":"bold",})
+	font = {'weight' : 'bold', 'size'   : 12}
+	mpl.rc('font', **font)
+	sns.set_style("whitegrid")
 	# ========== open the VI dataset ==========
 	fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears_ObsBiomass.csv"
 	sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears_ObsBiomass.csv"
@@ -92,11 +96,12 @@ def main():
 	# ["site", "year", "biomass", 'Delta_biomass' "ObsGap"]
 	
 	# ========== Create the new columns ==========
+	# f, (ax1, ax2) = plt.subplots(2, 1,  sharex=True)
 	vi_df["AnnualDelta"] = vi_df["Delta_biomass"]/vi_df["ObsGap"]
-	sns.kdeplot(x="AnnualDelta", data=vi_df)
-	plt.show()
+	sns.kdeplot(x="AnnualDelta", data=vi_df)#, ax=ax1)
+	# plt.show()
 
-	vi_df.AnnualDelta.hist(bins=2000)
+	vi_df.AnnualDelta.hist(bins=2000)#, ax=ax2)
 	plt.show()
 	breakpoint()
 
