@@ -402,7 +402,7 @@ def ml_regression(
 	elif setup["model"] == "XGBoost":
 
 		# ========== convert the values ==========\
-		breakpoint() # ========= Try the GPU version here =========
+		# ========= Try the GPU version here =========
 		
 		reg = xgb.XGBRegressor(objective ='reg:squarederror', 
 			tree_method='hist', colsample_bytree = 0.3, 
@@ -2312,7 +2312,7 @@ def experiments(ncores = -1):
 		"pariedRun"        :None, # identical runs except at the last stage
 		"Step"             :4,
 		"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
-		"FutDist"          :0, 
+		"FutDist"          :100, 
 		"splitmethod"      :"GroupCV",
 		"splitvar"         :"site",
 		"Hyperpram"        :False,

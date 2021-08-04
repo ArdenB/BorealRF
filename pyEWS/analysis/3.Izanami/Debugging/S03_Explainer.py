@@ -94,16 +94,35 @@ def main():
 	# ========== Load in the data ==========
 	fnames = glob.glob(f"{opath}DBG*.csv")
 	df     = pd.concat([pd.read_csv(fn, index_col=0) for fn in fnames])
+	df["OptunaSt"].fillna("auto", inplace=True)
+	df["Xtransf"].fillna("None", inplace=True)
+	df["Ytransf"].fillna("None", inplace=True)
+	df.loc[~df.hyperp.astype(bool), "OptunaSt"] = "None"
 
+	# ========== seperate the power transforms from the other data ==========
+	dftrans = df.loc[np.logical_and(np.logical_and(df.test_size==0.3, df.group == "Test"), df.preclean)]#, np.logical_and(df.FutDist==0,  df.DropNAN==0.5) )
+	
+	# Remove the transformed runs from the results 
+	df = df.loc[df["Xtransf"]=="None"]
 
+	# ========== Check the transforms ==========
+	Transformass(dftrans)
+	# ========== CREATE a randCV assessment ==========
+	# randCVassessment(dpath, path, df[df['FutDist']==0])
+	
+	# ========== NaN Fraction ==========
+	# NanFraction(path, df.loc[df.preclean.astype(bool)], metric="R2")
+	
 	# ========== Compare validation and test sets in models ==========
-	testsetscore(path, sitern=416, siteyrn=417)
-
+	# testsetscore(path, sitern=416, siteyrn=417)
+	breakpoint()
 	# # ========== test method Method validation ==========
 	benchmarkvalidation(path, df.loc[~df.preclean.astype(bool)], sitern=416, siteyrn=417)
 
+
 	# # ========== Do the R2 fall within the random sorting range ==========
 	matchedrandom(path, df.loc[~df.preclean.astype(bool)])
+	breakpoint()
 	
 	# ========== Explain the gaps ==========
 	# This need more work to explain 
@@ -121,20 +140,40 @@ def main():
 	
 	# ========== Test out hyperps ==========
 	benchmarkvalidation(path, df, sitern=416, siteyrn=417)
+	
 	# ========== Test out optimisation ==========
 	matchedrandom(path, df, hue=["preclean", "hyperp"])
 	breakpoint()
 
-	# ========== NaN Fraction ==========
-	# NanFraction(path, df, metric="R2")
 
 # ==============================================================================
+def Transformass(df):
+	for splitvar in ["Site", "SiteYF"]:
+		df_sub = df.loc[df.sptname==splitvar]
+		# sns.boxplot(y=metric, x="DropNAN", data=df_sub, color='.8', ax = ax)
+		sns.stripplot(y="R2", x="Xtransf", data=df_sub)#, ax = ax)
+		plt.show()
+	breakpoint()
+
+def randCVassessment(dpath, path, df):
+
+	for splitvar in ["Site", "SiteYF"]:
+		breakpoint()
+		for group in ["RandCV", "Test"]:
+			# ========== subset the df to the test set ==========
+			l1 = df.sptname==splitvar
+			l2 = df.group==group
+			df_sub = df.loc[np.logical_and(l1, l2)]#["testname", "expn", "R2"]
+			sns.barplot(y="R2", x="expn", hue="OptunaSt", data=df_sub)#, color='.8', ax = ax)
+			plt.show()
+	breakpoint()
+
 def gapexplainer(dpath, path, df, sitern=416, siteyrn=417):
 	"""
 	function to try and determine why there is a gap between my performance metrics
 	"""
 	# ========== load in the X an Y variables ==========
-	y, X = datasubset(path, dpath, FutDist=20, DropNAN=0.5)
+	y, X = datasubset(path, dpath, FutDist=00, DropNAN=0.5)
 	cols =  ['experiment','version','R2', 'FWH:R2']
 	
 	# ========== load in the number coding ==========
@@ -200,25 +239,26 @@ def NanFraction(path, df, metric="R2"):
 	Check and see how the runs compare to random sampling
 	"""
 	stack = []
-	f, (ax1, ax2, ax3) = plt.subplots(3, 1)
+	f, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1)
 	for splitvar, ax in zip(["Site", "SiteYF"], [ax1, ax2]):
 		# ========== subset the df to the test set ==========
 		l1 = np.logical_and(df.group=="Rand", df.sptname==splitvar)
-		l2 = np.logical_and(df.test_size==0.3, df.FutDist==20)
+		l2 = np.logical_and(df.test_size==0.3, df.FutDist==0)
 		df_sub = df.loc[np.logical_and(l1, l2)]#["testname", "expn", "R2"]
-		# breakpoint()
+		df_sub["DropNAN"] = df_sub["DropNAN"].round(decimals=2)
 		# ========== Make the indivdual plots ==========
 		sns.boxplot(y=metric, x="DropNAN", data=df_sub, color='.8', ax = ax)
 		sns.stripplot(y=metric, x="DropNAN", data=df_sub, ax = ax)
-		plt.show()
+		# plt.show()
 		stack.append(df_sub.copy())
 	
 	dfs = pd.concat(stack)
 	sns.boxplot(y=metric, x="DropNAN", hue="sptname", data=dfs, ax=ax3)#, color='.8')
 	# ax = sns.stripplot(y=metric, hue="sptname", x="FutDist", data=dfs)
+	# plt.show()
+	sns.barplot(y="obsnum", x="DropNAN", hue="sptname", data=dfs, ax=ax4)
 	plt.show()
-	sns.barplot(y="obsnum", x="DropNAN", hue="sptname", data=dfs)
-	plt.show()
+	# breakpoint()
 
 # ==============================================================================
 def FutureDisturbance(path, df, metric="R2"):
@@ -265,7 +305,7 @@ def Testsize(path, df, metric="R2"):
 	for splitvar, ax in zip(["Site", "SiteYF"], [ax1, ax2]):
 		# ========== subset the df to the test set ==========
 		l1 = np.logical_and(df.group=="Rand", df.sptname==splitvar)
-		l2 = np.logical_and(df.FutDist==20, df.DropNAN==0.5)
+		l2 = np.logical_and(df.FutDist==0, df.DropNAN==0.5)
 		df_sub = df.loc[np.logical_and(l1, l2)]#["testname", "expn", "R2"]
 		df_sub.loc[:, 'test_size'] =  df_sub['test_size'].round(decimals=2).values
 		# breakpoint()
@@ -297,7 +337,7 @@ def matchedrandom(path, df, metric="R2", hue=None):
 	for splitvar, ax in zip(["Site", "SiteYF"], [ax1, ax2]):
 		# ========== subset the df to the test set ==========
 		l1 = np.logical_and(df.test_size==0.3, df.sptname==splitvar)
-		l2 = np.logical_and(df.FutDist==20, df.DropNAN==0.5)
+		l2 = np.logical_and(df.FutDist==0, df.DropNAN==0.5)
 		df_sub = df.loc[np.logical_and(l1, l2)]#["testname", "expn", "R2"]
 
 		# ========== Make the indivdual plots ==========
@@ -351,6 +391,7 @@ def benchmarkvalidation(path, df, sitern=416, siteyrn=417):
 	for rn, splitvar, ax in zip([sitern, siteyrn], ["Site", "SiteYF"], [ax1, ax2]):
 		# pull out the nex experiment set 
 		df_sub = df.loc[np.logical_and(df.group=="Test", df.sptname==splitvar), ["testname", "expn", "R2"]]
+		breakpoint()
 		# pull out the old set
 		dfx = pd.concat([pd.read_csv(fnx, index_col=0).T for fnx in glob.glob(f"{path}{rn}/Exp{rn}*_Results.csv")]).loc[:, cols]
 		dfx.rename({"experiment":"testname", "version":"expn"}, axis=1, inplace=True)
@@ -363,7 +404,6 @@ def benchmarkvalidation(path, df, sitern=416, siteyrn=417):
 	
 	plt.tight_layout()
 	plt.show()
-	# breakpoint()
 
 
 def testsetscore(path, sitern=416, siteyrn=417):
@@ -398,7 +438,7 @@ def testsetscore(path, sitern=416, siteyrn=417):
 
 # ==============================================================================
 
-def datasubset(path, dpath, FutDist=20, DropNAN=0.5):
+def datasubset(path, dpath, FutDist=0, DropNAN=0.5):
 
 	"""
 	Function to do the splitting and return the datasets

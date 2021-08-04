@@ -72,6 +72,7 @@ from sklearn.model_selection import GroupShuffleSplit, GroupKFold
 from tqdm import tqdm
 import cudf
 import cuml
+import cupy
 import optuna 
 from optuna.samplers import TPESampler
 from optuna.integration import XGBoostPruningCallback
@@ -117,10 +118,10 @@ def main():
 
 	
 	for expnum in setup:
-		if setup[expnum]['hyperp']:
-			force=True 
-		else:
-			force=False
+		# if setup[expnum]['hyperp']:
+		# 	force=True 
+		# else:
+		# 	force=False
 		scores = OrderedDict()
 		# breakpoint()
 		fnlist.append(f"{setup[expnum]['fnout']}.csv")
@@ -128,10 +129,14 @@ def main():
 			if fix:
 				save=False
 				df_check = pd.read_csv(f"{setup[expnum]['fnout']}.csv", index_col=0)
-				for clm in ["OptunaSt"]:#["preclean", "hyperp"
+				for clm in ["Xtransf", "Ytransf", ]:#["preclean", "hyperp"	"OptunaSt"	
 					if not clm in df_check.columns:
 						df_check[clm] = ""
 						save=True
+				# if not setup[expnum]["Xtransf"] == "":
+				# 	df_check["Xtransf"] = setup[expnum]["Xtransf"]
+				# 	save=True
+					# breakpoint()
 				if save:
 					df_check.to_csv(f"{setup[expnum]['fnout']}.csv")
 
@@ -149,6 +154,8 @@ def main():
 			FutDist=setup[expnum]["FutDist"], 
 			DropNAN=setup[expnum]["DropNAN"],)
 
+
+
 		print(f'EXP:{expnum} {setup[expnum]["name"]} {"Using GPU" if useGPU else ""}')
 		if isinstance(setup[expnum]["dfk"], pd.DataFrame):
 			# ========== Setup to use existing data indexing ==========
@@ -162,6 +169,7 @@ def main():
 				# breakpoint()
 				y = cudf.from_pandas(y)
 				X = cudf.from_pandas(X)
+				X = X.fillna(np.NaN)
 			# ========== Iterate over the ecperiments ==========
 			for nx, (train, test) in tqdm(enumerate(zip(ptrl, ptsl)), total=setup[expnum]['n_splits']):
 				scores[len(scores)] = XGBR(
@@ -212,6 +220,103 @@ def main():
 	breakpoint()
 
 # ==============================================================================
+def preprocessing(test, train, transform, useGPU):
+	"""
+	Function to do data scaling
+	"""
+	if useGPU:
+		import cuml.preprocessing as pp 
+		import sklearn.preprocessing as skpp
+		transformdict = ({
+			"StandardScaler":pp.StandardScaler(),
+			"RobustScaler":pp.RobustScaler(quantile_range=(25, 75)),
+			"MinMaxScaler":pp.MinMaxScaler(),
+			"MaxAbsScaler":pp.MaxAbsScaler(),
+			"Normalizer":pp.Normalizer(),
+			"PowerTransformerYJ":skpp.PowerTransformer(method='yeo-johnson'),
+			# "PowerTransformerBC":skpp.PowerTransformer(method='box-cox'),
+			"QuantileTransformerN":skpp.QuantileTransformer(output_distribution='normal'),
+			"QuantileTransformerU":skpp.QuantileTransformer(output_distribution='uniform'),
+			})
+	else:
+		import sklearn.preprocessing as pp
+		transformdict = ({
+			"StandardScaler":pp.StandardScaler(),
+			"RobustScaler":pp.RobustScaler(quantile_range=(25, 75)),
+			"MinMaxScaler":pp.MinMaxScaler(),
+			"MaxAbsScaler":pp.MaxAbsScaler(),
+			"PowerTransformerYJ":pp.PowerTransformer(method='yeo-johnson'),
+			# "PowerTransformerBC":pp.PowerTransformer(method='box-cox'),
+			"Normalizer":pp.Normalizer(),
+			"QuantileTransformerN":pp.QuantileTransformer(output_distribution='normal'),
+			"QuantileTransformerU":pp.QuantileTransformer(output_distribution='uniform'),
+			})
+
+
+
+	# ========== Sanity check my transforms ==========
+	assert transform in ([
+		"StandardScaler", "RobustScaler", "MinMaxScaler", "MaxAbsScaler",  
+		"PowerTransformerYJ",  "Normalizer", #"PowerTransformerBC",
+		"QuantileTransformerN", "QuantileTransformerU"])
+
+	sclr   = transformdict[transform]
+	# ========== make the transform ==========
+	if useGPU: 
+		try:
+			if transform in (["PowerTransformerYJ", "PowerTransformerBC", 
+				"QuantileTransformerN", "QuantileTransformerU"]):
+				ttrain = sclr.fit_transform(train.to_pandas())
+				ttest  = sclr.transform(test.to_pandas())
+				ttrain = cudf.from_pandas(pd.DataFrame(ttrain))
+				ttest  = cudf.from_pandas(pd.DataFrame(ttest ), )
+
+			elif transform in ["Normalizer"]:
+				ttrain = sclr.fit_transform(train.fillna(0))	
+				ttest  = sclr.transform(test.fillna(0))
+				ttrain.columns = train.columns
+				ttrain.index   = train.index
+				ttest.columns  = test.columns
+				ttest.index    = test.index
+				ttrain[train.isnull()] = np.NaN
+				ttest[test.isnull()]   = np.NaN
+				# breakpoint()
+			else:
+				ttrain = sclr.fit_transform(train)
+				ttest  = sclr.transform(test)
+			ttrain.columns = train.columns
+			ttrain.index   = train.index
+			ttest.columns  = test.columns
+			ttest.index    = test.index
+			ttest = ttest.fillna(np.NaN)
+			ttrain = ttrain.fillna(np.NaN)
+			
+
+			if not all(ttrain.isnull() == train.isnull()):
+				print(f"Nan problem with {tsf}")
+				breakpoint()
+
+
+		except Exception as err:
+			print(str(err))
+			breakpoint()
+			# train.to_frame()
+	else:
+		try:
+			ttest  = test.copy()
+			ttrain = train.copy()
+			ttrain.loc[:] = sclr.fit_transform(train)
+			ttest.loc[:]  = sclr.transform(test)
+		except Exception as err:
+			print(str(err))
+			breakpoint()
+	
+		if not all(ttrain.isnull() == train.isnull()):
+			print(f"Nan problem with {tsf}")
+			breakpoint()
+	
+	return ttrain, ttest, sclr
+
 
 def Objective(trial, X_train, y_train, g_train, 
 	random_state=42,
@@ -299,6 +404,12 @@ def XGBR(
 	nx, X_train, X_test, y_train, y_test, g_train, stinfo, opath, 
 	GPU=False, expnm="", verb=False, esr=40, resample=False, n_trials=5):
 	
+	# ========== Do data pre transforming ==========
+	if not stinfo["Xtransf"] == '':
+		X_train, X_test, Xtrans = preprocessing(X_test, X_train, stinfo["Xtransf"], GPU)
+	
+	if not stinfo["Ytransf"] == '':
+		y_train, y_test, Ytrans = preprocessing(y_test, y_train, stinfo["Ytransf"], GPU)
 	# ========== Create the hyperprams ==========
 	t0 = pd.Timestamp.now()
 	if stinfo["hyperp"]:
@@ -370,18 +481,25 @@ def XGBR(
 	else:
 		XGB_dict = _XGBdict(GPU)
 
-
 	# ========== create the XGBoost object ========== 
 	regressor = xgb.XGBRegressor(**XGB_dict)
 
 	if GPU:
+		# breakpoint()
+		X_test    = X_test.fillna(np.NaN)
+		X_train   = X_train.fillna(np.NaN)
 		eval_set  = [(X_test.values, y_test)]
+		# try:
+		# except:
+		# 	bre
+			# eval_set  = [(X_test, y_test)]
 		regressor.fit(X_train.values, y_train, 
 			early_stopping_rounds=esr, verbose=verb, eval_set=eval_set)
 		
 		# ========== Use cuml metrics instead here =====
 		y_pred = regressor.predict(X_test).astype(np.float64)
-		# breakpoint()
+		if not stinfo["Ytransf"] == '':
+			breakpoint()
 		try:
 
 			R2     = cuml.metrics.r2_score( y_test, y_pred)
@@ -421,6 +539,8 @@ def XGBR(
 		score["preclean"]  = stinfo["preclean"]
 		score["hyperp"]    = stinfo["hyperp"]
 		score["OptunaSt"]  = stinfo["OptunaSt"]
+		score["Xtransf"]   = stinfo["Xtransf"]
+		score["Ytransf"]   = stinfo["Ytransf"]
 
 		# breakpoint()
 		return score
@@ -501,7 +621,7 @@ def datasubset(vi_df, colnm, predvar, df_site, info, FutDist=20, DropNAN=0.5):
 	X = vi_df.loc[:, colnm].copy() 
 
 	# ========= nan foltering here ==========
-	nanccal = X.isnull().sum(axis=1)<= DropNAN
+	nanccal = X.isnull().mean(axis=1) <= DropNAN
 	distcal = df_site.BurnFut + df_site.DisturbanceFut
 	distcal.where(distcal<=100., 100, inplace=True)
 	# +++++ make a sing dist and nan layer +++++
@@ -545,7 +665,6 @@ def batchmaker(opath, dpath):
 	# ========== Experiment 0 ==========
 	# \\\\\ The benchmarking experiments \\\\\
 	dspre   = True
-	modpost = True
 	for modpost, optext in zip([True, False], ["long", ""]):
 		for sptvar in [["site", "yrend"], "site"]:
 
@@ -554,84 +673,111 @@ def batchmaker(opath, dpath):
 				FutDist=0, n_splits=10, dropCFWH=False, DropNAN=0.5, 
 				dspre=dspre, modpost=modpost, optext=optext)
 
-			# ///// Building matched random results \\\\\
-			# +++++ This is the site vs fully withlf validation +++++
-			# experiments with constant testsize +++++
+
+			# # ///// Building matched random results \\\\\
+			# # +++++ This is the site vs fully withlf validation +++++
+			# # experiments with constant testsize +++++
 			setup[len(setup)] = expgroup(
 				sptvar, "RandCV", opath, dpath, test_size=0.1, 
 				FutDist=0, n_splits=10, dropCFWH=False, DropNAN=0.5, 
 				dspre=dspre, modpost=modpost, optext=optext)
 
+			if not modpost:
+				for transform in ([
+					"StandardScaler", "RobustScaler", "MinMaxScaler", "MaxAbsScaler",  
+					"PowerTransformerYJ", #"PowerTransformerBC", 
+					"Normalizer", "QuantileTransformerN", "QuantileTransformerU"]):
+
+					setup[len(setup)] = expgroup(
+						sptvar, "Test", opath, dpath, test_size=0.3, 
+						FutDist=0, n_splits=10, dropCFWH=False, DropNAN=0.5, 
+						dspre=dspre, Xtrans=transform, modpost=modpost, optext=optext)
+
+					# ===== Y transforms currently dont work ==========
+					# setup[len(setup)] = expgroup(
+					# 	sptvar, "Test", opath, dpath, test_size=0.3, 
+					# 	FutDist=0, n_splits=10, dropCFWH=False, DropNAN=0.5, 
+					# 	dspre=dspre, Xtrans=transform, Ytrans=transform, 
+					# 	modpost=modpost, optext=optext)
+
 
 	# ========== Experimant 1 ========== 
 	# ///// recreating the existing results \\\\\
-	# for dspre, modpost in zip([False, True, True], [False, False, True]):
-	# 	for sptvar in ["site", ["site", "yrend"]]:
-	# 		# +++++ This is the site vs fully withlf validation +++++
-	# 		for testgroup in ["Test", "Vali"]:
-	# 			# experiments with constant testsize +++++
-	# 			if modpost and testgroup == "Vali":
-	# 				# Way to skip runs quickly
-	# 				continue
-	# 			for optext in ['bestpar', "defualt", "both", "long", ""]:
-	# 				setup[len(setup)] = expgroup(
-	# 					sptvar, testgroup, opath, dpath, test_size=0.3, 
-	# 					FutDist=20, n_splits=10, dropCFWH=False, DropNAN=0.5, 
-	# 					dspre=dspre, modpost=modpost, optext=optext)
+	for dspre, modpost in zip([False, True, True], [False, False, True]):
+
+		for sptvar in ["site", ["site", "yrend"]]:
+			# +++++ This is the site vs fully withlf validation +++++
+			for testgroup in ["Test", "Vali"]:
+				# experiments with constant testsize +++++
+				if modpost and testgroup == "Vali":
+					# Way to skip runs quickly
+					continue
+				# for optext in ['bestpar', "defualt", "both", "long", ""]:
+				# 	setup[len(setup)] = expgroup(
+				# 		sptvar, testgroup, opath, dpath, test_size=0.3, 
+				# 		FutDist=0, n_splits=10, dropCFWH=False, DropNAN=0.5, 
+				# 		dspre=dspre, modpost=modpost, optext=optext)
 		
 
-		# # ========== Experimant 2 ========== 
-		# # ///// Building matched random results \\\\\
-		# for sptvar in ["site", ["site", "yrend"]]:
-		# 	# +++++ This is the site vs fully withlf validation +++++
-		# 	# experiments with constant testsize +++++
-		# 	setup[len(setup)] = expgroup(
-		# 		sptvar, "Rand", opath, dpath, test_size=0.3, 
-		# 		FutDist=20, n_splits=30, dropCFWH=False, DropNAN=0.5, 
-		# 		dspre=dspre, modpost=modpost)
-		
+		if modpost:
+			print("added a skip to jump slow runs")
+			continue
+		# ========== Experimant 2 ========== 
+		# ///// Building matched random results \\\\\
+		for sptvar in ["site", ["site", "yrend"]]:
+			# +++++ This is the site vs fully withlf validation +++++
+			# experiments with constant testsize +++++
+			setup[len(setup)] = expgroup(
+				sptvar, "Rand", opath, dpath, test_size=0.3, 
+				FutDist=0, n_splits=30, dropCFWH=False, DropNAN=0.5, 
+				dspre=dspre, modpost=modpost)
 
 		# if modpost:
 		# 	# Way to skip runs quickly
 		# 	continue
+		
+	dspre   = True
+	modpost = False
+	for sptvar in ["site", ["site", "yrend"]]:
+		# ========== Experimant 5 ========== 
+		# ///// Varying the nan fraction \\\\\
+		# +++++ This is the site vs fully withlf validation +++++
+		# experiments with constant testsize +++++
+		for DropNAN in np.arange(0, 1.01, 0.1):
+			setup[len(setup)] = expgroup(
+				sptvar, "Rand", opath, dpath, test_size=0.3, 
+				FutDist=0, n_splits=30, dropCFWH=False, dspre=True,
+				DropNAN=DropNAN)
+
 
 		# # ========== Experimant 3 ========== 
 		# # ///// Varying th disturbance \\\\\
 		# for sptvar in ["site", ["site", "yrend"]]:
 		# 	# +++++ This is the site vs fully withlf validation +++++
 		# 	# experiments with constant testsize +++++
-		# 	for FutDist in np.arange(0, 101, 5):
-		# 		setup[len(setup)] = expgroup(
-		# 			sptvar, "Rand", opath, dpath, test_size=0.3, 
-		# 			FutDist=FutDist, n_splits=30, dropCFWH=False, 
-		# 			DropNAN=0.5, dspre=dspre, modpost=modpost)
+		for FutDist in np.arange(0, 101, 5):
+			setup[len(setup)] = expgroup(
+				sptvar, "Rand", opath, dpath, test_size=0.3, 
+				FutDist=FutDist, n_splits=30, dropCFWH=False, 
+				DropNAN=0.5, dspre=dspre, modpost=modpost)
 
 		# # ========== Experimant 4 ========== 
 		# # ///// Varying the test size \\\\\
 		# for sptvar in ["site", ["site", "yrend"]]:
-		# 	# +++++ This is the site vs fully withlf validation +++++
-		# 	# experiments with constant testsize +++++
-		# 	for test_size in np.arange(0.05, 1., 0.05):
-		# 		setup[len(setup)] = expgroup(
-		# 			sptvar, "Rand", opath, dpath, test_size=test_size, 
-		# 			FutDist=20, n_splits=30, dropCFWH=False, DropNAN=0.5, 
-		# 			dspre=dspre, modpost=modpost)
+		# +++++ This is the site vs fully withlf validation +++++
+		# experiments with constant testsize +++++
+		for test_size in np.arange(0.05, 1., 0.05):
+			setup[len(setup)] = expgroup(
+				sptvar, "Rand", opath, dpath, test_size=test_size, 
+				FutDist=0, n_splits=30, dropCFWH=False, DropNAN=0.5, 
+				dspre=dspre, modpost=modpost)
 	
-	# ========== Experimant 5 ========== 
-	# ///// Varying the nan fraction \\\\\
-	# for sptvar in ["site", ["site", "yrend"]]:
-	# 	# +++++ This is the site vs fully withlf validation +++++
-	# 	# experiments with constant testsize +++++
-	# 	for DropNAN in np.arange(0, 1.01, 0.1):
-	# 		setup[len(setup)] = expgroup(
-	# 			sptvar, "Rand", opath, dpath, test_size=0.3, 
-	# 			FutDist=20, n_splits=30, dropCFWH=False, DropNAN=DropNAN)
 	return setup
 
 
 def expgroup(sptvar, testgroup, opath, dpath, test_size=0.3, 
 	FutDist=20, n_splits=10, dropCFWH=False, DropNAN=0.5, dspre=False, 
-	modpost=False, optext=""):
+	 Xtrans="", Ytrans="", modpost=False, optext=""):
 	
 	"""
 	Container for my experiments to go, returns the requested experiment
@@ -695,7 +841,7 @@ def expgroup(sptvar, testgroup, opath, dpath, test_size=0.3,
 	
 	expn = f"DBG_{testgroup}_{spn}_{int(test_size*100)}TstSz_{FutDist}FDis_{int(DropNAN*100)}NaN"
 	if dspre:
-		expn += "_precleaned"
+		expn += f"_precleaned{Xtrans}{Ytrans}"
 
 	if modpost:
 		expn += f"_hyperp{optext}"
@@ -717,7 +863,9 @@ def expgroup(sptvar, testgroup, opath, dpath, test_size=0.3,
 		"fnout"   :f"{opath}{expn}",
 		"preclean":dspre,
 		"hyperp"  :modpost,
-		"OptunaSt":optext
+		"OptunaSt":optext,
+		"Xtransf" :Xtrans, 
+		"Ytransf" :Ytrans,
 		})
 
 	# breakpoint()

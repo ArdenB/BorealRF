@@ -131,3 +131,5 @@ dmypy.json
 
 # Other folder specific additions
 *.out
+*.csv
+pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/*/
