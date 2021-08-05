@@ -70,6 +70,7 @@ from scipy.cluster import hierarchy
 import xgboost as xgb
 from sklearn.model_selection import GroupShuffleSplit, GroupKFold
 from tqdm import tqdm
+
 # import cudf
 # import cuml
 # import optuna 
@@ -99,7 +100,7 @@ def main():
 	# f, (ax1, ax2) = plt.subplots(2, 1,  sharex=True)
 	vi_df["AnnualDelta"] = vi_df["Delta_biomass"]/vi_df["ObsGap"]
 	sns.kdeplot(x="AnnualDelta", data=vi_df)#, ax=ax1)
-	# plt.show()
+	plt.show()
 
 	vi_df.AnnualDelta.hist(bins=2000)#, ax=ax2)
 	plt.show()

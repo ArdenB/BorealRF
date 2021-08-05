@@ -70,7 +70,7 @@ from scipy.cluster import hierarchy
 import xgboost as xgb
 from sklearn.model_selection import GroupShuffleSplit
 from tqdm import tqdm
-import cudf
+# import cudf
 import statsmodels.api as sm
 
 print("seaborn version : ", sns.__version__)
