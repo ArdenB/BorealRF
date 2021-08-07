@@ -435,6 +435,9 @@ def ml_regression(
 			col_nms = col_nms[selector.support_]
 			X_train =  X_train[col_nms]#selector.transform(X_train)
 			X_test  =  X_test[col_nms]#selector.transform(X_test)
+			# ========== Do the debug scoring ==========
+			if setup["debug"]:
+				dbg["X_test"] = dbg["X_test"][col_nms]
 			
 			# ==========  pull the regressor out ==========
 			regressor = selector.estimator_
@@ -2185,6 +2188,50 @@ def experiments(ncores = -1):
 		"splitvar"         :["site", "yrend"],
 		"Hyperpram"        :False,
 		})
+	expr[422] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :422,
+		"predvar"          :"Delta_biomass",
+		"dropvar"          :["Obs_biomass"],
+		"name"             :"XGBAllGap_Debug_yrfnsplit_Futdis_CV",
+		"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
+		"window"           :10,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"model"            :"XGBoost",
+		"debug"            :True,
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.1, 
+		"FullTestSize"     :0.05,
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
+		"yTransformer"     :None, 
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"maxitter"         :14, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :False,
+		"StopPoint"        :5,
+		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"pariedRun"        :420, # identical runs except at the last stage
+		"Step"             :4,
+		"AltMethod"        :"RFECV", # alternate method to use after slowdown point is reached
+		"FutDist"          :100, 
+		"splitmethod"      :"GroupCV",
+		"splitvar"         :["site", "yrend"],
+		"Hyperpram"        :False,
+		})
 	# expr[422] = ({
 	# 	# +++++ The experiment name and summary +++++
 	# 	"Code"             :422,
@@ -2318,8 +2365,53 @@ def experiments(ncores = -1):
 		"splitvar"         :"site",
 		"Hyperpram"        :False,
 		})
+	expr[433] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :433,
+		"predvar"          :"Delta_biomass",
+		"dropvar"          :["Obs_biomass"],
+		"name"             :"XGBAllGap_Debug_sitesplit_CV",
+		"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
+		"window"           :10,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"model"            :"XGBoost",
+		"debug"            :True,
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.1, 
+		"FullTestSize"     :0.05,
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
+		"yTransformer"     :None, 
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"maxitter"         :14, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :False,
+		"StopPoint"        :5,
+		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"pariedRun"        :430, # identical runs except at the last stage
+		"Step"             :4,
+		"AltMethod"        :"RFECV", # alternate method to use after slowdown point is reached
+		"FutDist"          :0, 
+		"splitmethod"      :"GroupCV",
+		"splitvar"         :"site",
+		"Hyperpram"        :False,
+		})
 
 	return expr
+
 
 # ===== Old run with no feature selection =====
 # expr[412] = ({
