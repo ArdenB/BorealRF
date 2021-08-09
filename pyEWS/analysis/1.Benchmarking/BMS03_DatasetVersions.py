@@ -563,8 +563,8 @@ def ml_regression(
 				t0x      = pd.Timestamp.now()
 				sampler  = TPESampler(multivariate=True)
 				study    = optuna.create_study(direction="minimize", sampler=sampler)
-				n_trials = 5#0
-				warn.warn("Set to 5 for some debugging")
+				n_trials = 100
+				# warn.warn("Set to 5 for some debugging")
 				
 				# ========== Pull out the gtraub ==========
 				g_train = df_site.loc[X_train.index, "group"]
@@ -2374,94 +2374,94 @@ def experiments(ncores = -1):
 		"Hyperpram"        :False,
 		})
 
-	# expr[423] = ({
-	# 	# +++++ The experiment name and summary +++++
-	# 	"Code"             :423,
-	# 	"predvar"          :"Delta_biomass",
-	# 	"dropvar"          :["Obs_biomass"],
-	# 	"name"             :"XGBAllGap_Debug_yrfnsplit_CV_RFECV",
-	# 	"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
-	# 	"window"           :10,
-	# 	"predictwindow"    :None,
-	# 	"Nstage"           :1, 
-	# 	"model"            :"XGBoost",
-	# 	"debug"            :True,
-	# 	# +++++ The Model setup params +++++
-	# 	"ntree"            :10,
-	# 	"nbranch"          :2000,
-	# 	"max_features"     :'auto',
-	# 	"max_depth"        :5,
-	# 	"min_samples_split":2,
-	# 	"min_samples_leaf" :2,
-	# 	"bootstrap"        :True,
-	# 	# +++++ The experiment details +++++
-	# 	"test_size"        :0.1, 
-	# 	"FullTestSize"     :0.05,
-	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
-	# 	"ImportanceMet"    :"Permutation",
-	# 	"Transformer"      :None,
-	# 	"yTransformer"     :None, 
-	# 	"ModVar"           :"ntree, max_depth", "dataset"
-	# 	"classifer"        :None, 
-	# 	"cores"            :ncores,
-	# 	"maxitter"         :14, 
-	# 	"DropNAN"          :0.5, 
-	# 	"DropDist"         :False,
-	# 	"StopPoint"        :5,
-	# 	"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
-	# 	"maxR2drop"        :0.025,
-	# 	"pariedRun"        :420, # identical runs except at the last stage
-	# 	"Step"             :4,
-	# 	"AltMethod"        :"RFECV", # alternate method to use after slowdown point is reached
-	# 	"FutDist"          :0, 
-	# 	"splitmethod"      :"GroupCV",
-	# 	"splitvar"         :["site", "yrend"],
-	# 	"Hyperpram"        :False,
-	# 	})
-	# 	expr[424] = ({
-	# 	# +++++ The experiment name and summary +++++
-	# 	"Code"             :424,
-	# 	"predvar"          :"Delta_biomass",
-	# 	"dropvar"          :["Obs_biomass"],
-	# 	"name"             :"XGBAllGap_Debug_yrfnsplit_CV_RFECVBHYP",
-	# 	"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
-	# 	"window"           :10,
-	# 	"predictwindow"    :None,
-	# 	"Nstage"           :1, 
-	# 	"model"            :"XGBoost",
-	# 	"debug"            :True,
-	# 	# +++++ The Model setup params +++++
-	# 	"ntree"            :10,
-	# 	"nbranch"          :2000,
-	# 	"max_features"     :'auto',
-	# 	"max_depth"        :5,
-	# 	"min_samples_split":2,
-	# 	"min_samples_leaf" :2,
-	# 	"bootstrap"        :True,
-	# 	# +++++ The experiment details +++++
-	# 	"test_size"        :0.1, 
-	# 	"FullTestSize"     :0.05,
-	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
-	# 	"ImportanceMet"    :"Permutation",
-	# 	"Transformer"      :None,
-	# 	"yTransformer"     :None, 
-	# 	"ModVar"           :"ntree, max_depth", "dataset"
-	# 	"classifer"        :None, 
-	# 	"cores"            :ncores,
-	# 	"maxitter"         :14, 
-	# 	"DropNAN"          :0.5, 
-	# 	"DropDist"         :False,
-	# 	"StopPoint"        :5,
-	# 	"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
-	# 	"maxR2drop"        :0.025,
-	# 	"pariedRun"        :423, # identical runs except at the last stage
-	# 	"Step"             :4,
-	# 	"AltMethod"        :"RFECVBHYP", # alternate method to use after slowdown point is reached
-	# 	"FutDist"          :0, 
-	# 	"splitmethod"      :"GroupCV",
-	# 	"splitvar"         :["site", "yrend"],
-	# 	"Hyperpram"        :False,
-	# 	})
+	expr[423] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :423,
+		"predvar"          :"Delta_biomass",
+		"dropvar"          :["Obs_biomass"],
+		"name"             :"XGBAllGap_Debug_yrfnsplit_CV_RFECV",
+		"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
+		"window"           :10,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"model"            :"XGBoost",
+		"debug"            :True,
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.1, 
+		"FullTestSize"     :0.05,
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
+		"yTransformer"     :None, 
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"maxitter"         :14, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :False,
+		"StopPoint"        :5,
+		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"pariedRun"        :420, # identical runs except at the last stage
+		"Step"             :4,
+		"AltMethod"        :"RFECV", # alternate method to use after slowdown point is reached
+		"FutDist"          :0, 
+		"splitmethod"      :"GroupCV",
+		"splitvar"         :["site", "yrend"],
+		"Hyperpram"        :False,
+		})
+		expr[424] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :424,
+		"predvar"          :"Delta_biomass",
+		"dropvar"          :["Obs_biomass"],
+		"name"             :"XGBAllGap_Debug_yrfnsplit_CV_RFECVBHYP",
+		"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
+		"window"           :10,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"model"            :"XGBoost",
+		"debug"            :True,
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.1, 
+		"FullTestSize"     :0.05,
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
+		"yTransformer"     :None, 
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"maxitter"         :14, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :False,
+		"StopPoint"        :5,
+		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"pariedRun"        :423, # identical runs except at the last stage
+		"Step"             :4,
+		"AltMethod"        :"RFECVBHYP", # alternate method to use after slowdown point is reached
+		"FutDist"          :0, 
+		"splitmethod"      :"GroupCV",
+		"splitvar"         :["site", "yrend"],
+		"Hyperpram"        :False,
+		})
 
 	# ===============================================================================
 	expr[430] = ({
@@ -2558,7 +2558,7 @@ def experiments(ncores = -1):
 		"Code"             :433,
 		"predvar"          :"Delta_biomass",
 		"dropvar"          :["Obs_biomass"],
-		"name"             :"XGBAllGap_Debug_sitesplit_CV",
+		"name"             :"XGBAllGap_Debug_sitesplit_CV_RFECV",
 		"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
 		"window"           :10,
 		"predictwindow"    :None,
@@ -2602,7 +2602,7 @@ def experiments(ncores = -1):
 		"Code"             :434,
 		"predvar"          :"Delta_biomass",
 		"dropvar"          :["Obs_biomass"],
-		"name"             :"XGBAllGap_Debug_sitesplit_CV",
+		"name"             :"XGBAllGap_Debug_sitesplit_CV_RFECVBHYP",
 		"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
 		"window"           :10,
 		"predictwindow"    :None,
@@ -2643,51 +2643,6 @@ def experiments(ncores = -1):
 		})
 	return expr
 
-
-# ===== Old run with no feature selection =====
-# expr[412] = ({
-# 	# +++++ The experiment name and summary +++++
-# 	"Code"             :412,
-# 	"predvar"          :"Delta_biomass",
-# 	"dropvar"          :["Obs_biomass"],
-# 	"name"             :"OneStageXGBOOST_NoSelection_FINAL_Delta_biomass_altsplit",
-# 	"desc"             :"Trialing a model with no selection preprocessing",
-# 	"window"           :10,
-# 	"predictwindow"    :None,
-# 	"Nstage"           :1, 
-# 	"model"            :"XGBoost",
-# 	"debug"            : False,
-# 	# +++++ The Model setup params +++++
-# 	"ntree"            :10,
-# 	"nbranch"          :2000,
-# 	"max_features"     :'auto',
-# 	"max_depth"        :5,
-# 	"min_samples_split":2,
-# 	"min_samples_leaf" :2,
-# 	"bootstrap"        :True,
-# 	# +++++ The experiment details +++++
-# 	"test_size"        :0.2, 
-# 	"SelMethod"        :None,
-# 	"ImportanceMet"    :"Permutation",
-# 	"Transformer"      :None,
-# 	"yTransformer"     :None, 
-# 	"ModVar"           :"ntree, max_depth", "dataset"
-# 	"classifer"        :None, 
-# 	"cores"            :ncores,
-
-# 	"debug"            : False,
-# 	"maxitter"         :14, 
-# 	"DropNAN"          :0.5, 
-# 	"DropDist"         :False,
-# 	"StopPoint"        :5,
-# 	"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
-# 	"maxR2drop"        :0.025,
-# 	"pariedRun"        :410, # identical runs except at the last stage
-# 	"Step"             :4,
-# 	"FullTestSize"     :0.1,
-# 	"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
-# 	"FutDist"          :20
-# 	})
 # ==============================================================================
 
 
