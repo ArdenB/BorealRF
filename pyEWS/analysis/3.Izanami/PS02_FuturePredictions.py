@@ -900,6 +900,7 @@ def _delag(b0, bl):
 		return np.nan
 	else:
 		return ((bl*b0)+b0)/(1-bl)
+
 def Experiment_name(df, df_setup, var = "experiment"):
 	keys = {}
 	for cat in df["experiment"].unique():

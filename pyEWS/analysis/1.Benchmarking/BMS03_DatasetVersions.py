@@ -70,6 +70,11 @@ from sklearn.utils import shuffle
 from scipy.stats import spearmanr
 from scipy.cluster import hierarchy
 import xgboost as xgb
+import joblib
+import optuna
+from optuna.samplers import TPESampler
+from optuna.integration import XGBoostPruningCallback
+from sklearn.model_selection import GroupShuffleSplit, GroupKFold
 
 print("seaborn version : ", sns.__version__)
 # print("xgb version : ", xgb.__version__)
@@ -93,6 +98,7 @@ def main(args):
 			setup = exper[experiment].copy()
 			path = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/%d/" % experiment
 			cf.pymkdir(path)
+			cf.pymkdir(path+"models/")
 			fn_br  = path + "Exp%03d_%s_vers%02d_BranchItteration.csv" % (experiment, setup["name"], version)
 			fn_res = path + "Exp%03d_%s_vers%02d_Results.csv" % (experiment, setup["name"], version)
 			fn_PI  = path + "Exp%03d_%s_vers%02d_%sImportance.csv" % (experiment, setup["name"], version, setup["ImportanceMet"])
@@ -135,7 +141,7 @@ def main(args):
 
 			# ========== load in the data ==========
 			if all([os.path.isfile(fn) for fn in [fn_br, fn_res, fn_PI]]) and not force:
-				print ("Experiment:", experiment, setup["name"], " version:", version, "complete")
+				print ("\nExperiment:", experiment, setup["name"], " version:", version, "complete")
 				# ========== Fixing the broken site counts ==========
 				if fix:
 					Region_calculation(basestr, experiment, version, setup, path, fn_PI, fn_res)
@@ -151,35 +157,9 @@ def main(args):
 			branch       = 0
 			final        = False
 			t0           = pd.Timestamp.now()
+			inhRFECV     = False # can be used to skip RFECV
+			pairdf       = None
 			
-			def _pairFinder(exper, experiment, setup, pair, version, perf, force, t0, branch):
-				# ========== check if the files exist ==========
-				psetup = exper[pair].copy()
-				ppath = f"./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/{pair}/" 
-				pfn_br  = ppath + "Exp%03d_%s_vers%02d_BranchItteration.csv" % (pair, psetup["name"], version)
-				pfn_res = ppath + "Exp%03d_%s_vers%02d_Results.csv" % (pair, psetup["name"], version)
-				pfn_PI  = ppath + "Exp%03d_%s_vers%02d_%sImportance.csv" % (pair, psetup["name"], version, psetup["ImportanceMet"])
-				if all([os.path.isfile(fn) for fn in [pfn_br, pfn_res, pfn_PI]]) and not force:
-					print ("Using paired run to shorten computation time")
-					# ========== add metrics to performance ==========
-					dfp = pd.read_csv(pfn_br)
-					for exp in range(dfp.shape[0]-1):
-						bx = dfp.iloc[exp]
-						perf["Branch%02d" % exp] = ({"experiment":experiment, "version":version, 
-							"RFtime":pd.to_timedelta(bx["RFtime"]), "TimeCumulative":pd.to_timedelta(bx["TimeCumulative"]),  
-							"R2":bx["R2"], "NumVar":bx["NumVar"],  "SiteFraction":bx["SiteFraction"]})
-						t0     -= pd.to_timedelta(bx["RFtime"])
-						branch += 1
-					
-					# ========== pull the column names ==========
-					dfc = pd.read_csv(pfn_PI)
-					ColNm = dfc.Variable.values.tolist()
-					
-					return ColNm, True, t0, perf, branch
-
-				else:
-					return None, False, t0, perf
-
 			if setup["SelMethod"] is None:
 				#Models with no feature selection
 				ColNm        = None # will be replaced as i keep adding new columns
@@ -188,7 +168,8 @@ def main(args):
 				ColNm        = None # will be replaced as i keep adding new columns
 				RequestFinal = False # a way to request final if i'm using REECV
 			else:
-				ColNm, RequestFinal, t0, perf, branch =  _pairFinder(exper, experiment, setup, setup['pariedRun'], version, perf, force, t0, branch)
+				ColNm, RequestFinal, t0, perf, branch, inhRFECV, pairdf =  _pairFinder(exper, experiment, setup, setup['pariedRun'], version, perf, force, t0, branch)
+
 			corr_linkage = None # will be replaced after the 0 itteration
 			orig_clnm    = None # Original Column names
 
@@ -210,7 +191,6 @@ def main(args):
 				elif branch >= setup["maxitter"]:
 					# ========== Catch to stop infinit looping ==========
 					warn.warn("Branch reached max depth, setting final = True to stop ")
-					breakpoint()
 					final = True
 					# setup["BranchDepth"] = branch
 
@@ -222,7 +202,6 @@ def main(args):
 					setup["predvar"], experiment, version,  branch, setup, final=final,  cols_keep=ColNm, #force=True,
 					vi_fn=fnamein, region_fn=sfnamein, basestr=basestr, dropvar=setup["dropvar"])
 				# if final:
-				# 	breakpoint()
 
 				# ========== perform some zeo branch data storage ==========
 				if branch == 0:
@@ -244,9 +223,11 @@ def main(args):
 				# ========== Perform the Regression ==========
 				time,  r2, feature_imp, ColNm, score_debug  = ml_regression(
 					X_train, X_test, y_train, y_test, path, col_nms, orig_clnm, experiment, 
-					version, branch,  setup, corr_linkage,fn_RFE, fn_RCV, dbg,  verbose=False, final=final)
+					version, branch,  setup, corr_linkage,fn_RFE, fn_RCV, 
+					dbg,  inhRFECV, pairdf, df_site,
+					verbose=False, final=final)
 
-				if (setup["AltMethod"] in ["BackStep", "RFECV"]) and final:
+				if (setup["AltMethod"] in ["BackStep", "RFECV", "RFECVBHYP"]) and final:
 					NV = len(ColNm)
 				else:
 					NV = loadstats["colcount"]
@@ -269,7 +250,7 @@ def main(args):
 					# ========== deal feature selection slow dowwn mode ==========
 					if len(col_nms) <=  setup['SlowPoint']:
 						# ========== Implement some fancy stopping here ==========
-						if setup["AltMethod"] in ["BackStep", "RFECV"]:
+						if setup["AltMethod"] in ["BackStep", "RFECV", "RFECVBHYP"]:
 							# Check and see if the performance has degraded too much
 							indx = len(BackStepOD)
 							BackStepOD[indx] = {"R2":r2, "FI":feature_imp.copy(), "ColNm":col_nms.copy()}
@@ -345,10 +326,136 @@ def main(args):
 	breakpoint()
 
 # ==============================================================================
+def Objective(trial, X_train, y_train, g_train, 
+	random_state=42,
+	n_splits=3,	n_repeats=2,
+	# n_jobs=1,
+	early_stopping_rounds=40,
+	GPU=False, fullset=True, 
+	):
+	"""
+	A function to be optimised using baysian search
+	"""
+	# XGBoost parameters
+	if fullset:
+		params = ({
+
+			"verbosity": 0,  # 0 (silent) - 3 (debug)
+			"objective": "reg:squarederror",
+			"n_estimators": 10000,
+			"max_depth": trial.suggest_int("max_depth", 3, 12),
+			"num_parallel_tree":trial.suggest_int("num_parallel_tree", 2, 20),
+			"learning_rate": trial.suggest_float("learning_rate", 0, 1),
+			"colsample_bytree": trial.suggest_float("colsample_bytree", 0.2, 1.),
+			"subsample": trial.suggest_float("subsample", 0, 1),
+			"alpha": trial.suggest_float("alpha", 0.00, 1),
+			"lambda": trial.suggest_float("lambda", 1e-8, 2),
+			"gamma": trial.suggest_float("gamma", 0, 2),
+			"min_child_weight": trial.suggest_int("min_child_weight", 1, 200),
+			})
+	else:
+		params = ({
+
+			"verbosity": 0,  # 0 (silent) - 3 (debug)
+			"objective": "reg:squarederror",
+			"n_estimators": 10000,
+			"max_depth": trial.suggest_int("max_depth", 3, 12),
+			# "num_parallel_tree":trial.suggest_int("num_parallel_tree", 2, 20),
+			"learning_rate": trial.suggest_float("learning_rate", 0, 1),
+			# "colsample_bytree": trial.suggest_float("colsample_bytree", 0.2, 1.),
+			"subsample": trial.suggest_float("subsample", 0, 1),
+			"alpha": trial.suggest_float("alpha", 0.00, 1),
+			# "lambda": trial.suggest_float("lambda", 1e-8, 2),
+			# "gamma": trial.suggest_float("gamma", 0, 2),
+			"min_child_weight": trial.suggest_int("min_child_weight", 1, 200),
+			})
+	# ========== Make GPU and CPU mods ==========
+	if GPU:
+		params['tree_method'] = 'gpu_hist'
+		mfunc  = cuml.metrics.mean_squared_error
+		y_pred = np.zeros_like(y_train)
+	else:
+		params['n_jobs']      = -1
+		mfunc  = sklMet.mean_squared_error
+		y_pred = y_train.copy() * 0
+
+	# ========== Make the Regressor and the Kfold ==========
+	regressor        = xgb.XGBRegressor(**params)
+	pruning_callback = XGBoostPruningCallback(trial, "validation_0-rmse")
+	gkf              = GroupKFold(n_splits=n_splits, )#, n_repeats=n_repeats,) #random_state=random_state
+	
+	# ========== setup my values and loop through the grouped kfold splits ==========
+	for train_index, test_index in gkf.split(X_train, y_train, groups=g_train):
+		X_A, X_B = X_train.iloc[train_index, :], X_train.iloc[test_index, :]
+		y_A, y_B = y_train.iloc[train_index], y_train.iloc[test_index]
+		regressor.fit(
+			X_A,
+			y_A,
+			eval_set=[(X_B, y_B)],
+			eval_metric="rmse",
+			verbose=0,
+			callbacks=[pruning_callback],
+			early_stopping_rounds=early_stopping_rounds,
+		)
+		try:
+			if GPU:
+				y_pred.iloc[test_index] = regressor.predict(X_B)
+			else:
+				y_pred.iloc[test_index, ] = np.expand_dims(regressor.predict(X_B), axis=1)
+		except Exception as er: 
+			warn.warn(str(er))
+			breakpoint()
+	# y_pred /= n_repeats
+	# breakpoint()
+	return np.sqrt(mfunc(y_train, y_pred))
+
+
+def _pairFinder(exper, experiment, setup, pair, version, perf, force, t0, branch):
+	# ========== check if the files exist ==========
+	psetup   = exper[pair].copy()
+	ppath    = f"./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/{pair}/" 
+	pfn_br   = ppath + "Exp%03d_%s_vers%02d_BranchItteration.csv" % (pair, psetup["name"], version)
+	pfn_res  = ppath + "Exp%03d_%s_vers%02d_Results.csv" % (pair, psetup["name"], version)
+	pfn_PI   = ppath + "Exp%03d_%s_vers%02d_%sImportance.csv" % (pair, psetup["name"], version, psetup["ImportanceMet"])
+	
+	pfn_RFE  =  ppath + "Exp%03d_%s_vers%02d_%sImportance_RFECVfeature.csv" % (pair, psetup["name"], version, psetup["ImportanceMet"])
+	pfn_RCV  =  ppath + "Exp%03d_%s_vers%02d_%sImportance_RFECVsteps.csv" % (pair, psetup["name"], version, psetup["ImportanceMet"])# a check to see if i can skip the RFECV
+	inhRFECV = False
+	pairdf   = None
+
+	if all([os.path.isfile(fn) for fn in [pfn_br, pfn_res, pfn_PI]]) and not force:
+		print ("Using paired run to shorten computation time")
+		# ========== add metrics to performance ==========
+		dfp = pd.read_csv(pfn_br)
+		for exp in range(dfp.shape[0]-1):
+			bx = dfp.iloc[exp]
+			perf["Branch%02d" % exp] = ({"experiment":experiment, "version":version, 
+				"RFtime":pd.to_timedelta(bx["RFtime"]), "TimeCumulative":pd.to_timedelta(bx["TimeCumulative"]),  
+				"R2":bx["R2"], "NumVar":bx["NumVar"],  "SiteFraction":bx["SiteFraction"]})
+			t0     -= pd.to_timedelta(bx["RFtime"])
+			branch += 1
+		
+		# ========== pull the column names ==========
+		dfc = pd.read_csv(pfn_PI)
+		ColNm = dfc.Variable.values.tolist()
+		
+		# ========== Check to see if RFECV has already been done ==========
+		if psetup['AltMethod'] == "RFECV":
+			inhRFECV = True
+			pairdf = ({
+				"pfn_RFE":pd.read_csv(pfn_RFE, index_col=0),
+				"pfn_RCV":pd.read_csv(pfn_RCV, index_col=0),
+				})
+		return ColNm, True, t0, perf, branch, inhRFECV, pairdf
+
+	else:
+		breakpoint()
+		return None, False, t0, perf, branch, inhRFECV, pairdf
 
 def ml_regression( 
 	X_train, X_test, y_train, y_test, path, col_nms, orig_clnm, 
-	experiment, version, branch, setup, corr_linkage, fn_RFE, fn_RCV, dbg,
+	experiment, version, branch, setup, corr_linkage, fn_RFE, 
+	fn_RCV, dbg, inhRFECV, pairdf, df_site,
 	verbose=True, perm=True, final = False):
 	"""
 	This function is to test out the  speed of the random forest regressions using
@@ -387,7 +494,7 @@ def ml_regression(
 
 		# ========== Do the RF regression training ==========
 		regressor = RandomForestRegressor(**skl_rf_params)
-		if setup["AltMethod"] == "RFECV" and final:
+		if setup["AltMethod"] in ["RFECV", "RFECVBHYP"] and final:
 			#This should be the same as the 
 			warn.warn("Not Implemented yet")
 			breakpoint()
@@ -413,43 +520,101 @@ def ml_regression(
 		# if branch > 0 :
 		# 	breakpoint()
 
-		if setup["AltMethod"] == "RFECV" and final:
-			print(f"Start RFECV at: {pd.Timestamp.now()}")
-			selector = RFECV(reg, step=setup["Step"], cv=5, verbose=1)#, scoring='neg_mean_absolute_error')#, n_jobs=-1
-			selector.fit(X_train.values, y_train.values.ravel())
+		if setup["AltMethod"] in ["RFECV", "RFECVBHYP"] and final:
+			if not inhRFECV:
+				print(f"Start RFECV at: {pd.Timestamp.now()}")
+				selector = RFECV(reg, step=setup["Step"], cv=5, verbose=1)#, scoring='neg_mean_absolute_error')#, n_jobs=-1
+				selector.fit(X_train.values, y_train.values.ravel())
 
-			# Build a table about the features
-			feat = OrderedDict()
-			for nm, rank, infinal in zip(col_nms, selector.ranking_, selector.support_):
-				feat[nm]={"rank":rank, "InFinal":infinal}
-			df_feat = pd.DataFrame(feat).T
-			df_feat.to_csv(fn_RFE)
+				# Build a table about the features
+				feat = OrderedDict()
+				for nm, rank, infinal in zip(col_nms, selector.ranking_, selector.support_):
+					feat[nm]={"rank":rank, "InFinal":infinal}
+				df_feat = pd.DataFrame(feat).T
+				df_feat.to_csv(fn_RFE)
 
-			# build a grid score table
-			itp = OrderedDict()
-			for nx, (score, cnt) in enumerate(zip(selector.grid_scores_, np.flip(np.arange(selector.n_features_in_, 0, -setup["Step"])))):	itp[nx] = { "score":score, "N_features":cnt}
-			df_itt = pd.DataFrame(itp).T
-			df_itt["N_features"][df_itt.N_features <1] = 1
-			df_itt.to_csv(fn_RCV)
+				# build a grid score table
+				itp = OrderedDict()
+				for nx, (score, cnt) in enumerate(zip(selector.grid_scores_, np.flip(np.arange(selector.n_features_in_, 0, -setup["Step"])))):	itp[nx] = { "score":score, "N_features":cnt}
+				df_itt = pd.DataFrame(itp).T
+				df_itt["N_features"][df_itt.N_features <1] = 1
+				df_itt.to_csv(fn_RCV)
 
-			col_nms = col_nms[selector.support_]
-			X_train =  X_train[col_nms]#selector.transform(X_train)
-			X_test  =  X_test[col_nms]#selector.transform(X_test)
-			# ========== Do the debug scoring ==========
-			if setup["debug"]:
-				dbg["X_test"] = dbg["X_test"][col_nms]
+				col_nms = col_nms[selector.support_]
+				X_train =  X_train[col_nms]#selector.transform(X_train)
+				X_test  =  X_test[col_nms]#selector.transform(X_test)
+				
+				# ========== Do the debug scoring ==========
+				if setup["debug"]:
+					dbg["X_test"] = dbg["X_test"][col_nms]
+			else:
+				# ========== Copy across the files ==========
+				pairdf["pfn_RFE"].to_csv(fn_RFE)
+				pairdf["pfn_RCV"].to_csv(fn_RCV)
 			
 			# ==========  pull the regressor out ==========
-			regressor = selector.estimator_
+			if setup["AltMethod"] == "RFECV":
+				regressor = selector.estimator_
+			else:
+				# ========== Create a filename ==========
+				fnout = f"{path}models/Exp{experiment:02d}_ver{version:02d}_optuna.pkl"
+				
+				# ========== Setup the experiment ==========
+				t0x      = pd.Timestamp.now()
+				sampler  = TPESampler(multivariate=True)
+				study    = optuna.create_study(direction="minimize", sampler=sampler)
+				n_trials = 5#0
+				warn.warn("Set to 5 for some debugging")
+				
+				# ========== Pull out the gtraub ==========
+				g_train = df_site.loc[X_train.index, "group"]
+				# ========== Add some good basline defulats ==========
+				# A study with origial defualts
+				study.enqueue_trial({
+					'num_parallel_tree' :10,
+					'max_depth'         :5,
+					"colsample_bytree"  :0.3,
+					"learning_rate"     :0.3,
+					"subsample"         :1, 
+					"alpha"             :0, 
+					"lambda"            :1,
+					"min_child_weight"  :1,
+					"gamma"             :0
+					})
+				# A study with some best guess defualts
+				study.enqueue_trial({ 
+					"max_depth": 7,
+					"num_parallel_tree":15,
+					"alpha":0.15, 
+					"lambda":0.001, 
+					})
+				# ========== perform the optimisation ==========
+				study.optimize(
+					lambda trial: Objective(trial,
+						X_train, y_train, g_train, n_splits=3,
+						n_repeats=2, early_stopping_rounds=40,	GPU=False, 
+						fullset=True
+					),
+					n_trials=n_trials,
+					n_jobs=1,
+				)
+				joblib.dump(study, fnout)
+				print(f"Hyperpram Optimisation took: {pd.Timestamp.now() - t0x}")
+				hp = study.best_params
+				XGB_dict = _XGBdict(XGB_dict=hp)
 
+				# ========== create the XGBoost object ========== 
+				eval_set  = [(X_test.values, y_test.values.ravel())]
+				regressor = xgb.XGBRegressor(**XGB_dict)
+				regressor.fit(X_train.values, y_train.values.ravel(), 
+					early_stopping_rounds=40, verbose=True, eval_set=eval_set)
+				# breakpoint()
 		else:
 			
 			eval_set  = [(X_test.values, y_test.values.ravel())]
 			regressor = reg
 			regressor.fit(X_train.values, y_train.values.ravel(), 
 				early_stopping_rounds=40, verbose=True, eval_set=eval_set)
-			# early_stopping_rounds=15
-
 
 		# ========== Testing out of prediction ==========
 		print("starting regression prediction at:", pd.Timestamp.now())
@@ -618,6 +783,26 @@ def Variable_selection(corr_linkage, branch, feature_imp, col_nms, orig_clnm):
 	# ColNm.append("lagged_biomass")
 
 	return ColNm
+
+def _XGBdict(GPU=False, XGB_dict=None):
+	if XGB_dict is None:
+		XGB_dict = ({
+			'objective'         : 'reg:squarederror',
+			'num_parallel_tree' :10,
+			'max_depth'         :5,
+			"n_estimators"      :2000,
+			"colsample_bytree"  :0.3,
+			})
+	else:
+		XGB_dict['objective']    = 'reg:squarederror'
+		XGB_dict["n_estimators"] = 2000
+
+
+	if GPU:
+		XGB_dict['tree_method'] = 'gpu_hist'
+	else:
+		XGB_dict['n_jobs']      = -1
+	return XGB_dict
 
 def Region_calculation(basestr, experiment, version, setup, path, fn_PI, fn_res,fnamein, sfnamein, res=None):
 	"""
@@ -2188,56 +2373,13 @@ def experiments(ncores = -1):
 		"splitvar"         :["site", "yrend"],
 		"Hyperpram"        :False,
 		})
-	expr[422] = ({
-		# +++++ The experiment name and summary +++++
-		"Code"             :422,
-		"predvar"          :"Delta_biomass",
-		"dropvar"          :["Obs_biomass"],
-		"name"             :"XGBAllGap_Debug_yrfnsplit_Futdis_CV",
-		"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
-		"window"           :10,
-		"predictwindow"    :None,
-		"Nstage"           :1, 
-		"model"            :"XGBoost",
-		"debug"            :True,
-		# +++++ The Model setup params +++++
-		"ntree"            :10,
-		"nbranch"          :2000,
-		"max_features"     :'auto',
-		"max_depth"        :5,
-		"min_samples_split":2,
-		"min_samples_leaf" :2,
-		"bootstrap"        :True,
-		# +++++ The experiment details +++++
-		"test_size"        :0.1, 
-		"FullTestSize"     :0.05,
-		"SelMethod"        :"RecursiveHierarchicalPermutation",
-		"ImportanceMet"    :"Permutation",
-		"Transformer"      :None,
-		"yTransformer"     :None, 
-		"ModVar"           :"ntree, max_depth", "dataset"
-		"classifer"        :None, 
-		"cores"            :ncores,
-		"maxitter"         :14, 
-		"DropNAN"          :0.5, 
-		"DropDist"         :False,
-		"StopPoint"        :5,
-		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
-		"maxR2drop"        :0.025,
-		"pariedRun"        :420, # identical runs except at the last stage
-		"Step"             :4,
-		"AltMethod"        :"RFECV", # alternate method to use after slowdown point is reached
-		"FutDist"          :100, 
-		"splitmethod"      :"GroupCV",
-		"splitvar"         :["site", "yrend"],
-		"Hyperpram"        :False,
-		})
-	# expr[422] = ({
+
+	# expr[423] = ({
 	# 	# +++++ The experiment name and summary +++++
-	# 	"Code"             :422,
+	# 	"Code"             :423,
 	# 	"predvar"          :"Delta_biomass",
 	# 	"dropvar"          :["Obs_biomass"],
-	# 	"name"             :"XGBAllGap_Debug_yrfnsplit_Futdis_CV_NoMultivalidationset",
+	# 	"name"             :"XGBAllGap_Debug_yrfnsplit_CV_RFECV",
 	# 	"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
 	# 	"window"           :10,
 	# 	"predictwindow"    :None,
@@ -2254,7 +2396,7 @@ def experiments(ncores = -1):
 	# 	"bootstrap"        :True,
 	# 	# +++++ The experiment details +++++
 	# 	"test_size"        :0.1, 
-	# 	"FullTestSize"     :0,
+	# 	"FullTestSize"     :0.05,
 	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
 	# 	"ImportanceMet"    :"Permutation",
 	# 	"Transformer"      :None,
@@ -2268,14 +2410,59 @@ def experiments(ncores = -1):
 	# 	"StopPoint"        :5,
 	# 	"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
 	# 	"maxR2drop"        :0.025,
-	# 	"pariedRun"        :None, # identical runs except at the last stage
+	# 	"pariedRun"        :420, # identical runs except at the last stage
 	# 	"Step"             :4,
-	# 	"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
-	# 	"FutDist"          :100, 
+	# 	"AltMethod"        :"RFECV", # alternate method to use after slowdown point is reached
+	# 	"FutDist"          :0, 
 	# 	"splitmethod"      :"GroupCV",
 	# 	"splitvar"         :["site", "yrend"],
 	# 	"Hyperpram"        :False,
 	# 	})
+	# 	expr[424] = ({
+	# 	# +++++ The experiment name and summary +++++
+	# 	"Code"             :424,
+	# 	"predvar"          :"Delta_biomass",
+	# 	"dropvar"          :["Obs_biomass"],
+	# 	"name"             :"XGBAllGap_Debug_yrfnsplit_CV_RFECVBHYP",
+	# 	"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
+	# 	"window"           :10,
+	# 	"predictwindow"    :None,
+	# 	"Nstage"           :1, 
+	# 	"model"            :"XGBoost",
+	# 	"debug"            :True,
+	# 	# +++++ The Model setup params +++++
+	# 	"ntree"            :10,
+	# 	"nbranch"          :2000,
+	# 	"max_features"     :'auto',
+	# 	"max_depth"        :5,
+	# 	"min_samples_split":2,
+	# 	"min_samples_leaf" :2,
+	# 	"bootstrap"        :True,
+	# 	# +++++ The experiment details +++++
+	# 	"test_size"        :0.1, 
+	# 	"FullTestSize"     :0.05,
+	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
+	# 	"ImportanceMet"    :"Permutation",
+	# 	"Transformer"      :None,
+	# 	"yTransformer"     :None, 
+	# 	"ModVar"           :"ntree, max_depth", "dataset"
+	# 	"classifer"        :None, 
+	# 	"cores"            :ncores,
+	# 	"maxitter"         :14, 
+	# 	"DropNAN"          :0.5, 
+	# 	"DropDist"         :False,
+	# 	"StopPoint"        :5,
+	# 	"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+	# 	"maxR2drop"        :0.025,
+	# 	"pariedRun"        :423, # identical runs except at the last stage
+	# 	"Step"             :4,
+	# 	"AltMethod"        :"RFECVBHYP", # alternate method to use after slowdown point is reached
+	# 	"FutDist"          :0, 
+	# 	"splitmethod"      :"GroupCV",
+	# 	"splitvar"         :["site", "yrend"],
+	# 	"Hyperpram"        :False,
+	# 	})
+
 	# ===============================================================================
 	expr[430] = ({
 		# +++++ The experiment name and summary +++++
@@ -2365,6 +2552,7 @@ def experiments(ncores = -1):
 		"splitvar"         :"site",
 		"Hyperpram"        :False,
 		})
+
 	expr[433] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :433,
@@ -2409,7 +2597,50 @@ def experiments(ncores = -1):
 		"splitvar"         :"site",
 		"Hyperpram"        :False,
 		})
-
+	expr[434] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :434,
+		"predvar"          :"Delta_biomass",
+		"dropvar"          :["Obs_biomass"],
+		"name"             :"XGBAllGap_Debug_sitesplit_CV",
+		"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
+		"window"           :10,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"model"            :"XGBoost",
+		"debug"            :True,
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.1, 
+		"FullTestSize"     :0.05,
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
+		"yTransformer"     :None, 
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"maxitter"         :14, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :False,
+		"StopPoint"        :5,
+		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"pariedRun"        :433, # identical runs except at the last stage
+		"Step"             :4,
+		"AltMethod"        :"RFECVBHYP", # alternate method to use after slowdown point is reached
+		"FutDist"          :0, 
+		"splitmethod"      :"GroupCV",
+		"splitvar"         :"site",
+		"Hyperpram"        :False,
+		})
 	return expr
 
 

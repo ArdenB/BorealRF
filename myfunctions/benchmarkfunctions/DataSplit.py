@@ -433,6 +433,15 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 		df_site = pd.read_csv(region_fn, index_col=0)
 		df_site.rename({"Plot_ID":"site"}, axis=1, inplace=True)
 
+	if setup["splitvar"] == "site":
+		df_site["group"] = df_site["site"]
+	elif setup["splitvar"] == ["site", "yrend"]:
+		df_site["yrend"] = vi_df.ObsGap + df_site.year
+		df_site["group"] = df_site.groupby(setup["splitvar"]).grouper.group_info[0]
+		
+	# else:
+	# 	warn.warn("Not implemented yet")
+	# 	breakpoint()
 	# breakpoint()
 	# ============Check if the files already exist ============
 	if all([os.path.isfile(fn) for fn in VI_fnsplit]) and not force:
@@ -637,8 +646,9 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 		if 'DropNAN' in setup.keys() and not setup["DropNAN"] == 0:
 			Xa = X.copy().dropna()
 			if Xa.shape[0]/X.shape[0] < 0.6:
-				warn.warn("too small fraction")
-				breakpoint()
+				if not final:
+					warn.warn("too small fraction")
+					breakpoint()
 			corr = spearmanr(Xa).correlation	
 		else:
 			corr = spearmanr(X).correlation
