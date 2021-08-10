@@ -82,7 +82,11 @@ def main():
 	path  = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/"
 	ppath = "./pyEWS/analysis/3.Izanami/Figures/PS01/"
 	cf.pymkdir(ppath)
-	exp   = 402
+
+	warn.warn("\n\n I have not detl with sites that fail on future disturbance thresholds yet \n\n")
+
+	# exp   = 402
+	exp = 433
 	lons = np.arange(-170, -50.1,  0.5)
 	lats = np.arange(  42,  70.1,  0.5)
 
@@ -148,25 +152,34 @@ def PSPfigure(ppath, vi_df, fcount, exp, lons, lats):
 
 # ==============================================================================
 
-def _obsgap(vi_df, fig, ax):
-	sns.kdeplot(data=vi_df, x="ObsGap", hue="NanFrac", fill=True, alpha=0.50, ax=ax)
+def _obsgap(vi_df, fig, ax, currentyr=pd.Timestamp.now().year):
+	# ========== create a column to hold the obstype ==========
+	vi_df["Obs_Type"] = pd.Categorical(["Unmodelled" for i in range(vi_df.shape[0])], 
+		categories=["Unmodelled", "Modelled", "Final"], ordered=True)
+	vi_df.loc[vi_df["Future"]==1, "Obs_Type"] = "Final"
+	vi_df.loc[np.logical_and(vi_df["Future"]==0, vi_df["NanFrac"]==1), "Obs_Type"] = "Modelled"
 
-def _mapgridder(exp, vi_df, fig, ax, map_proj, lons, lats, modelled=True, vmin=0, vmax=1000):
+	# ========== add the gap from the current year ==========
+	vi_df.loc[vi_df["Future"]==1, "ObsGap"] = currentyr - vi_df.loc[vi_df["Future"]==1, "year"]
+	sns.kdeplot(data=vi_df, x="ObsGap", hue="Obs_Type", fill=True, alpha=0.50, ax=ax)
+
+def _mapgridder(exp, vi_df, fig, ax, map_proj, lons, lats, modelled=True, 
+	future=False, vmin=0, vmax=1000):
 	# ========== Simple lons and lats ========== 
 	# ========== Setup params ==========
 	""" Function to convert the points into a grid """
 	
 	# ========== Copy the df so i can export multiple grids ==========
-	# 	dfC = vi_df.loc[vi_df["NanFrac"] == 1].copy()#.dropna()	
-	# else:
-	dfC = vi_df.copy()
+	if future:
+		# included so that i can pull out the future data if needed
+		dfC = vi_df.loc[vi_df["Future"]==1].copy()
+	else:
+		dfC = vi_df.loc[vi_df["Future"]==0].copy()
 
 	dfC["longitude"] = pd.cut(dfC["Longitude"], lons, labels=bn.move_mean(lons, 2)[1:])
 	dfC["latitude"]  = pd.cut(dfC["Latitude" ], lats, labels=bn.move_mean(lats, 2)[1:])
 	dfC["time"]      = pd.Timestamp(f"2020-12-31")
 	# setup            = pd.read_csv(f"{path}{exp}/Exp{exp}_setup.csv", index_col=0)
-
-
 
 	# ========== Convert the different measures into xarray formats ==========
 	dscount  = dfC.groupby(["time","latitude", "longitude", 'NanFrac'])["biomass"].count().to_xarray().sortby("latitude", ascending=False)
@@ -210,18 +223,22 @@ def _mapgridder(exp, vi_df, fig, ax, map_proj, lons, lats, modelled=True, vmin=0
 def _annualcount(vi_df, fig, ax):
 	"""Line graph of the amount of sites included"""
 	# ========== Duplicate the datafrema ==========
-	sub = vi_df[vi_df["NanFrac"] == 1].copy()
+	sub = vi_df[np.logical_and((vi_df["NanFrac"] == 1), (vi_df["Future"] == 0))].copy()
+	fut = vi_df[(vi_df["Future"] == 1)].copy()
 	tot = vi_df.copy()
 	sub["Count"] = "Modelled"
-	sub["Count"] = pd.Categorical(["Modelled" for i in range(sub.shape[0])], categories=["Total", "Modelled"], ordered=True)
-	tot["Count"] = pd.Categorical(["Total" for i in range(tot.shape[0])], categories=["Total", "Modelled"], ordered=True)
+	sub["Count"] = pd.Categorical(["Modelled" for i in range(sub.shape[0])], categories=["Total", "Modelled", "Final"], ordered=True)
+	fut["Count"] = pd.Categorical(["Final" for i in range(fut.shape[0])], categories=["Total", "Modelled", "Final"], ordered=True)
+	tot["Count"] = pd.Categorical(["Total" for i in range(tot.shape[0])], categories=["Total", "Modelled", "Final"], ordered=True)
 
 	# ========== stack the results ==========
-	df = pd.concat([tot, sub]).reset_index(drop=True)
+	df = pd.concat([tot, sub, fut]).reset_index(drop=True)
 	vi_yc = df.groupby(["Count", "year"])['biomass'].count().reset_index().rename(
 		{"biomass":"Observations"}, axis=1).replace(0, np.NaN)
 	# ========== Make the plot ==========
-	sns.lineplot(y="Observations",x="year", hue="Count",dashes=[True, False], data=vi_yc, ci=None, legend=True, ax = ax)
+	sns.lineplot(y="Observations",x="year", hue="Count",dashes=[True, False, False], data=vi_yc, ci=None, legend=True, ax = ax)
+
+	# breakpoint()
 
 # ==============================================================================
 
@@ -372,21 +389,36 @@ def load_OBS(ofn):
 	df_in["version"]    = float(ofn.split("_vers")[-1][:2])
 	return df_in
 
-def VIload(regions, path, exp = None):
+def VIload(regions, path, exp = None, 
+	fpath  = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/", ):
 	print(f"Loading the VI_df, this can be a bit slow: {pd.Timestamp.now()}")
-	vi_df = pd.read_csv("./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears.csv", index_col=0)#[['lagged_biomass','ObsGap']]
+	
+	vi_df   = pd.read_csv(f"{fpath}VI_df_AllSampleyears_ObsBiomass.csv", index_col=0)#[['lagged_biomass','ObsGap']]
+	site_df = pd.read_csv(f"{fpath}SiteInfo_AllSampleyears_ObsBiomass.csv", index_col=0)
+	site_df.replace(regions, inplace=True)
+	vi_df["Future"] = 0
+
+	# ========== open up the future sites ========= 
+	vi_dfu   = pd.read_csv(f"{fpath}VI_df_AllSampleyears_FutureBiomass.csv", index_col=0)
+	site_dfu = pd.read_csv(f"{fpath}SiteInfo_AllSampleyears_FutureBiomass.csv", index_col=0)
+	vi_dfu["Future"] = 1
+
+	# ========== Merge the dataframes ==========
+	vi_df   = pd.concat([vi_df, vi_dfu])
+	site_df = pd.concat([site_df, site_dfu])
 
 	# ========== Fill in the missing sites ==========
-	region_fn ="./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears.csv"
-	site_df = pd.read_csv(region_fn, index_col=0)
-	site_df.replace(regions, inplace=True)
+	# region_fn =
 	if exp is None:
 		vi_df["NanFrac"] = vi_df.isnull().mean(axis=1)
+		var = 'Delta_biomass'
 	else:
 		# Load in the different colkeys for each version 
 		setup   = pd.read_csv(f"{path}{exp}/Exp{exp}_setup.csv", index_col=0)
 		fnames  = sorted(glob.glob(f"{path}{exp}/Exp{exp}_*PermutationImportance.csv"))
 		rowpass = np.zeros((vi_df.shape[0], len(fnames)))
+		var     = setup.loc["predvar"].values[0]
+		# breakpoint()
 		for nu, fn in enumerate(fnames):
 			# ========== get the list of cols ==========
 			dfin = pd.read_csv( fn, index_col=0)
@@ -395,13 +427,13 @@ def VIload(regions, path, exp = None):
 
 		vi_df["NanFrac"] = rowpass.max(axis=1)
 
-	vi_df = vi_df[['year', 'biomass', 'lagged_biomass','ObsGap', "NanFrac", 'site']]
+	vi_df = vi_df[['year', 'biomass', var,'ObsGap', "NanFrac", 'site', 'Future']]
 	# for nanp in [0, 0.25, 0.50, 0.75, 1.0]:	
 	# 	isin = (vi_df["NanFrac"] <=nanp).astype(float)
 	# 	isin[isin == 0] = np.NaN
 	# 	vi_df[f"{int(nanp*100)}NAN"]  = isin
 
-	fcount = pd.melt(vi_df.drop(["lagged_biomass","NanFrac"], axis=1).groupby("ObsGap").count(), ignore_index=False).reset_index()
+	fcount = pd.melt(vi_df.drop([var,"NanFrac"], axis=1).groupby("ObsGap").count(), ignore_index=False).reset_index()
 	fcount["variable"] = fcount["variable"].astype("category")
 	
 	vi_df["Region"]    = site_df["Region"].astype("category")
