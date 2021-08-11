@@ -133,3 +133,13 @@ dmypy.json
 *.out
 *.csv
 pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/*/
+*.DAT
+EWS/*
+EWS_package/*
+*.txt
+*.json
+*.png
+*.pdf
+*.nc
+*.pkl
+dask-worker-space/*

@@ -28,6 +28,7 @@ sys.path.append(os.getcwd())
 
 # ==============================================================================
 
+
 # ========== Import packages ==========
 import numpy as np
 import pandas as pd
@@ -110,13 +111,16 @@ def confusion_plotter(keys, ppath, df_setup, df_OvsP, df_mres, norm=True):
 	# split  = np.hstack([np.min([-maxval ,-1000.]),np.arange(-400., 401, 10), np.max([1000., maxval])])
 	split  = np.arange(minval, maxval+1, gap)
 	# fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(4, 2)
-	fig, ((ax1, ax2, ax3, ax4), (ax5, ax6, ax7, ax8)) = plt.subplots(2, 4)
+	fig, ((ax1, ax2, ax3, ax4), (ax5, ax6, ax7, ax8)) = plt.subplots(2, 4, 
+		figsize=(25,14), )
+		# constrained_layout=True)
 
 	# breakpoint()
 
 	for exp, ax in zip(df_OvsP.experiment.unique(), fig.axes):
 		_confusion_plots(df_OvsP, keys, exp, fig, ax, split, norm=norm)
 	
+	plt.subplots_adjust(left=0.04, right=1, top=0.95) #top=1, wspace=0, hspace=0,  bottom=0, 
 	plt.show()
 	# breakpoint()
 
@@ -125,8 +129,9 @@ def confusion_plotter(keys, ppath, df_setup, df_OvsP, df_mres, norm=True):
 def basiccomparison(path, ppath, df_setup, df_mres, keys, df_OvsP):
 	# ========== Create the exis ==========
 	# \\\\\ R2 /////
-	f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+	f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(24,14), constrained_layout=True)
 	sns.barplot(y="R2", x="experiment", data = df_mres, ax=ax1)
+	ax1.set_ylim(0, 0.7)
 	# breakpoint()
 	# plt.show()
 
@@ -135,6 +140,7 @@ def basiccomparison(path, ppath, df_setup, df_mres, keys, df_OvsP):
 
 	sns.barplot(y="R2", x="experiment", data = df_score, ax=ax2)
 	ax2.set_title("matched R2")
+	ax2.set_ylim(0, 0.7)
 	# plt.show()
 
 	sns.barplot(y="MAE", x="experiment", data = df_score, ax=ax3)
@@ -212,11 +218,13 @@ def _confusion_plots(
 		ann = False
 
 	if norm:
-		g = sns.heatmap(df_cm, annot=ann, vmin=0, vmax=1, ax = ax, cbar=cbar, square=True, cmap=cmap)
+		g = sns.heatmap(df_cm, annot=ann, vmin=0, vmax=1, ax = ax, cbar=cbar, square=True, cmap=cmap, 
+			cbar_kws={"pad": 0.015, "shrink": .85})
 	else:
 		print(f"Checking nanmax counts {bn.nanmax(df_cm)}")
 		g = sns.heatmap(df_cm, annot=ann,  
-			ax = ax, cbar=cbar, square=True, cmap=cmap, norm=LogNorm(vmin=1, vmax=20000,))
+			ax = ax, cbar=cbar, square=True, cmap=cmap, norm=LogNorm(vmin=1, vmax=20000,), 
+			cbar_kws={"pad": 0.015, "shrink": .85})
 		# breakpoint()
 	ax.plot(np.flip(np.arange(expsize+1)), np.arange(expsize+1), "k", alpha=0.1)
 	# plt.title(expr[exp])
