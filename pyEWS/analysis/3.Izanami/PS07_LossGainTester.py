@@ -88,20 +88,23 @@ def main():
 	formats = None
 	path  = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/"
 	cf.pymkdir(path+"plots/")
-	ppath = "./pyEWS/analysis/3.Izanami/Figures/PS06/"
+	ppath = "./pyEWS/analysis/3.Izanami/Figures/PS07/"
 	cf.pymkdir(ppath)
 
 	# ========== Chose the experiment ==========
-	exp      = 402
-	# ========== Pull out the prediction ==========
-	dfout, dfl = fpred(path, exp)#, bins=[0,4,5,6,9,10,11,14,15,16,19, 20, 40])
+	exp      = 424
+	for FWH in [True, False]:
+		# ========== Pull out the prediction ==========
+		dfout, dfl = fpred(path, exp, FWH=FWH)#, bins=[0,4,5,6,9,10,11,14,15,16,19, 20, 40])
 
-	# ========== Plot the loss performance ==========
-	losspotter(path, ppath, dfout, dfl)
+
+		# ========== Plot the loss performance ==========
+		losspotter(path, ppath, dfout, dfl, FWH)
+		breakpoint()
 
 
 # ==============================================================================
-def losspotter(path, ppath, dfout, dfl):
+def losspotter(path, ppath, dfout, dfl, FWH):
 	"""
 	plots the loss performance
 	"""
@@ -115,21 +118,40 @@ def losspotter(path, ppath, dfout, dfl):
 	# dfl["Obsloss"] = dfl["Obsloss"].astype(float)
 
 	dfl.rename(columns={"Obsloss":"LossProb", "GapGroup":"PredictionWindow","GapQuant":"QPredictionWindow"}, inplace=True)
-	fig = sns.lineplot(y="LossProb", x="ModLossN", hue="PredictionWindow", data=dfl)#, ci="sd")
-	# dfg = dfl.groupby(["GapGroup", "ModLossN"])["LossProb"].mean().reset_index()
-	# breakpoint()
-	fig.set_yticks(np.arange(0, 1.1, 0.1))
-	fig.set_xticks(np.arange(0, 10, 1))
-	plt.show()
+	# fig = sns.lineplot(y="LossProb", x="ModLossN", hue="PredictionWindow", data=dfl)#, ci="sd")
+	# # dfg = dfl.groupby(["GapGroup", "ModLossN"])["LossProb"].mean().reset_index()
+	# # breakpoint()
+	# fig.set_yticks(np.arange(0, 1.1, 0.1))
+	# fig.set_xticks(np.arange(0, 10, 1))
+	# plt.show()
 	
 
-	fig = sns.lineplot(y="LossProb", x="ModLossN", hue="QPredictionWindow", data=dfl)
+	# fig = sns.lineplot(y="LossProb", x="ModLossN", hue="QPredictionWindow", data=dfl)
+	# fig.set_yticks(np.arange(0, 1.1, 0.1))
+	# fig.set_xticks(np.arange(0, 10, 1))
+	# plt.show()
+
+	fig = sns.lineplot(y="LossProb", x="ModLossN", data=dfl, ci=99)
 	fig.set_yticks(np.arange(0, 1.1, 0.1))
 	fig.set_xticks(np.arange(0, 10, 1))
+	fig.set_xlabel("No. Models Predicting Loss")
+	fig.set_ylabel("Fraction of sites where loss is observed")
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS07_PaperFig02_EnsenbleStats" 
+	for ext in [".png", ".pdf",]:
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+
 	breakpoint()
 # ==============================================================================
-def fpred(path, exp, fpath    = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/", 
-	nanthresh=0.5, drop=True, bins=[0, 5, 10, 15, 20, 40], qbins=8):
+
+def fpred(path, exp, fpath = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/", 
+	nanthresh=0.5, drop=True, bins=[0, 5, 10, 15, 20, 40], qbins=8, FWH=True):
 	"""
 	function to predict future biomass
 	args:
@@ -138,19 +160,29 @@ def fpred(path, exp, fpath    = "./pyEWS/experiments/3.ModelBenchmarking/1.Datas
 	years:  list of years to predict 
 	"""
 	# warn.warn("\nTo DO: Implemnt obsgap filtering")
+	
+	OvP_fnames = glob.glob(path + f"{exp}/Exp{exp}*_OBSvsPREDICTED.csv")
+	df_OvsP    = pd.concat([load_OBS(ofn) for ofn in OvP_fnames], sort=True).reset_index()
+
+	dfpm    = df_OvsP.pivot(index='index', columns='version', values='Estimated').dropna()
+	# dfob    = df_OvsP.pivot(index='index', columns='version', values='Observed').dropna()
+	
 	# ========== Load the variables ==========
+	setup   = pd.read_csv(f"{path}{exp}/Exp{exp}_setup.csv", index_col=0)
 	site_df = pd.read_csv(f"{fpath}SiteInfo_AllSampleyears_ObsBiomass.csv", index_col=0)
 	vi_df   = pd.read_csv(f"{fpath}VI_df_AllSampleyears_ObsBiomass.csv", index_col=0)
-	setup   = pd.read_csv(f"{path}{exp}/Exp{exp}_setup.csv", index_col=0)
 	pvar    = setup.loc["predvar"].values[0]
 
 	if type(pvar) == float:
 		# deal with the places i've alread done
 		pvar = "lagged_biomass"
 
+
 	# ========== Loop over the model versions
 	est_list = []
+
 	for ver in tqdm(range(10)):
+
 		fn_mod = f"{path}{exp}/models/XGBoost_model_exp{exp}_version{ver}.dat"
 		if not os.path.isfile(fn_mod):
 			# missing file
@@ -208,9 +240,13 @@ def fpred(path, exp, fpath    = "./pyEWS/experiments/3.ModelBenchmarking/1.Datas
 	dft["PredCount"] = dft.groupby("rownum")['DeltaBiomass'].transform('count')
 
 	if drop:
-		dfout = dft.loc[dft["PredCount"] == dft["PredCount"].max(), ].reset_index(drop=True)
+		dft = dft.loc[dft["PredCount"] == dft["PredCount"].max(), ].reset_index(drop=True)
 		# breakpoint()
 		# dfoutC = dfoutC.loc[dfoutC.year > (yr - maxdelta)].dropna()
+	if FWH:
+		dft.set_index("rownum", inplace=True)
+		dft = dft.loc[dfpm.index].reset_index()
+	
 	# ========== get the number of models that are cexreasing ==========
 	dftest = dft.loc[:, ["ObsGap", "rownum", "Observed", 'DeltaBiomass']].copy()
 	# dftest["BiomassLoss"]
@@ -226,6 +262,12 @@ def fpred(path, exp, fpath    = "./pyEWS/experiments/3.ModelBenchmarking/1.Datas
 	dfl["GapQuant"] = pd.qcut(dfl["ObsGap"], qbins, duplicates ="drop")
 	return dft, dfl
 
+def load_OBS(ofn):
+	df_in = pd.read_csv(ofn, index_col=0)
+	df_in["experiment"] = int(ofn.split("/")[-2])
+	df_in["experiment"] = df_in["experiment"].astype("category")
+	df_in["version"]    = float(ofn.split("_vers")[-1][:2])
+	return df_in
 
 # ==============================================================================
 

@@ -57,6 +57,7 @@ import pickle
 import myfunctions.corefunctions as cf
 import myfunctions.benchmarkfunctions as bf
 from sklearn import metrics as sklMet
+from matplotlib.colors import LogNorm
 
 # ==============================================================================
 def main():
@@ -81,9 +82,7 @@ def main():
 	df_mres = pd.concat([fix_results(mrfn) for mrfn in mres_fnames], sort=True)
 	df_mres["TotalTime"]  = df_mres.TotalTime / pd.to_timedelta(1, unit='m')
 	df_mres, keys = Experiment_name(df_mres, df_setup, var = "experiment")
-
-
-	df_mres = df_mres[['experiment', 'R2', 'Computer', "TotalTime", 'FBranch', 'colcount', 'fractrows', 'itterrows', 'totalrows', 'version']]
+	df_mres = df_mres[['experiment', 'R2', 'Computer', "TotalTime", 'FBranch', 'colcount', 'fractrows', 'itterrows', 'totalrows', 'version',"GRP", "FSM"]]
 
 	# ========= Load in the observations ==========
 	OvP_fnames = glob.glob(path + "*/Exp4[2-9][0-9]*_OBSvsPREDICTED.csv")
@@ -97,22 +96,26 @@ def main():
 	basiccomparison(path, ppath, df_setup, df_mres, keys, df_OvsP)
 
 	# ========== Heatmaps ==========
-	confusion_plotter(keys, ppath, df_setup, df_OvsP, df_mres)
-	confusion_plotter(keys, ppath, df_setup, _matchedfinder(df_OvsP, keys, ret_matched=True), df_mres)
+	for norm in [False, True]:
+		confusion_plotter(keys, ppath, df_setup, df_OvsP, df_mres, norm=norm)
+		confusion_plotter(keys, ppath, df_setup, _matchedfinder(df_OvsP, keys, ret_matched=True), df_mres, norm=norm)
 	breakpoint()
 
 
 # ==============================================================================
-def confusion_plotter(keys, ppath, df_setup, df_OvsP, df_mres):
+def confusion_plotter(keys, ppath, df_setup, df_OvsP, df_mres, norm=True):
 	maxval =  350
 	minval = -350
 	gap    = 10 
 	# split  = np.hstack([np.min([-maxval ,-1000.]),np.arange(-400., 401, 10), np.max([1000., maxval])])
 	split  = np.arange(minval, maxval+1, gap)
-	fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+	# fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(4, 2)
+	fig, ((ax1, ax2, ax3, ax4), (ax5, ax6, ax7, ax8)) = plt.subplots(2, 4)
 
-	for exp, ax in zip(df_OvsP.experiment.unique(), [ax1, ax2, ax3, ax4]):
-		_confusion_plots(df_OvsP, keys, exp, fig, ax, split)
+	# breakpoint()
+
+	for exp, ax in zip(df_OvsP.experiment.unique(), fig.axes):
+		_confusion_plots(df_OvsP, keys, exp, fig, ax, split, norm=norm)
 	
 	plt.show()
 	# breakpoint()
@@ -124,10 +127,11 @@ def basiccomparison(path, ppath, df_setup, df_mres, keys, df_OvsP):
 	# \\\\\ R2 /////
 	f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
 	sns.barplot(y="R2", x="experiment", data = df_mres, ax=ax1)
+	# breakpoint()
 	# plt.show()
 
 	# R2 matched
-	df_rank, df_score = _matchedfinder(df_OvsP, keys)
+	df_rank, df_score = _matchedfinder(df_OvsP, keys, df_setup=df_setup)
 
 	sns.barplot(y="R2", x="experiment", data = df_score, ax=ax2)
 	ax2.set_title("matched R2")
@@ -135,6 +139,9 @@ def basiccomparison(path, ppath, df_setup, df_mres, keys, df_OvsP):
 
 	sns.barplot(y="MAE", x="experiment", data = df_score, ax=ax3)
 	ax3.set_title("matched MAE")
+	for ax  in [ax1, ax2, ax3]:
+		ax.set_xticklabels(ax.get_xticklabels(), rotation=10, horizontalalignment='right')
+		ax.set_xlabel("")
 	# plt.show()
 
 	# ranking performance
@@ -149,7 +156,8 @@ def basiccomparison(path, ppath, df_setup, df_mres, keys, df_OvsP):
 def _confusion_plots(
 	df_OvsP, keys, exp, fig, ax, split, 
 	obsvar="Observed", estvar="Estimated", inc_class=False, 
-	sumtxt="", annot=False, zline=True, num=0, cbar=True, mask=True):
+	sumtxt="", annot=False, zline=True, num=0, cbar=True, 
+	mask=True, norm=True):
 	"""Function to create and plot the confusion matrix"""
 
 	# ========== Get the observed and estimated values ==========
@@ -165,7 +173,9 @@ def _confusion_plots(
 		df_c = df_c[~df_c[estvar].isnull()]
 
 	if any(df_c[obsvar].isnull()):
-		breakpoint()
+		print("Onsvar has some values outside of range, if more than 5 a breakpoint will occur")
+		if df_c[obsvar].isnull().sum() > 5:
+			breakpoint()
 		df_c = df_c[~df_c[obsvar].isnull()]
 
 	try:
@@ -179,13 +189,18 @@ def _confusion_plots(
 	
 	# ========== Calculate the confusion matrix ==========
 	# \\\ confustion matrix  observed (rows), predicted (columns), then transpose and sort
+	if norm:
+		normalize='true'
+		cmap = mpc.ListedColormap(palettable.matplotlib.Inferno_20_r.mpl_colors)
+	else:
+		normalize=None
+		cmap = mpc.ListedColormap(palettable.matplotlib.Inferno_17_r.mpl_colors)
 	df_cm  = pd.DataFrame(
 		sklMet.confusion_matrix(df_c[obsvar], df_c[estvar],  
-			labels=df_c[obsvar].cat.categories,  normalize='true'),  
+			labels=df_c[obsvar].cat.categories,  normalize=normalize),  
 		index = [int(i) for i in np.arange(expsize)], 
 		columns = [int(i) for i in np.arange(expsize)]).T.sort_index(ascending=False)
 
-	cmap = mpc.ListedColormap(palettable.matplotlib.Inferno_20_r.mpl_colors)
 	if mask:
 		#+++++ remove 0 values +++++
 		df_cm.replace(0, np.NaN, inplace=True)
@@ -196,8 +211,13 @@ def _confusion_plots(
 	else:
 		ann = False
 
-
-	g = sns.heatmap(df_cm, annot=ann, vmin=0, vmax=1, ax = ax, cbar=cbar, square=True, cmap=cmap)
+	if norm:
+		g = sns.heatmap(df_cm, annot=ann, vmin=0, vmax=1, ax = ax, cbar=cbar, square=True, cmap=cmap)
+	else:
+		print(f"Checking nanmax counts {bn.nanmax(df_cm)}")
+		g = sns.heatmap(df_cm, annot=ann,  
+			ax = ax, cbar=cbar, square=True, cmap=cmap, norm=LogNorm(vmin=1, vmax=20000,))
+		# breakpoint()
 	ax.plot(np.flip(np.arange(expsize+1)), np.arange(expsize+1), "k", alpha=0.1)
 	# plt.title(expr[exp])
 	# ========== fix the labels +++++
@@ -252,8 +272,94 @@ def _confusion_plots(
 	# plt.show()()
 
 # ============================================================================================
+def _regionbuilder(region_fn, predvar='Delta_biomass'):
+	"""
+	Function to work out which region each site is in and save it out to a file
+	"""
+	fpath  = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/"
 
-def _matchedfinder(df_OvsP, keys, ret_matched=False):
+	vi_df   = pd.read_csv(f"{fpath}VI_df_AllSampleyears_ObsBiomass.csv", index_col=0)
+	Sitekey = ({# values from survey_years.R
+		"1":"BC",
+		"2":"AB",
+		"3":"SK",
+		"4":"MB",
+		"5":"ON",
+		"6":"QC",
+		"7":"NL",
+		"8":"NB",
+		"9":"NS",
+		"11":"YT",
+		"12":"NWT",
+		"13":"CAFI",
+		"14":"CIPHA",
+		})
+
+	
+	site_fn = "./EWS_package/data/raw_psp/All_sites_101218.csv"
+	site_df = pd.read_csv(site_fn, index_col=0)
+	""" Function to add region infomation """
+	raw_checks = glob.glob("./EWS_package/data/raw_psp/*/checks/*_check.csv")
+	sitenames   = []
+	siteregions = []
+	regkey = ({# values from survey_years.R
+		"BC"   :"1_",
+		"AB"   :"2_",
+		"SK"   :"3",
+		"MB"   :"4_",
+		"ON"   :"5", # Possibly 5_
+		"QC"   :"6_",
+		"NL"   :"7_",
+		"NB"   :"8_",
+		"NS"   :"9_", 
+		"YT"   :"11_",
+		"NWT"  :"12_",
+		"CAFI" :"13_",
+		"CIPHA":"14", 
+		})
+
+	# ========== fix the missing problem ==========
+	site_df = site_df.rename({"Plot_ID":"site"}, axis=1)#.set_index("site")
+	site_vi = vi_df[["site", predvar]].copy()#.set_index("site")
+	site_df = site_df.merge(
+		site_vi, on="site", how="outer").drop(predvar, axis=1)
+	site_df.drop_duplicates(subset="site", keep="first", inplace = True, ignore_index=True)
+	# ============ make a region lookup ==========
+	for fncheck in raw_checks:
+		region = fncheck.split("/")[4]
+		siteregions.append(region)
+		if region == "YT":
+			sitenames.append("%s%d" %(regkey[region], int(fncheck.split("/")[-1].split("_check.csv")[0])))
+		else:
+			sitenames.append(regkey[region]+fncheck.split("/")[-1].split("_check.csv")[0])
+
+
+	# ============ Loop over the site_df ==========
+	def site_locator(sn, sitenames, siteregions, Sitekey):
+		
+		if sn in sitenames:
+			return siteregions[sitenames.index(sn)]
+		else:
+			if sn.split("_")[0] in Sitekey.keys():
+				return Sitekey[sn.split("_")[0]]
+			else:
+				breakpoint()
+				return "Unknown"
+	
+	site_df["Region"] = [site_locator(sn, sitenames, siteregions, Sitekey) for sn in site_df.site]
+
+	# ========== Make metadata infomation ========== 
+	maininfo = "All data in this folder is written from %s (%s):%s by %s, %s" % (__title__, __file__, 
+		__version__, __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	
+	site_df.to_csv(region_fn)
+	cf.writemetadata(region_fn, [maininfo, gitinfo])
+
+	return site_df
+
+
+def _matchedfinder(df_OvsP, keys, df_setup=None, ret_matched=False):
 	df_obsm = df_OvsP.drop(["version"], axis=1).reset_index().groupby(["experiment","index"]).mean().reset_index()
 	dfpm    = df_obsm.pivot(index='index', columns='experiment', values='Estimated').dropna()
 	dfob    = df_obsm.pivot(index='index', columns='experiment', values='Observed').dropna()
@@ -279,17 +385,27 @@ def _matchedfinder(df_OvsP, keys, ret_matched=False):
 		return df_rank, df_score
 
 
-def Experiment_name(df, df_setup, var = "experiment"):
+def Experiment_name(df, df_setup, var = "experiment", addFSM=True):
 	keys = {}
-	for cat in df["experiment"].unique():
+	if addFSM:
+		df["FSM"] = df[var].copy()
+		df["GRP"] = df[var].copy()
+
+	for cat in df[var].unique():
 		# =========== Setup the names ============
 		info = df_setup.loc[f"Exp{int(cat)}"]
 		nm = f"{info['splitvar']} {info['FutDist']}%FutDist"
-		# breakpoint()
+		if not info['AltMethod'] == "BackStep":
+			nm += f" {info['AltMethod']}"
+
 		
 		keys[int(cat)] = nm
 		df[var].replace({cat:nm}, inplace=True)
+		if addFSM:
+			df["FSM"].replace({cat:info['AltMethod']}, inplace=True)
+			df["GRP"].replace({cat:info['splitvar']}, inplace=True)
 	return df, keys
+
 
 def regionDict():
 	regions = ({
@@ -318,7 +434,12 @@ def load_OBS(ofn):
 def fix_results(fn):
 	# ========== Fill in the missing sites ==========
 	region_fn ="./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/TTS_sites_and_regions.csv"
-	site_df = pd.read_csv(region_fn, index_col=0)
+	if os.path.isfile(region_fn):
+		site_df = pd.read_csv(region_fn, index_col=0)
+	else:
+		site_df = _regionbuilder(region_fn)
+
+	# site_df = pd.read_csv(region_fn, index_col=0)
 
 	Rcounts = site_df.groupby(["Region"]).count()["site"]
 	# ========== convert the types

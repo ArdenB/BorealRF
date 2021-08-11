@@ -72,6 +72,7 @@ from matplotlib.colors import LogNorm
 # from sklearn.ensemble import RandomForestClassifier
 # from sklearn.inspection import permutation_importance
 from sklearn import metrics as sklMet
+
 # from sklearn.utils import shuffle
 # from scipy.stats import spearmanr
 # from scipy.cluster import hierarchy
@@ -83,10 +84,10 @@ def main():
 	ppath = "./pyEWS/analysis/3.Izanami/Figures/PS01/"
 	cf.pymkdir(ppath)
 
-	warn.warn("\n\n I have not detl with sites that fail on future disturbance thresholds yet \n\n")
+	warn.warn("\n\n I have not excluded sites that fail on future disturbance thresholds yet \n\n")
 
 	# exp   = 402
-	exp = 433
+	exp = 424
 	lons = np.arange(-170, -50.1,  0.5)
 	lats = np.arange(  42,  70.1,  0.5)
 
@@ -96,6 +97,8 @@ def main():
 	regions       = regionDict()
 	vi_df, fcount = VIload(regions, path, exp = exp)
 	
+	PSPfigurePres(ppath, vi_df, fcount, exp, lons, lats)
+	
 	PSPfigure(ppath, vi_df, fcount, exp, lons, lats)
 
 	# ========== Old figures that might end up as supplemeentary material ==========
@@ -104,6 +107,71 @@ def main():
 
 
 # ==============================================================================
+def PSPfigurePres(ppath, vi_df, fcount, exp, lons, lats):
+	"""
+	Build presentation versions versions of the figures
+
+	"""
+	# ========== Setup the matplotlib params ==========
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':12, "axes.labelweight":"bold"})
+	font = ({'family' : 'normal','weight' : 'bold', 'size'   : 12})
+	mpl.rc('font', **font)
+	sns.set_style("whitegrid")
+	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
+
+	fig, ax = plt.subplots(constrained_layout=True, figsize=(13,7))
+	# +++++ the plot of the number of sites +++++
+	_annualcount(vi_df, fig, ax)
+	# ========== Save tthe plot ==========
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS01_PaperFig01_PSPdatabase_sitecount" 
+	for ext in [".png", ".pdf",]:
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+
+
+	# ========== Create the figure ==========
+
+
+	# +++++ Map of the number of used sites +++++
+	fig, ax = plt.subplots(constrained_layout=True, 
+		subplot_kw={'projection':map_proj}, figsize=(12,7))
+	# ax2  = fig.add_subplot(spec[1, :], projection= map_proj)
+	_mapgridder(exp, vi_df, fig, ax, map_proj, lons, lats, modelled=True,)
+	# ========== Save tthe plot ==========
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS01_PaperFig01_PSPdatabase_mapsites" 
+	for ext in [".png", ".pdf",]:
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+
+	# +++++ KDE of the gabs beteen observations +++++
+	fig, ax = plt.subplots(constrained_layout=True, figsize=(13,7))
+	_obsgap(vi_df, fig, ax)
+	# ========== Save tthe plot ==========
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS01_PaperFig01_PSPdatabase_kdegaps" 
+	for ext in [".png", ".pdf",]:
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+	breakpoint()
+
+
 
 def PSPfigure(ppath, vi_df, fcount, exp, lons, lats):
 	"""
@@ -148,7 +216,7 @@ def PSPfigure(ppath, vi_df, fcount, exp, lons, lats):
 	gitinfo = cf.gitmetadata()
 	cf.writemetadata(fnout, [plotinfo, gitinfo])
 	plt.show()
-	breakpoint()
+	# breakpoint()
 
 # ==============================================================================
 

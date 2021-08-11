@@ -66,6 +66,7 @@ import cartopy.feature as cpf
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 import matplotlib.ticker as mticker
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.colors import LogNorm
 
 
 # ========== Import ml packages ==========
@@ -109,11 +110,136 @@ def main():
 
 	# experiments = [400]
 	# exp = 402
-	exp = 420
+	exp = 424
+	FigureModelPerfomancePresentation(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exp, ppath)
+	breakpoint()
 	FigureModelPerfomance(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exp, ppath)
 
 	# ========== old plots that might end up in supplementary material ==========
 	oldplots(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, ppath)
+
+# ================================================================================
+def FigureModelPerfomancePresentation(
+	df_setup, df_mres, keys, df_OvsP, 
+	df_clest, df_branch, path, exp, ppath, years=[2020], 	
+	lons = np.arange(-170, -50.1,  0.5),
+	lats = np.arange(  42,  70.1,  0.5)):
+	"""
+	Build model performace figure. This makes each subplot as its own figure so i can 
+	use them in presentations
+	"""
+	# ========== Create the figure ==========
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':12})
+	font = {'family' : 'normal',
+	        'weight' : 'bold', #,
+	        'size'   : 12}
+	mpl.rc('font', **font)
+	sns.set_style("whitegrid")
+	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
+
+	# ========== Create the map projection ==========
+	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
+	df = Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, [exp], path)
+
+	# ========== Convert to a dataarray ==========
+	ds = gridder(path, exp, years, fpred(path, exp, years), lats, lons)
+	
+	pred = OrderedDict()
+	pred['Delta_biomass'] = ({
+		"obsvar":"ObsDelta",
+		"estvar":"EstDelta", 
+		"limits":(-300, 300),
+		"Resname":"Residual", 
+		"gap":10
+		})
+	pred["Biomass"] = ({
+		"obsvar":"Observed",
+		"estvar":"Estimated", 
+		"limits":(0, 1000), 
+		"Resname":"Residual"
+		})
+
+	# ========== Make the plots ==========
+	fig, ax = plt.subplots(constrained_layout=True, figsize=(13,7))
+
+	Temporal_predictability(ppath, [exp], df_setup, df, keys,  fig, 
+		ax, "Residual", hue="ChangeDirection",	va = "Residual", 
+		CI = "QuantileInterval", single=False)
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS02_PaperFig03_ModelPerformance_tempgapperf" 
+	for ext in [".png", ".pdf"]:#".pdf",
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+
+	# ========== Make the plots ==========
+	fig, ax = plt.subplots(constrained_layout=True, figsize=(13,11))
+	_confusion_plots(df, keys, exp, fig, ax, pred, df_setup)
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS02_PaperFig03_ModelPerformance_NormConf" 
+	for ext in [".png", ".pdf"]:#".pdf",
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+
+	# ========== Make the plots ==========
+	fig, ax = plt.subplots(constrained_layout=True, figsize=(13,11))
+	_confusion_plots(df, keys, exp, fig, ax, pred, df_setup, norm=False)
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS02_PaperFig03_ModelPerformance_RawConf" 
+	for ext in [".png", ".pdf"]:#".pdf",
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+
+
+	# ax3 = fig.add_subplot(spec[1, 2:])
+	fig, ax = plt.subplots(constrained_layout=True, figsize=(13,7))
+	_regplot(df, ax, fig)
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS02_PaperFig03_ModelPerformance_RegionProDistFunc" 
+	for ext in [".png", ".pdf"]:#".pdf",
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+
+
+	fig, ax = plt.subplots(#constrained_layout=True, 
+		subplot_kw={'projection':map_proj}, figsize=(12,7))
+	_simplemapper(ds, "MedianDeltaBiomass", fig, ax, map_proj, 0, 
+		"Delta Biomass", lats, lons,  dim="Version")
+
+	# # ========== Save tthe plot ==========
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS02_PaperFig03_ModelPerformance_Map" 
+	for ext in [".png", ".pdf"]:#".pdf",
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+
+	breakpoint()
+
+
 
 def FigureModelPerfomance(
 	df_setup, df_mres, keys, df_OvsP, 
@@ -132,11 +258,10 @@ def FigureModelPerfomance(
 	sns.set_style("whitegrid")
 	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
 
-	# ========== Create the mapp projection ==========
+	# ========== Create the map projection ==========
 	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
-
 	df = Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, [exp], path)
-	breakpoint()
+
 	# ========== Convert to a dataarray ==========
 	ds = gridder(path, exp, years, fpred(path, exp, years), lats, lons)
 	
@@ -287,7 +412,8 @@ def oldplots(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, ppath)
 # ==============================================================================
 def _confusion_plots(
 	df, keys, exp, fig, ax, pred, df_setup,  #split,
-	inc_class=False, sumtxt="", annot=False, zline=True, num=0, cbar=True, mask=True):
+	inc_class=False, sumtxt="", annot=False, zline=True, 
+	num=0, cbar=True, mask=True, norm=True):
 	"""Function to create and plot the confusion matrix"""
 	setup   = df_setup.loc[f"Exp{exp}"]
 	
@@ -306,9 +432,13 @@ def _confusion_plots(
 	# ========== Get the observed and estimated values ==========
 	df_c         = df.loc[:, [obsvar,estvar]].copy()
 	# +++++ tweak splits to match the min and max bounds of the data
-	split[0]  = df_c.values.min() - 1
-	split[-1] = df_c.values.max() + 1
-
+	if split[0] > df_c.values.min() - 1:
+		split[0]  = df_c.values.min() - 1
+	
+	# +++++ solve some issues +++++
+	if split[-1] < df_c.values.max() + 1:
+		split[-1] = df_c.values.max() + 1
+	# breakpoint()
 	df_c[obsvar] = pd.cut(df_c[obsvar], split, labels=np.arange(expsize))
 	df_c[estvar] = pd.cut(df_c[estvar], split, labels=np.arange(expsize))
 	# df_set       = dfS[dfS.experiment == keys[exp]]
@@ -329,11 +459,18 @@ def _confusion_plots(
 	df_c.sort_values(obsvar, axis=0, ascending=True, inplace=True)
 	print(exp, sklMet.accuracy_score(df_c[obsvar], df_c[estvar]))
 	
+	# ========== set the colorbar ==========
+	if norm:
+		normalize='true'
+		cmap = mpc.ListedColormap(palettable.matplotlib.Inferno_20_r.mpl_colors)
+	else:
+		normalize=None
+		cmap = mpc.ListedColormap(palettable.matplotlib.Inferno_17_r.mpl_colors)
 	# ========== Calculate the confusion matrix ==========
 	# \\\ confustion matrix  observed (rows), predicted (columns), then transpose and sort
 	df_cm  = pd.DataFrame(
 		sklMet.confusion_matrix(df_c[obsvar], df_c[estvar],  
-			labels=df_c[obsvar].cat.categories,  normalize='true'),  
+			labels=df_c[obsvar].cat.categories,  normalize=normalize),  
 		index = [int(i) for i in np.arange(expsize)], 
 		columns = [int(i) for i in np.arange(expsize)]).T.sort_index(ascending=False)
 
@@ -352,11 +489,17 @@ def _confusion_plots(
 	else:
 		ann = False
 
-
-	g = sns.heatmap(
-		df_cm, annot=ann, vmin=0, vmax=1, ax = ax, 
-		cbar=cbar, square=True, cmap=cmap, #cbar_kwargs={"pad": 0.015, "shrink":0.85},
-		)
+	if norm:
+		g = sns.heatmap(
+			df_cm, annot=ann, vmin=0, vmax=1, ax = ax, 
+			cbar=cbar, square=True, cmap=cmap, #cbar_kwargs={"pad": 0.015, "shrink":0.85},
+			)
+	else:
+		print(f"Checking nanmax counts {bn.nanmax(df_cm)}")
+		g = sns.heatmap(df_cm, annot=ann,  
+			ax = ax, cbar=cbar, square=True, 
+			cmap=cmap, norm=LogNorm(vmin=1, vmax=10000,),
+			cbar_kws={"extend":"max"})
 	ax.plot(np.flip(np.arange(expsize+1)), np.arange(expsize+1), "darkgrey", alpha=0.75)
 
 	# ========== fix the labels +++++
@@ -693,14 +836,17 @@ def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiment
 	""" Function to transfrom different methods of calculating biomass 
 	into a comperable number """
 	bioMls = []
-	vi_fn = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears_ObsBiomass.csv"
+	dpath = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/"
+	vi_fn  = f"{dpath}VI_df_AllSampleyears_ObsBiomass.csv"
 	vi_df  = pd.read_csv( vi_fn, index_col=0).loc[:, ['biomass', 'Obs_biomass', 'Delta_biomass','ObsGap']]
 
 	
 	# ========== Fill in the missing sites ==========
-	regions = regionDict()
-	region_fn ="./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears.csv"
-	site_df = pd.read_csv(region_fn, index_col=0)
+	regions   = regionDict()
+	region_fn =f"{dpath}SiteInfo_AllSampleyears_ObsBiomass.csv"
+	site_df   = pd.read_csv(region_fn, index_col=0)
+	assert site_df.shape[0] == vi_df.shape[0]
+
 	# site_df.replace(regions, inplace=True)
 	# ========== Loop over each experiment ==========
 	for exp in tqdm(experiments):
@@ -711,10 +857,9 @@ def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiment
 
 		# +++++ pull out the observed and predicted +++++
 		df_OP  = df_OvsP.loc[df_OvsP.experiment == exp]
-		df_act = vi_df.iloc[df_OP.index]
-		df_s   = site_df.iloc[df_OP.index]
+		df_act = vi_df.loc[df_OP.index]
+		df_s   = site_df.loc[df_OP.index]
 		dfC    = df_OP.copy()
-		# breakpoint()
 		
 		if pvar == "lagged_biomass":
 			vfunc            = np.vectorize(_delag)

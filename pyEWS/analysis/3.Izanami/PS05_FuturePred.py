@@ -75,6 +75,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 # from sklearn.ensemble import RandomForestClassifier
 # from sklearn.inspection import permutation_importance
 from sklearn import metrics as sklMet
+from matplotlib.colors import LogNorm
 # from sklearn.utils import shuffle
 # from scipy.stats import spearmanr
 # from scipy.cluster import hierarchy
@@ -98,13 +99,19 @@ def main():
 	# expr["Complete"]      = [400, 401, 402, 403, 404, 405, 406] 
 	# var  = "PermutationImportance"
 	# var  = "Importance"
-	experiments = [402]#, 401]
+
+	# experiments = [402]#, 401]
+	experiments = [424]#, 401]
 	years       = [2025, 2030, 2040]
 	# ========== Simple lons and lats ========== 
 	lons = np.arange(-170, -50.1,  0.5)
 	lats = np.arange(  42,  70.1,  0.5)
 
 	for exp in experiments:
+		# +++++ the final model results +++++
+
+
+
 		df = fpred(path, exp, years)
 		# ========== Convert to a dataarray ==========
 		ds = gridder(path, exp, years, df, lats, lons)
@@ -143,7 +150,8 @@ def FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass"):
 		_simplemapper(ds, "sitesInc", fig, ax1, map_proj, pos, "Direction of change", lats, lons,  dim="Version")
 
 		ax2 = fig.add_subplot(spec[pos, 2], projection= map_proj)
-		_simplemapper(ds, "sites", fig, ax2, map_proj, pos, "Number of Sites", lats, lons,  dim="Version")
+		_simplemapper(ds, "sites", fig, ax2, map_proj, pos, 
+			"Number of Sites", lats, lons,  dim="Version", norm=True)
 	# vas   = 
 	# title = 
 	# # ========== Save tthe plot ==========
@@ -161,14 +169,25 @@ def FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass"):
 	
 	
 
-def _simplemapper(ds, vas, fig, ax, map_proj, indtime, title, lats, lons,  dim="Version"):
-	f = ds[vas].mean(dim=dim).isel(time=indtime).plot(
-		x="longitude", y="latitude", #col="time", col_wrap=2, 
-		transform=ccrs.PlateCarree(), 
-		cbar_kwargs={"pad": 0.015, "shrink":0.65},#, "extend":extend}
-		# subplot_kws={'projection': map_proj}, 
-		# size=6,	aspect=ds.dims['longitude'] / ds.dims['latitude'],  
-		ax=ax)
+def _simplemapper(ds, vas, fig, ax, map_proj, indtime, title, lats, lons,  
+	dim="Version", norm=False, extend=None):
+	if norm:
+		f = ds[vas].mean(dim=dim).isel(time=indtime).plot(
+			x="longitude", y="latitude", #col="time", col_wrap=2, 
+			transform=ccrs.PlateCarree(), 
+			cbar_kwargs={"pad": 0.015, "shrink":0.65, "extend":"max"},
+			# subplot_kws={'projection': map_proj}, 
+			# size=6,	aspect=ds.dims['longitude'] / ds.dims['latitude'],  
+			norm=LogNorm(vmin=1, vmax=1000,),
+			ax=ax)
+	else:
+		f = ds[vas].mean(dim=dim).isel(time=indtime).plot(
+			x="longitude", y="latitude", #col="time", col_wrap=2, 
+			transform=ccrs.PlateCarree(), 
+			cbar_kwargs={"pad": 0.015, "shrink":0.65,},#, "extend":extend}
+			# subplot_kws={'projection': map_proj}, 
+			# size=6,	aspect=ds.dims['longitude'] / ds.dims['latitude'],  
+			ax=ax)
 	# breakpoint()
 	# for ax in p.axes.flat:
 	ax.set_extent([lons.min()+10, lons.max()-5, lats.min()-13, lats.max()])

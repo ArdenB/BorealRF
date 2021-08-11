@@ -81,20 +81,23 @@ def main():
 	cf.pymkdir(path+"plots/")
 	ppath = "./pyEWS/analysis/3.Izanami/Figures/PS04/"
 	cf.pymkdir(ppath)
-	exp = 402
+	exp = 424
 
 	# ==========  ========== 
 	corr, col_nms, corr_linkage = _getcorr(path, exp)
 	df, ver, hueord = _ImpOpener(path, [exp], AddFeature=True)
+	featureFigPres(ppath, corr, col_nms, corr_linkage, df, ver, hueord, huex = "VariableGroup")
+	breakpoint()
 	featureFig(ppath, corr, col_nms, corr_linkage, df, ver, hueord, huex = "VariableGroup")
 	breakpoint()
 	# ========== the old method left for supp ==========
 	expr = OrderedDict()
-	expr['DeltaBiomass']  = [402, 405]
-	expr['Delta_biomass'] = [402, 405, 406] 
-	expr["Predictors"]    = [400, 401, 402] 
-	expr['Obs_biomass']   = [401, 403, 404] 
+	# expr['DeltaBiomass']  = [402, 405]
+	# expr['Delta_biomass'] = [402, 405, 406] 
+	# expr["Predictors"]    = [400, 401, 402] 
+	# expr['Obs_biomass']   = [401, 403, 404] 
 	# expr["Complete"]      = [400, 401, 402, 403, 404, 405, 406] 
+
 	# var  = "PermutationImportance"
 	# var  = "Importance"
 	for epnm in expr:
@@ -103,13 +106,104 @@ def main():
 		# ========== get the PI data ==========
 		df, ver, hueord = _ImpOpener(path, expr[epnm], AddFeature=True)
 		# try:
-		for var in ["PermutationImportance", "FeatureImportance"]:
+		for var in ["PermutationImportance"]:#, "FeatureImportance"
 			featureplotter(df, ppath, var, expr[epnm], huex, epnm, ver, hueord)
 		# except Exception as er:
 		# 	warn.warn(str(er))
 	breakpoint()
 
 # ==============================================================================
+def featureFigPres(ppath, corr, col_nms, corr_linkage, df, ver, hueord, huex = "VariableGroup"):
+	""" 
+	Figure to look at features, figures in presentation format
+	"""
+	# ========== Setup the matplotlib params ==========
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':12, "axes.labelweight":"bold"})
+	font = ({'family' : 'normal','weight' : 'bold', 'size'   : 12})
+	mpl.rc('font', **font)
+	sns.set_style("whitegrid")
+	# map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
+
+	# ========== Create the figure ==========
+	# fig  = plt.figure(constrained_layout=True, figsize=(12,18))
+	# spec = gridspec.GridSpec(ncols=4, nrows=3, figure=fig)
+
+	# +++++ Correlation matric +++++
+	fig, ax = plt.subplots(constrained_layout=True, figsize=(14,14))
+	_heatmap(corr, col_nms, fig, ax)
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS04_PaperFig02_VarImportance_correlationmatrix" 
+	for ext in [".png", ".pdf",]:
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+
+
+	# +++++ Correlation matric +++++
+	fig, ax = plt.subplots(constrained_layout=True, figsize=(27,15))
+	_Network_plot(corr, corr_linkage, col_nms, fig, ax)
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS04_PaperFig02_VarImportance_linkagedendro" 
+	for ext in [".png", ".pdf",]:
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+
+	# ========== Create the figure ==========
+	fig, ax = plt.subplots(constrained_layout=True, figsize=(27,15))
+	# g = sns.catplot(x="Variable", y="PermutationImportance", hue=huex, 	dodge=False, data=df, palette= hueord["cmap"], col="experiment",  ax=ax3)
+	g = sns.boxplot(
+		x="Variable", y="PermutationImportance", hue=huex, 
+		dodge=False, data=df.loc[df.Count >= 5], palette= hueord["cmap"], ax=ax)
+	g.set_xticklabels(g.get_xticklabels(),  rotation=15, horizontalalignment='right')
+
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS04_PaperFig02_VarImportance_Perm" 
+	for ext in [".png", ".pdf",]:
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+
+	# g.set(ylim=(0, 1))
+	# g.set_axis_labels("", var)
+	# breakpoint()
+	
+
+	# ========== Create the figure ==========
+	fig, ax = plt.subplots(constrained_layout=True, figsize=(27,15))
+	# g = sns.catplot(x="Variable", y="PermutationImportance", hue=huex, 	dodge=False, data=df, palette= hueord["cmap"], col="experiment",  ax=ax3)
+	g2 = sns.boxplot(
+		x="Variable", y="FeatureImportance", hue=huex, 
+		dodge=False, data=df.loc[df.Count >= 5], palette= hueord["cmap"], ax=ax)
+	g2.set_xticklabels(g.get_xticklabels(),  rotation=15, horizontalalignment='right')
+		# ========== Save tthe plot ==========
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS04_PaperFig02_VarImportance" 
+	for ext in [".png", ".pdf",]:
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+	breakpoint()
+
+
+
+
 def featureFig(ppath, corr, col_nms, corr_linkage, df, ver, hueord, huex = "VariableGroup"):
 	""" Figure to look at features """
 	# ========== Setup the matplotlib params ==========
@@ -143,12 +237,12 @@ def featureFig(ppath, corr, col_nms, corr_linkage, df, ver, hueord, huex = "Vari
 	# g.set_axis_labels("", var)
 	# breakpoint()
 	# ========== Create the figure ==========
-	ax4  = fig.add_subplot(spec[2, :])
-	# g = sns.catplot(x="Variable", y="PermutationImportance", hue=huex, 	dodge=False, data=df, palette= hueord["cmap"], col="experiment",  ax=ax3)
-	g2 = sns.boxplot(
-		x="Variable", y="FeatureImportance", hue=huex, 
-		dodge=False, data=df.loc[df.Count >= 6], palette= hueord["cmap"], ax=ax4)
-	g2.set_xticklabels(g.get_xticklabels(),  rotation=15, horizontalalignment='right')
+	# ax4  = fig.add_subplot(spec[2, :])
+	# # g = sns.catplot(x="Variable", y="PermutationImportance", hue=huex, 	dodge=False, data=df, palette= hueord["cmap"], col="experiment",  ax=ax3)
+	# g2 = sns.boxplot(
+	# 	x="Variable", y="FeatureImportance", hue=huex, 
+	# 	dodge=False, data=df.loc[df.Count >= 6], palette= hueord["cmap"], ax=ax4)
+	# g2.set_xticklabels(g.get_xticklabels(),  rotation=15, horizontalalignment='right')
 		# ========== Save tthe plot ==========
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS04_PaperFig02_VarImportance" 
@@ -167,7 +261,8 @@ def featureFig(ppath, corr, col_nms, corr_linkage, df, ver, hueord, huex = "Vari
 def _Network_plot(corr, corr_linkage, col_nms, fig, ax):
 	# +++++ Calculate the ward hierarchy +++++
 	# ========== Build a plot ==========
-	dendro          = hierarchy.dendrogram(corr_linkage, labels=col_nms, ax=ax, leaf_rotation=90)
+	dendro  = hierarchy.dendrogram(corr_linkage, labels=col_nms, ax=ax, 
+		leaf_rotation=90, color_threshold=6)
 	
 
 def _heatmap(corr, col_nms, fig, ax):
@@ -281,12 +376,20 @@ def featureplotter(df, ppath, var, exps, huex, epnm, ver, hueord, AddFeature=Tru
 
 	breakpoint()
 
-def _getcorr(path, exp,):
+
+def _getcorr(path, exp, 
+	dpath = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/", 
+	inheritrows=True):
 	# ========== load the setup ==========
 	setup            = pd.read_csv(f"{path}{exp}/Exp{exp}_setup.csv", index_col=0).T.infer_objects().reset_index()
-	for va in ["window", "Nstage", "test_size", "DropNAN", ]:
+	for va in ["window", "Nstage", "test_size", "DropNAN", "FutDist", "FullTestSize"]:
 		setup[va] = setup[va].astype(float)
-	setup["dropvar"] = [ast.literal_eval(setup["dropvar"].values[0])]
+	for vaxs in ["dropvar", "splitvar"]:	#
+		# breakpoint()
+		try:
+			setup[vaxs] = [ast.literal_eval(setup[vaxs].values[0])]
+		except ValueError:
+			continue
 
 	setup = setup.loc[0]
 	for tf in ["yTransformer", "Transformer"]:
@@ -297,20 +400,30 @@ def _getcorr(path, exp,):
 	# breakpoint()
 	branch  = 0
 	version = 0
-	bsestr = f"TTS_VI_df_AllSampleyears" 
+	if (setup["predvar"] == "lagged_biomass") or inheritrows:
+		basestr = f"TTS_VI_df_AllSampleyears" 
+	else:
+		basestr = f"TTS_VI_df_AllSampleyears_{setup['predvar']}" 
+
+	if not setup["FullTestSize"] is None:
+		basestr += f"_{int(setup['FullTestSize']*100)}FWH"
+		if setup["splitvar"] == ["site", "yrend"]:
+			basestr += f"_siteyear{setup['splitmethod']}"
+		elif setup["splitvar"] == "site":
+			basestr += f"_site{setup['splitmethod']}"
 
 	if setup.loc["predvar"] == "lagged_biomass":
-		fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears.csv"
-		sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears.csv"
+		fnamein  = f"{dpath}VI_df_AllSampleyears.csv"
+		sfnamein = f"{dpath}SiteInfo_AllSampleyears.csv"
 	else:
-		fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears_ObsBiomass.csv"
-		sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears_ObsBiomass.csv"
+		fnamein  = f"{dpath}VI_df_AllSampleyears_ObsBiomass.csv"
+		sfnamein = f"{dpath}SiteInfo_AllSampleyears_ObsBiomass.csv"
 		# bsestr = f"TTS_VI_df_AllSampleyears_{setup.loc[0, 'predvar']}" 
 
 	# ========== load in the data ==========
-	X_train, X_test, y_train, y_test, col_nms, loadstats, corr, df_site = bf.datasplit(
+	X_train, X_test, y_train, y_test, col_nms, loadstats, corr, df_site, dbg = bf.datasplit(
 		setup.loc["predvar"], exp, version,  branch, setup,  #cols_keep=ColNm, #force=True,
-		vi_fn=fnamein, region_fn=sfnamein, basestr=bsestr, dropvar=setup.loc["dropvar"])
+		vi_fn=fnamein, region_fn=sfnamein, basestr=basestr, dropvar=setup.loc["dropvar"])
 
 	corr_linkage = hierarchy.ward(corr)
 	# cluster_ids   = hierarchy.fcluster(corr_linkage, branch, criterion='distance')
@@ -333,7 +446,13 @@ def _ImpOpener(path, exps, var = "PermutationImportance", AddFeature=False):
 				ver    = int(fn[-28:-26])
 				fn_mod = f"{path}{exp}/models/XGBoost_model_exp{exp}_version{ver}.dat"
 				model  = pickle.load(open(f"{fn_mod}", "rb"))
-				dfin["FeatureImportance"] = model.feature_importances_
+				try:
+					dfin["FeatureImportance"] = model.feature_importances_
+				except :
+					warn.warn("This usually fails when there is an XGBoost version mismatch")
+					breakpoint()
+					raise ValueError
+				
 				# if not os.path.isfile()
 				if var == "Importance":
 					dfin = pd.melt(dfin, id_vars="Variable", value_vars=["PermutationImportance", "FeatureImportance"], var_name="Metric", value_name=var)
