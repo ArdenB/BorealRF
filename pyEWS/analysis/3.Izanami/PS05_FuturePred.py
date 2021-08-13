@@ -103,6 +103,7 @@ def main():
 	# experiments = [402]#, 401]
 	experiments = [424]#, 401]
 	years       = [2025, 2030, 2040]
+	# years       = [2021]
 	# ========== Simple lons and lats ========== 
 	lons = np.arange(-170, -50.1,  0.5)
 	lats = np.arange(  42,  70.1,  0.5)
@@ -142,8 +143,8 @@ def FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass"):
 	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
 
 	# ========== Create the figure ==========
-	fig  = plt.figure(constrained_layout=True, figsize=(16,15))
-	spec = gridspec.GridSpec(ncols=4, nrows=3, figure=fig, width_ratios=[11,1,11,1])
+	fig  = plt.figure(constrained_layout=True, figsize=(14,ds.time.size*5))
+	spec = gridspec.GridSpec(ncols=4, nrows=ds.time.size, figure=fig, width_ratios=[11,1,11,1])
 
 	for pos in range(ds.time.size):
 		ax1 = fig.add_subplot(spec[pos, 0], projection= map_proj)
@@ -154,9 +155,10 @@ def FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass"):
 			"Number of Sites", lats, lons,  dim="Version", norm=True)
 	# vas   = 
 	# title = 
+	# plt.subplots_adjust(left=0.04, right=1, top=0.95,)# wspace=0, hspace=0,  bottom=0, )
 	# # ========== Save tthe plot ==========
 	print("starting save at:", pd.Timestamp.now())
-	fnout = f"{ppath}PS05_PaperFig04_FuturePred" 
+	fnout = f"{ppath}PS05_PaperFig04_FuturePred_{ds.time.size}" 
 	for ext in [".png", ".pdf"]:#".pdf",
 		plt.savefig(fnout+ext)#, dpi=130)
 	
