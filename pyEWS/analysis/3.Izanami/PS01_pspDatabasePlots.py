@@ -79,6 +79,7 @@ from sklearn import metrics as sklMet
 
 # ==============================================================================
 def main():
+
 	# +++++ create the paths +++++
 	path  = "./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/"
 	ppath = "./pyEWS/analysis/3.Izanami/Figures/PS01/"
@@ -95,36 +96,41 @@ def main():
 	setup_fnames  = glob.glob(path + "*/Exp*_setup.csv")
 	df_setup      = pd.concat([pd.read_csv(sfn, index_col=0).T for sfn in setup_fnames], sort=True)
 	regions       = regionDict()
-	vi_df, fcount = VIload(regions, path, exp = exp)
-	
-	PSPfigurePres(ppath, vi_df, fcount, exp, lons, lats)
-	
-	PSPfigure(ppath, vi_df, fcount, exp, lons, lats)
 
-	# ========== Old figures that might end up as supplemeentary material ==========
-	yearcount(ppath, vi_df, fcount)
+	for inclfin in [False, True]:
+	
+		vi_df, fcount = VIload(regions, path, exp = exp, inclfin=inclfin)
+		PSPfigurePres(ppath, vi_df, fcount, exp, lons, lats, inclfin=inclfin)
+		
+		PSPfigure(ppath, vi_df, fcount, exp, lons, lats, inclfin=inclfin)
+
+		# # ========== Old figures that might end up as supplemeentary material ==========
+		yearcount(ppath, vi_df, fcount, inclfin=inclfin)
 	breakpoint()
 
 
 # ==============================================================================
-def PSPfigurePres(ppath, vi_df, fcount, exp, lons, lats):
+def PSPfigurePres(ppath, vi_df, fcount, exp, lons, lats, inclfin=True):
 	"""
 	Build presentation versions versions of the figures
 
 	"""
 	# ========== Setup the matplotlib params ==========
-	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':12, "axes.labelweight":"bold"})
-	font = ({'family' : 'normal','weight' : 'bold', 'size'   : 12})
+	plt.rcParams.update({
+		'axes.titleweight':"bold", 'axes.titlesize':16, "axes.labelweight":"bold"})
+	font = ({'family' : 'normal','weight' : 'bold', 'size'   : 16})
 	mpl.rc('font', **font)
 	sns.set_style("whitegrid")
 	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
 
 	fig, ax = plt.subplots(constrained_layout=True, figsize=(13,7))
 	# +++++ the plot of the number of sites +++++
-	_annualcount(vi_df, fig, ax)
+	_annualcount(vi_df, fig, ax, inclfin=inclfin)
 	# ========== Save tthe plot ==========
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS01_PaperFig01_PSPdatabase_sitecount" 
+	if inclfin:
+		fnout += "_WithLastObs"
 	for ext in [".png", ".pdf",]:
 		plt.savefig(fnout+ext)#, dpi=130)
 	
@@ -146,6 +152,8 @@ def PSPfigurePres(ppath, vi_df, fcount, exp, lons, lats):
 	# ========== Save tthe plot ==========
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS01_PaperFig01_PSPdatabase_mapsites" 
+	if inclfin:
+		fnout += "_WithLastObs"
 	for ext in [".png", ".pdf",]:
 		plt.savefig(fnout+ext)#, dpi=130)
 	
@@ -157,10 +165,12 @@ def PSPfigurePres(ppath, vi_df, fcount, exp, lons, lats):
 
 	# +++++ KDE of the gabs beteen observations +++++
 	fig, ax = plt.subplots(constrained_layout=True, figsize=(13,7))
-	_obsgap(vi_df, fig, ax)
+	_obsgap(vi_df, fig, ax, inclfin=inclfin)
 	# ========== Save tthe plot ==========
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS01_PaperFig01_PSPdatabase_kdegaps" 
+	if inclfin:
+		fnout += "_WithLastObs"
 	for ext in [".png", ".pdf",]:
 		plt.savefig(fnout+ext)#, dpi=130)
 	
@@ -173,11 +183,13 @@ def PSPfigurePres(ppath, vi_df, fcount, exp, lons, lats):
 
 
 
-def PSPfigure(ppath, vi_df, fcount, exp, lons, lats):
+def PSPfigure(ppath, vi_df, fcount, exp, lons, lats, inclfin=True):
 	"""
 	Build the first figure in the paper
 
 	"""
+	print("includefin not yet implemneted here")
+	breakpoint()
 	# ========== Setup the matplotlib params ==========
 	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':12, "axes.labelweight":"bold"})
 	font = ({'family' : 'normal','weight' : 'bold', 'size'   : 12})
@@ -220,15 +232,23 @@ def PSPfigure(ppath, vi_df, fcount, exp, lons, lats):
 
 # ==============================================================================
 
-def _obsgap(vi_df, fig, ax, currentyr=pd.Timestamp.now().year):
+def _obsgap(vi_df, fig, ax, currentyr=pd.Timestamp.now().year, inclfin=True):
+	if inclfin:
+		cats = ["Unmodelled", "Modelled", "Final"]
+	else:
+		cats = ["Unmodelled", "Modelled"]
+
 	# ========== create a column to hold the obstype ==========
+
 	vi_df["Obs_Type"] = pd.Categorical(["Unmodelled" for i in range(vi_df.shape[0])], 
-		categories=["Unmodelled", "Modelled", "Final"], ordered=True)
-	vi_df.loc[vi_df["Future"]==1, "Obs_Type"] = "Final"
+		categories=cats, ordered=True)
+	if inclfin:
+		vi_df.loc[vi_df["Future"]==1, "Obs_Type"] = "Final"
+		# ========== add the gap from the current year ==========
+		vi_df.loc[vi_df["Future"]==1, "ObsGap"] = currentyr - vi_df.loc[vi_df["Future"]==1, "year"]
+	
 	vi_df.loc[np.logical_and(vi_df["Future"]==0, vi_df["NanFrac"]==1), "Obs_Type"] = "Modelled"
 
-	# ========== add the gap from the current year ==========
-	vi_df.loc[vi_df["Future"]==1, "ObsGap"] = currentyr - vi_df.loc[vi_df["Future"]==1, "year"]
 	sns.kdeplot(data=vi_df, x="ObsGap", hue="Obs_Type", fill=True, alpha=0.50, ax=ax)
 
 def _mapgridder(exp, vi_df, fig, ax, map_proj, lons, lats, modelled=True, 
@@ -288,25 +308,35 @@ def _mapgridder(exp, vi_df, fig, ax, map_proj, lons, lats, modelled=True,
 	# plt.show()
 	# breakpoint()
 
-def _annualcount(vi_df, fig, ax):
+def _annualcount(vi_df, fig, ax, inclfin=True):
+	if inclfin:
+		cats = ["Total", "Modelled", "Final"]
+	else:
+		cats = ["Total", "Modelled"]
 	"""Line graph of the amount of sites included"""
 	# ========== Duplicate the datafrema ==========
 	sub = vi_df[np.logical_and((vi_df["NanFrac"] == 1), (vi_df["Future"] == 0))].copy()
 	fut = vi_df[(vi_df["Future"] == 1)].copy()
 	tot = vi_df.copy()
 	sub["Count"] = "Modelled"
-	sub["Count"] = pd.Categorical(["Modelled" for i in range(sub.shape[0])], categories=["Total", "Modelled", "Final"], ordered=True)
-	fut["Count"] = pd.Categorical(["Final" for i in range(fut.shape[0])], categories=["Total", "Modelled", "Final"], ordered=True)
-	tot["Count"] = pd.Categorical(["Total" for i in range(tot.shape[0])], categories=["Total", "Modelled", "Final"], ordered=True)
+	sub["Count"] = pd.Categorical(["Modelled" for i in range(sub.shape[0])], categories=cats, ordered=True)
+	if inclfin:
+		fut["Count"] = pd.Categorical(["Final" for i in range(fut.shape[0])], categories=cats, ordered=True)
+
+	# tot["Count"] = "Total"
+	tot["Count"] = pd.Categorical(["Total" for i in range(tot.shape[0])], categories=cats, ordered=True)
 
 	# ========== stack the results ==========
-	df = pd.concat([tot, sub, fut]).reset_index(drop=True)
+	if inclfin:
+		df = pd.concat([tot, sub, fut]).reset_index(drop=True)
+	else:
+		df = pd.concat([tot, sub]).reset_index(drop=True)
+	
 	vi_yc = df.groupby(["Count", "year"])['biomass'].count().reset_index().rename(
 		{"biomass":"Observations"}, axis=1).replace(0, np.NaN)
 	# ========== Make the plot ==========
 	sns.lineplot(y="Observations",x="year", hue="Count",dashes=[True, False, False], data=vi_yc, ci=None, legend=True, ax = ax)
 
-	# breakpoint()
 
 # ==============================================================================
 
@@ -458,22 +488,24 @@ def load_OBS(ofn):
 	return df_in
 
 def VIload(regions, path, exp = None, 
-	fpath  = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/", ):
+	fpath  = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/", inclfin=True):
+	
+
 	print(f"Loading the VI_df, this can be a bit slow: {pd.Timestamp.now()}")
 	
 	vi_df   = pd.read_csv(f"{fpath}VI_df_AllSampleyears_ObsBiomass.csv", index_col=0)#[['lagged_biomass','ObsGap']]
 	site_df = pd.read_csv(f"{fpath}SiteInfo_AllSampleyears_ObsBiomass.csv", index_col=0)
 	site_df.replace(regions, inplace=True)
 	vi_df["Future"] = 0
-
 	# ========== open up the future sites ========= 
-	vi_dfu   = pd.read_csv(f"{fpath}VI_df_AllSampleyears_FutureBiomass.csv", index_col=0)
-	site_dfu = pd.read_csv(f"{fpath}SiteInfo_AllSampleyears_FutureBiomass.csv", index_col=0)
-	vi_dfu["Future"] = 1
+	if inclfin:
+		vi_dfu   = pd.read_csv(f"{fpath}VI_df_AllSampleyears_FutureBiomass.csv", index_col=0)
+		site_dfu = pd.read_csv(f"{fpath}SiteInfo_AllSampleyears_FutureBiomass.csv", index_col=0)
+		vi_dfu["Future"] = 1
 
-	# ========== Merge the dataframes ==========
-	vi_df   = pd.concat([vi_df, vi_dfu])
-	site_df = pd.concat([site_df, site_dfu])
+		# ========== Merge the dataframes ==========
+		vi_df   = pd.concat([vi_df, vi_dfu])
+		site_df = pd.concat([site_df, site_dfu])
 
 	# ========== Fill in the missing sites ==========
 	# region_fn =
