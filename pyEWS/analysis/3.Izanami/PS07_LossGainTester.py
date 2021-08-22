@@ -104,19 +104,20 @@ def main():
 
 
 # ==============================================================================
-def losspotter(path, ppath, dfout, dfl, FWH):
+def losspotter(path, ppath, dfout, dfl, FWH, modnum=10):
 	"""
 	plots the loss performance
 	"""
 	# ========== Create the matplotlib params ==========
-	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':12, "axes.labelweight":"bold",})
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':16, "axes.labelweight":"bold",})
 	font = {'family' : 'normal',
 	        'weight' : 'bold', #,
-	        'size'   : 12}
+	        'size'   : 16}
 	mpl.rc('font', **font)
 	sns.set_style("whitegrid")
 	# dfl["Obsloss"] = dfl["Obsloss"].astype(float)
 
+	dfl["percMLoss"] = dfl["ModLossN"]/modnum
 	dfl.rename(columns={"Obsloss":"LossProb", "GapGroup":"PredictionWindow","GapQuant":"QPredictionWindow"}, inplace=True)
 	# fig = sns.lineplot(y="LossProb", x="ModLossN", hue="PredictionWindow", data=dfl)#, ci="sd")
 	# # dfg = dfl.groupby(["GapGroup", "ModLossN"])["LossProb"].mean().reset_index()
@@ -130,12 +131,31 @@ def losspotter(path, ppath, dfout, dfl, FWH):
 	# fig.set_yticks(np.arange(0, 1.1, 0.1))
 	# fig.set_xticks(np.arange(0, 10, 1))
 	# plt.show()
+	# ============ Model Counts ==========
+	fig, ax = plt.subplots(constrained_layout=True, figsize=(13,11))
+	sns.lineplot(y="LossProb", x="percMLoss", data=dfl, ci=99, ax=ax)
+	ax.set_yticks(np.arange(0, 1.1, 0.1))
+	ax.set_xticks(np.arange(0, 1.1, 0.1))
+	ax.set_xlabel(f"% Models Predicting Loss")
+	ax.set_ylabel(f"% of sites where loss is observed")
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS07_PaperFig02_EnsenbleStats_fract" 
+	for ext in [".png", ".pdf",]:
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
 
+
+	# ============ Model Counts ==========
 	fig = sns.lineplot(y="LossProb", x="ModLossN", data=dfl, ci=99)
 	fig.set_yticks(np.arange(0, 1.1, 0.1))
 	fig.set_xticks(np.arange(0, 10, 1))
-	fig.set_xlabel("No. Models Predicting Loss")
-	fig.set_ylabel("Fraction of sites where loss is observed")
+	fig.set_xlabel(f"no. Models Predicting Loss")
+	fig.set_ylabel(f"% of sites where loss is observed")
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS07_PaperFig02_EnsenbleStats" 
 	for ext in [".png", ".pdf",]:

@@ -88,6 +88,7 @@ def main():
 	df, ver, hueord = _ImpOpener(path, [exp], AddFeature=True)
 	featureFigPres(ppath, corr, col_nms, corr_linkage, df, ver, hueord, huex = "VariableGroup")
 	breakpoint()
+	
 	featureFig(ppath, corr, col_nms, corr_linkage, df, ver, hueord, huex = "VariableGroup")
 	breakpoint()
 	# ========== the old method left for supp ==========
@@ -129,8 +130,8 @@ def featureFigPres(ppath, corr, col_nms, corr_linkage, df, ver, hueord, huex = "
 	# spec = gridspec.GridSpec(ncols=4, nrows=3, figure=fig)
 
 	# +++++ Correlation matric +++++
-	fig, ax = plt.subplots(constrained_layout=True, figsize=(14,14))
-	_heatmap(corr, col_nms, fig, ax)
+	fig, ax = plt.subplots(constrained_layout=True, figsize=(15,14))
+	_heatmap(corr, col_nms, fig, ax, cbar=True)
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS04_PaperFig02_VarImportance_correlationmatrix" 
 	for ext in [".png", ".pdf",]:
@@ -141,6 +142,7 @@ def featureFigPres(ppath, corr, col_nms, corr_linkage, df, ver, hueord, huex = "
 	gitinfo = cf.gitmetadata()
 	cf.writemetadata(fnout, [plotinfo, gitinfo])
 	plt.show()
+	breakpoint()
 
 
 	# +++++ Correlation matric +++++
@@ -265,13 +267,12 @@ def _Network_plot(corr, corr_linkage, col_nms, fig, ax):
 		leaf_rotation=90, color_threshold=6)
 	
 
-def _heatmap(corr, col_nms, fig, ax):
+def _heatmap(corr, col_nms, fig, ax, cbar=True):
 
 	dfcorr = pd.DataFrame(corr, columns=col_nms, index=col_nms)
-	sns.heatmap(dfcorr, center=0, square=True, 
-		# cbar_kws={"pad": 0.015, "shrink": .85}, 
-		cbar=False,
-		ax=ax)
+	cmap   = mpc.ListedColormap(palettable.matplotlib.Inferno_20_r.mpl_colors)
+	sns.heatmap(dfcorr, center=0, square=True, 	cbar=cbar, cmap=cmap,	
+		cbar_kws={"pad": 0.015, "shrink": .90}, ax=ax)
 	# dendro_idx      = np.arange(0, len(dendro['ivl']))
 	# ax2.imshow(corr[dendro['leaves'], :][:, dendro['leaves']])
 	# ax2.set_xticks(dendro_idx)

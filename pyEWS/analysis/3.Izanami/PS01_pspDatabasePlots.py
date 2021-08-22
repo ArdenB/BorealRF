@@ -250,6 +250,8 @@ def _obsgap(vi_df, fig, ax, currentyr=pd.Timestamp.now().year, inclfin=True):
 	vi_df.loc[np.logical_and(vi_df["Future"]==0, vi_df["NanFrac"]==1), "Obs_Type"] = "Modelled"
 
 	sns.kdeplot(data=vi_df, x="ObsGap", hue="Obs_Type", fill=True, alpha=0.50, ax=ax)
+	ax.set_xlabel("Years between Observations")
+	ax.set_ylabel("Probability Density")
 
 def _mapgridder(exp, vi_df, fig, ax, map_proj, lons, lats, modelled=True, 
 	future=False, vmin=0, vmax=1000):

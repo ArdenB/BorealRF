@@ -2373,6 +2373,52 @@ def experiments(ncores = -1):
 		"splitvar"         :["site", "yrend"],
 		"Hyperpram"        :False,
 		})
+	expr[422] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :422,
+		"predvar"          :"Delta_biomass",
+		"dropvar"          :["Obs_biomass"],
+		"name"             :"XGBAllGap_Debug_yrfnsplit_Futfire_CV",
+		"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
+		"window"           :10,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"model"            :"XGBoost",
+		"debug"            :True,
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.1, 
+		"FullTestSize"     :0.05,
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
+		"yTransformer"     :None, 
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"maxitter"         :14, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :False,
+		"StopPoint"        :5,
+		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"pariedRun"        :None, # identical runs except at the last stage
+		"Step"             :4,
+		"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
+		"FutDist"          :100,
+		"FutFire"          :0, 
+
+		"splitmethod"      :"GroupCV",
+		"splitvar"         :["site", "yrend"],
+		"Hyperpram"        :False,
+		})
 
 	expr[423] = ({
 		# +++++ The experiment name and summary +++++
@@ -2509,51 +2555,95 @@ def experiments(ncores = -1):
 		"splitvar"         :"site",
 		"Hyperpram"        :False,
 		})
-	# expr[431] = ({
-	# 	# +++++ The experiment name and summary +++++
-	# 	"Code"             :431,
-	# 	"predvar"          :"Delta_biomass",
-	# 	"dropvar"          :["Obs_biomass"],
-	# 	"name"             :"XGBAllGap_Debug_sitesplit_Futdis_CV",
-	# 	"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
-	# 	"window"           :10,
-	# 	"predictwindow"    :None,
-	# 	"Nstage"           :1, 
-	# 	"model"            :"XGBoost",
-	# 	"debug"            :True,
-	# 	# +++++ The Model setup params +++++
-	# 	"ntree"            :10,
-	# 	"nbranch"          :2000,
-	# 	"max_features"     :'auto',
-	# 	"max_depth"        :5,
-	# 	"min_samples_split":2,
-	# 	"min_samples_leaf" :2,
-	# 	"bootstrap"        :True,
-	# 	# +++++ The experiment details +++++
-	# 	"test_size"        :0.1, 
-	# 	"FullTestSize"     :0.05,
-	# 	"SelMethod"        :"RecursiveHierarchicalPermutation",
-	# 	"ImportanceMet"    :"Permutation",
-	# 	"Transformer"      :None,
-	# 	"yTransformer"     :None, 
-	# 	"ModVar"           :"ntree, max_depth", "dataset"
-	# 	"classifer"        :None, 
-	# 	"cores"            :ncores,
-	# 	"maxitter"         :14, 
-	# 	"DropNAN"          :0.5, 
-	# 	"DropDist"         :False,
-	# 	"StopPoint"        :5,
-	# 	"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
-	# 	"maxR2drop"        :0.025,
-	# 	"pariedRun"        :None, # identical runs except at the last stage
-	# 	"Step"             :4,
-	# 	"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
-	# 	"FutDist"          :100, 
-	# 	"splitmethod"      :"GroupCV",
-	# 	"splitvar"         :"site",
-	# 	"Hyperpram"        :False,
-	# 	})
-
+	expr[431] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :431,
+		"predvar"          :"Delta_biomass",
+		"dropvar"          :["Obs_biomass"],
+		"name"             :"XGBAllGap_Debug_sitesplit_Futdis_CV",
+		"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
+		"window"           :10,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"model"            :"XGBoost",
+		"debug"            :True,
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.1, 
+		"FullTestSize"     :0.05,
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
+		"yTransformer"     :None, 
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"maxitter"         :14, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :False,
+		"StopPoint"        :5,
+		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"pariedRun"        :None, # identical runs except at the last stage
+		"Step"             :4,
+		"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
+		"FutDist"          :100, 
+		"splitmethod"      :"GroupCV",
+		"splitvar"         :"site",
+		"Hyperpram"        :False,
+		})
+	expr[432] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :432,
+		"predvar"          :"Delta_biomass",
+		"dropvar"          :["Obs_biomass"],
+		"name"             :"XGBAllGap_Debug_sitesplit_FutBurn_CV",
+		"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
+		"window"           :10,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"model"            :"XGBoost",
+		"debug"            :True,
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.1, 
+		"FullTestSize"     :0.05,
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
+		"yTransformer"     :None, 
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"maxitter"         :14, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :False,
+		"StopPoint"        :5,
+		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"pariedRun"        :None, # identical runs except at the last stage
+		"Step"             :4,
+		"AltMethod"        :"BackStep", # alternate method to use after slowdown point is reached
+		"FutDist"          :100, 
+		"FutFire"          :0,
+		"splitmethod"      :"GroupCV",
+		"splitvar"         :"site",
+		"Hyperpram"        :False,
+		})
 	expr[433] = ({
 		# +++++ The experiment name and summary +++++
 		"Code"             :433,

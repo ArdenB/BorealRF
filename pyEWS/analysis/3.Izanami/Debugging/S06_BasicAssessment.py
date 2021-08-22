@@ -155,7 +155,7 @@ def basiccomparison(path, ppath, df_setup, df_mres, keys, df_OvsP):
 	sns.barplot(y="count", x="rank", hue="experiment", data = df_rank, ax=ax4)
 	ax4.set_title("Min ABs Residual Rank (1st, 2nd, 3rd)")
 	plt.show()
-	# breakpoint()
+	breakpoint()
 
 
 # ==============================================================================

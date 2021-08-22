@@ -553,10 +553,17 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 
 	# ========== Drop disturbed sites ==========		
 	if "FutDist" in setup.keys():
-		distcal = df_site.BurnFut + df_site.DisturbanceFut
-		distcal.where(distcal<=100., 100, inplace=True)
-		
-		dst = distcal <= setup["FutDist"]
+		if "FutFire" in setup.keys():
+			# distcal = df_site.BurnFut + df_site.DisturbanceFut
+			dst = np.logical_and(
+				(df_site.DisturbanceFut <= setup["FutDist"]), 
+				(df_site.BurnFut <= setup["FutFire"]))
+			# breakpoint()
+		else:
+			distcal = df_site.BurnFut + df_site.DisturbanceFut
+			distcal.where(distcal<=100., 100, inplace=True)			
+			dst = distcal <= setup["FutDist"]
+
 		X_train = X_train.loc[dst.loc[X_train.index.values]]
 		X_test  = X_test .loc[dst.loc[X_test.index.values] ]
 		y_train = y_train.loc[dst.loc[y_train.index.values]]

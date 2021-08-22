@@ -129,10 +129,10 @@ def FigureModelPerfomancePresentation(
 	use them in presentations
 	"""
 	# ========== Create the figure ==========
-	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':12})
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':16})
 	font = {'family' : 'normal',
 	        'weight' : 'bold', #,
-	        'size'   : 12}
+	        'size'   : 16}
 	mpl.rc('font', **font)
 	sns.set_style("whitegrid")
 	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
@@ -161,9 +161,23 @@ def FigureModelPerfomancePresentation(
 
 	# ========== Make the plots ==========
 	fig, ax = plt.subplots(constrained_layout=True, figsize=(13,7))
-
 	Temporal_predictability(ppath, [exp], df_setup, df, keys,  fig, 
 		ax, "Residual", hue="ChangeDirection",	va = "Residual", 
+		CI = "QuantileInterval", single=False)
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS02_PaperFig03_ModelPerformance_tempgapperf_CD" 
+	for ext in [".png", ".pdf"]:#".pdf",
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+	
+	fig, ax = plt.subplots(constrained_layout=True, figsize=(13,7))
+	Temporal_predictability(ppath, [exp], df_setup, df, keys,  fig, 
+		ax, "Residual", hue="experiment",	va = "Residual", 
 		CI = "QuantileInterval", single=False)
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS02_PaperFig03_ModelPerformance_tempgapperf" 
@@ -220,22 +234,22 @@ def FigureModelPerfomancePresentation(
 	plt.show()
 
 
-	fig, ax = plt.subplots(#constrained_layout=True, 
-		subplot_kw={'projection':map_proj}, figsize=(12,7))
-	_simplemapper(ds, "MedianDeltaBiomass", fig, ax, map_proj, 0, 
-		"Delta Biomass", lats, lons,  dim="Version")
+	# fig, ax = plt.subplots(#constrained_layout=True, 
+	# 	subplot_kw={'projection':map_proj}, figsize=(12,7))
+	# _simplemapper(ds, "MedianDeltaBiomass", fig, ax, map_proj, 0, 
+	# 	"Delta Biomass", lats, lons,  dim="Version")
 
-	# # ========== Save tthe plot ==========
-	print("starting save at:", pd.Timestamp.now())
-	fnout = f"{ppath}PS02_PaperFig03_ModelPerformance_Map" 
-	for ext in [".png", ".pdf"]:#".pdf",
-		plt.savefig(fnout+ext)#, dpi=130)
+	# # # ========== Save tthe plot ==========
+	# print("starting save at:", pd.Timestamp.now())
+	# fnout = f"{ppath}PS02_PaperFig03_ModelPerformance_Map" 
+	# for ext in [".png", ".pdf"]:#".pdf",
+	# 	plt.savefig(fnout+ext)#, dpi=130)
 	
-	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
-		__title__, __version__,  __author__, pd.Timestamp.now())
-	gitinfo = cf.gitmetadata()
-	cf.writemetadata(fnout, [plotinfo, gitinfo])
-	plt.show()
+	# plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+	# 	__title__, __version__,  __author__, pd.Timestamp.now())
+	# gitinfo = cf.gitmetadata()
+	# cf.writemetadata(fnout, [plotinfo, gitinfo])
+	# plt.show()
 
 	breakpoint()
 
@@ -336,9 +350,12 @@ def _simplemapper(ds, vas, fig, ax, map_proj, indtime, title, lats, lons,  dim="
 
 
 def _regplot(df, ax, fig):
-	g = sns.violinplot( y="Residual", x="Region", hue="ChangeDirection", data=df, ax=ax, split=True, cut=0)
+	regions   = regionDict()
+	dfx = df.copy()
+	dfx["Region"].replace(regions, inplace=True)
+	g = sns.violinplot( y="Residual", x="Region", hue="ChangeDirection", data=dfx, ax=ax, split=True, cut=0)
 	# ax.set_ylim((-500, 500))
-	g.set_xticklabels(g.get_xticklabels(), rotation=75, horizontalalignment='right')
+	g.set_xticklabels(g.get_xticklabels(), rotation=15, horizontalalignment='right')
 	g.set(ylim=(-400, 400))
 
 
@@ -549,8 +566,9 @@ def _confusion_plots(
 
 
 	# ax.set_title(f"{exp}-{keys[exp]} $R^{2}$ {df_set.R2.mean()}", loc= 'left')
-	ax.set_xlabel(obsvar)
-	ax.set_ylabel(estvar)
+	delt = r"$\Delta$"
+	ax.set_xlabel(f'Observed {delt}Biomass')
+	ax.set_ylabel(f'Predicted {delt}Biomass')
 
 	
 def pdfplot(ppath, df, exp, keys, fig, ax, obsvar, estvar, var, clip, single=True):
@@ -751,13 +769,23 @@ def Temporal_predictability(
 		huecount = len(experiments)
 	elif hue =="ChangeDirection":
 		dfX      = df.copy()
+		# dfX[hue] = "All" #dfX[hue].cat.categories[0]
+		# dfX      = pd.concat([dfX,df]).reset_index(drop=True)
+		dfX[hue] = pd.Categorical(dfX[hue].values, categories=["Gain", "Loss"], ordered=True)
+		huecount = len(dfX[hue].cat.categories)
+		cats     = dfX[hue].cat.categories
+		lab      = [ct for ct in cats]
+	elif hue =="ChangeDirectionAll":
+		dfX      = df.copy()
 		dfX[hue] = "All" #dfX[hue].cat.categories[0]
 		dfX      = pd.concat([dfX,df]).reset_index(drop=True)
 		dfX[hue] = pd.Categorical(dfX[hue].values, categories=["All", "Gain", "Loss"], ordered=True)
 		huecount = len(dfX[hue].cat.categories)
 		cats     = dfX[hue].cat.categories
 		lab      = [ct for ct in cats]
-
+	elif hue is None:
+		dfX = df.dropna()
+		huecount = 1
 	elif not hue=="experiment":
 		warn.warn("Not implemented yet")
 		breakpoint()
@@ -1003,8 +1031,19 @@ def fpred(path, exp, years,
 		for yr in years:
 			dfoutC = dfout.copy()
 
+			# ========== Check for missing columns ==========
+			fcheck = []
+			for ft in feat:	
+				fcheck.append(ft not in vi_df.columns)
+
+			if any(fcheck):
+				print("Fixing missing columns")
+				vi_dfX = pd.read_csv(f"{fpath}VI_df_AllSampleyears.csv", index_col=0)
+				for clnm in feat[fcheck]:
+					vi_df[clnm] = vi_dfX.loc[:, ["site", clnm]].groupby("site").median().loc[vi_df.site]
 			# ========== pull out the variables and apply transfors ==========
 			dfX = vi_df.loc[:, feat].copy()
+			
 			if not type(setup.loc["Transformer"].values[0]) == float:
 				warn.warn("Not implemented yet")
 				breakpoint()
