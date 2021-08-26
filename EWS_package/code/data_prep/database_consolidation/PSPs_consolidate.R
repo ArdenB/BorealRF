@@ -7,13 +7,14 @@ library(dplyr)
 # All modifications are maked like this section
 # ========== Check what system i'm running on ==========
 rm(list = ls()) #cleans any files in the environment out
-if (startsWith(Sys.info()["nodename"], "BURRELL")){
-  # Preserves compatibility with script
-  setwd("C:/Users/aburrell/Documents/Boreal")
-}else{
-  # setwd("/att/nobackup/scooperd/scooperdock")
-  setwd("/mnt/data1/boreal/scooperdock")
-}
+#if (startsWith(Sys.info()["nodename"], "BURRELL")){
+#  # Preserves compatibility with script
+#  setwd("C:/Users/aburrell/Documents/Boreal")
+#}else{
+#  # setwd("/att/nobackup/scooperd/scooperdock")
+#  setwd("/mnt/data1/boreal/scooperdock")
+#}
+setwd("/media/arden/Alexithymia/Boreal")
 
 # ========== dataframe check ==========
 check_dataframe = function(df) {

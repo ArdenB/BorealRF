@@ -112,7 +112,7 @@ def confusion_plotter(keys, ppath, df_setup, df_OvsP, df_mres, norm=True):
 	# split  = np.hstack([np.min([-maxval ,-1000.]),np.arange(-400., 401, 10), np.max([1000., maxval])])
 	split  = np.arange(minval, maxval+1, gap)
 	# fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(4, 2)
-	fig, ((ax1, ax2, ax3, ax4), (ax5, ax6, ax7, ax8)) = plt.subplots(2, 4, 
+	fig, ((ax1, ax2, ax3, ax4), (ax5, ax6, ax7, ax8), (ax9, ax10, ax11, ax12)) = plt.subplots(3, 4, 
 		figsize=(25,14), )
 		# constrained_layout=True)
 
@@ -147,7 +147,7 @@ def basiccomparison(path, ppath, df_setup, df_mres, keys, df_OvsP):
 	sns.barplot(y="MAE", x="experiment", data = df_score, ax=ax3)
 	ax3.set_title("matched MAE")
 	for ax  in [ax1, ax2, ax3]:
-		ax.set_xticklabels(ax.get_xticklabels(), rotation=10, horizontalalignment='right')
+		ax.set_xticklabels(ax.get_xticklabels(), rotation=13, horizontalalignment='right')
 		ax.set_xlabel("")
 	# plt.show()
 
@@ -155,7 +155,7 @@ def basiccomparison(path, ppath, df_setup, df_mres, keys, df_OvsP):
 	sns.barplot(y="count", x="rank", hue="experiment", data = df_rank, ax=ax4)
 	ax4.set_title("Min ABs Residual Rank (1st, 2nd, 3rd)")
 	plt.show()
-	breakpoint()
+	# breakpoint()
 
 
 # ==============================================================================
@@ -404,6 +404,10 @@ def Experiment_name(df, df_setup, var = "experiment", addFSM=True):
 		# =========== Setup the names ============
 		info = df_setup.loc[f"Exp{int(cat)}"]
 		nm = f"{info['splitvar']} {info['FutDist']}%FutDist"
+		if type(info.FutFire) == str:
+			nm += f" {info['FutFire']}%FutFire"
+
+
 		if not info['AltMethod'] == "BackStep":
 			nm += f" {info['AltMethod']}"
 
