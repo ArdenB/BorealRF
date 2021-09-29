@@ -270,9 +270,8 @@ def _Network_plot(corr, corr_linkage, col_nms, fig, ax):
 def _heatmap(corr, col_nms, fig, ax, cbar=True):
 
 	dfcorr = pd.DataFrame(corr, columns=col_nms, index=col_nms)
-	cmap   = mpc.ListedColormap(palettable.matplotlib.Inferno_20_r.mpl_colors)
-	sns.heatmap(dfcorr, center=0, square=True, 	cbar=cbar, cmap=cmap,	
-		cbar_kws={"pad": 0.015, "shrink": .90}, ax=ax)
+	cmap   = mpc.ListedColormap(palettable.cmocean.diverging.Balance_20_r.mpl_colors)
+	sns.heatmap(dfcorr, center=0, square=True, 	cbar=cbar, cmap=cmap,	cbar_kws={"pad": 0.015, "shrink": .90}, ax=ax)
 	# dendro_idx      = np.arange(0, len(dendro['ivl']))
 	# ax2.imshow(corr[dendro['leaves'], :][:, dendro['leaves']])
 	# ax2.set_xticks(dendro_idx)

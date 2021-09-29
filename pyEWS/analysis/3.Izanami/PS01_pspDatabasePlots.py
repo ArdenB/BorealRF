@@ -62,6 +62,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import myfunctions.corefunctions as cf
 import myfunctions.benchmarkfunctions as bf
 from matplotlib.colors import LogNorm
+import matplotlib.dates as mdates
 
 # ========== Import packages for parellelisation ==========
 # import multiprocessing as mp
@@ -88,7 +89,7 @@ def main():
 	warn.warn("\n\n I have not excluded sites that fail on future disturbance thresholds yet \n\n")
 
 	# exp   = 402
-	exp = 424
+	exp = 434
 	lons = np.arange(-170, -50.1,  0.5)
 	lats = np.arange(  42,  70.1,  0.5)
 
@@ -97,28 +98,28 @@ def main():
 	df_setup      = pd.concat([pd.read_csv(sfn, index_col=0).T for sfn in setup_fnames], sort=True)
 	regions       = regionDict()
 
-	for inclfin in [False, True]:
+	for inclfin in [True]:#False, 
 	
 		vi_df, fcount = VIload(regions, path, exp = exp, inclfin=inclfin)
-		PSPfigurePres(ppath, vi_df, fcount, exp, lons, lats, inclfin=inclfin)
+		# PSPfigurePres(ppath, vi_df, fcount, exp, lons, lats, inclfin=inclfin)
 		
 		PSPfigure(ppath, vi_df, fcount, exp, lons, lats, inclfin=inclfin)
 
 		# # ========== Old figures that might end up as supplemeentary material ==========
-		yearcount(ppath, vi_df, fcount, inclfin=inclfin)
 	breakpoint()
+	yearcount(ppath, vi_df, fcount)
 
 
 # ==============================================================================
-def PSPfigurePres(ppath, vi_df, fcount, exp, lons, lats, inclfin=True):
+def PSPfigurePres(ppath, vi_df, fcount, exp, lons, lats, inclfin=True, textsize=24):
 	"""
 	Build presentation versions versions of the figures
 
 	"""
 	# ========== Setup the matplotlib params ==========
 	plt.rcParams.update({
-		'axes.titleweight':"bold", 'axes.titlesize':16, "axes.labelweight":"bold"})
-	font = ({'family' : 'normal','weight' : 'bold', 'size'   : 16})
+		'axes.titleweight':"bold", 'axes.titlesize':textsize, "axes.labelweight":"bold"})
+	font = ({'family' : 'normal','weight' : 'bold', 'size': textsize})
 	mpl.rc('font', **font)
 	sns.set_style("whitegrid")
 	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
@@ -146,7 +147,7 @@ def PSPfigurePres(ppath, vi_df, fcount, exp, lons, lats, inclfin=True):
 
 	# +++++ Map of the number of used sites +++++
 	fig, ax = plt.subplots(constrained_layout=True, 
-		subplot_kw={'projection':map_proj}, figsize=(12,7))
+		subplot_kw={'projection':map_proj}, figsize=(14,7))
 	# ax2  = fig.add_subplot(spec[1, :], projection= map_proj)
 	_mapgridder(exp, vi_df, fig, ax, map_proj, lons, lats, modelled=True,)
 	# ========== Save tthe plot ==========
@@ -183,44 +184,46 @@ def PSPfigurePres(ppath, vi_df, fcount, exp, lons, lats, inclfin=True):
 
 
 
-def PSPfigure(ppath, vi_df, fcount, exp, lons, lats, inclfin=True):
+def PSPfigure(ppath, vi_df, fcount, exp, lons, lats, inclfin=True, textsize=12):
 	"""
 	Build the first figure in the paper
 
 	"""
-	print("includefin not yet implemneted here")
-	breakpoint()
+	# print("includefin not yet implemneted here")
 	# ========== Setup the matplotlib params ==========
-	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':12, "axes.labelweight":"bold"})
-	font = ({'family' : 'normal','weight' : 'bold', 'size'   : 12})
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':textsize, "axes.labelweight":"bold"})
+	font = ({'family' : 'normal','weight' : 'bold', 'size'   : textsize})
 	mpl.rc('font', **font)
 	sns.set_style("whitegrid")
 	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
 
 	# ========== Create the figure ==========
-	fig  = plt.figure(constrained_layout=True, figsize=(10,15))
+	fig  = plt.figure(constrained_layout=True, figsize=(14,13))
 	spec = gridspec.GridSpec(ncols=2, nrows=3, figure=fig)
 
 	# +++++ the plot of the number of sites +++++
 	ax1  = fig.add_subplot(spec[0, :])
-	_annualcount(vi_df, fig, ax1)
+	_annualcount(vi_df, fig, ax1, title="a)")
 
 	# +++++ Map of the number of used sites +++++
 	ax2  = fig.add_subplot(spec[1, :], projection= map_proj)
-	_mapgridder(exp, vi_df, fig, ax2, map_proj, lons, lats, modelled=True,)
+	_mapgridder(exp, vi_df, fig, ax2, map_proj, lons, lats, title="b)", modelled=True,)
 
 	# +++++ KDE of the gabs beteen observations +++++
 	ax3 = fig.add_subplot(spec[2, 0])
-	_obsgap(vi_df, fig, ax3)
+	_obsgap(vi_df, fig, ax3, title="c)")
 
 
 	# +++++ the plot of the number of sites +++++
+	ax4 = fig.add_subplot(spec[2, 1])
+	_biomasschange(vi_df, fig, ax4, title="d)")
+	# breakpoint()
 
 
 	# ========== Save tthe plot ==========
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS01_PaperFig01_PSPdatabase" 
-	for ext in [".png", ".pdf",]:
+	for ext in [".png", ]:#".pdf",
 		plt.savefig(fnout+ext)#, dpi=130)
 	
 	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
@@ -228,11 +231,25 @@ def PSPfigure(ppath, vi_df, fcount, exp, lons, lats, inclfin=True):
 	gitinfo = cf.gitmetadata()
 	cf.writemetadata(fnout, [plotinfo, gitinfo])
 	plt.show()
-	# breakpoint()
+	breakpoint()
 
 # ==============================================================================
+def _biomasschange(vi_df, fig, ax,title="",):
+	test = vi_df.dropna().loc[vi_df.dropna().groupby(['site', 'year'])['ObsGap'].idxmin()]
+	test = test.loc[test.year >=1982]
+	test["Obs.Year"] = (test.year + test.ObsGap).astype(int)# pd.to_datetime(test.year + test.ObsGap, format='%Y')
+	test.sort_values("Obs.Year", inplace=True)
+	test["Biomass Increase"] = test.Delta_biomass > 0
+	sns.countplot(x="Obs.Year", hue="Biomass Increase", data=test, ax=ax)
+	ax.set_xlabel("Year of Observations")
+	# ax.xaxis.set_major_locator(mdates.AutoDateLocator())
+	# ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
+	ax.set_xticklabels(ax.get_xticklabels(), rotation=90, horizontalalignment='right')
+	ax.set_title("")
+	ax.set_title(f"{title}", loc= 'left')
 
-def _obsgap(vi_df, fig, ax, currentyr=pd.Timestamp.now().year, inclfin=True):
+
+def _obsgap(vi_df, fig, ax, title="", currentyr=pd.Timestamp.now().year, inclfin=True):
 	if inclfin:
 		cats = ["Unmodelled", "Modelled", "Final"]
 	else:
@@ -249,11 +266,13 @@ def _obsgap(vi_df, fig, ax, currentyr=pd.Timestamp.now().year, inclfin=True):
 	
 	vi_df.loc[np.logical_and(vi_df["Future"]==0, vi_df["NanFrac"]==1), "Obs_Type"] = "Modelled"
 
-	sns.kdeplot(data=vi_df, x="ObsGap", hue="Obs_Type", fill=True, alpha=0.50, ax=ax)
+	sns.kdeplot(data=vi_df, x="ObsGap", hue="Obs_Type", fill=True, alpha=0.50, ax=ax, common_norm=False)
 	ax.set_xlabel("Years between Observations")
 	ax.set_ylabel("Probability Density")
+	ax.set_title("")
+	ax.set_title(f"{title}", loc= 'left')
 
-def _mapgridder(exp, vi_df, fig, ax, map_proj, lons, lats, modelled=True, 
+def _mapgridder(exp, vi_df, fig, ax, map_proj, lons, lats, title="", modelled=True, 
 	future=False, vmin=0, vmax=1000):
 	# ========== Simple lons and lats ========== 
 	# ========== Setup params ==========
@@ -286,15 +305,19 @@ def _mapgridder(exp, vi_df, fig, ax, map_proj, lons, lats, modelled=True,
 
 	if modelled:
 		vas   = "ModelledSites"
-		title = "No. of Modelled Sites"
+		if title == "":
+			title = "No. of Modelled Sites"
 	else:
 		vas   = "TotalSites"
-		title = "No. of Sites"
+		if title == "":
+			title = "No. of Sites"
 	levels = [0, 1,  5, 10, 50, 100, 500, 1000]
 
 	f = ds[vas].isel(time=0).plot(
 		x="longitude", y="latitude", transform=ccrs.PlateCarree(), vmin=vmin, vmax=vmax, levels=levels,
-		cbar_kwargs={"pad": 0.015, "shrink":0.85, "extend":"max"},	ax=ax)
+		cbar_kwargs={"pad": 0.015, "shrink":0.80, "extend":"max"},	ax=ax)
+
+	# ax.set_extent([lons.min(), lons.max()-10, lats.min(), lats.max()])
 	ax.set_extent([lons.min()+10, lons.max()-5, lats.min()-13, lats.max()])
 	ax.gridlines()
 	coast = cpf.GSHHSFeature(scale="intermediate")
@@ -310,7 +333,7 @@ def _mapgridder(exp, vi_df, fig, ax, map_proj, lons, lats, modelled=True,
 	# plt.show()
 	# breakpoint()
 
-def _annualcount(vi_df, fig, ax, inclfin=True):
+def _annualcount(vi_df, fig, ax, inclfin=True, title="",):
 	if inclfin:
 		cats = ["Total", "Modelled", "Final"]
 	else:
@@ -338,7 +361,8 @@ def _annualcount(vi_df, fig, ax, inclfin=True):
 		{"biomass":"Observations"}, axis=1).replace(0, np.NaN)
 	# ========== Make the plot ==========
 	sns.lineplot(y="Observations",x="year", hue="Count",dashes=[True, False, False], data=vi_yc, ci=None, legend=True, ax = ax)
-
+	ax.set_title("")
+	ax.set_title(f"{title}", loc= 'left')
 
 # ==============================================================================
 
@@ -497,7 +521,6 @@ def VIload(regions, path, exp = None,
 	
 	vi_df   = pd.read_csv(f"{fpath}VI_df_AllSampleyears_ObsBiomass.csv", index_col=0)#[['lagged_biomass','ObsGap']]
 	site_df = pd.read_csv(f"{fpath}SiteInfo_AllSampleyears_ObsBiomass.csv", index_col=0)
-	site_df.replace(regions, inplace=True)
 	vi_df["Future"] = 0
 	# ========== open up the future sites ========= 
 	if inclfin:
@@ -510,6 +533,7 @@ def VIload(regions, path, exp = None,
 		site_df = pd.concat([site_df, site_dfu])
 
 	# ========== Fill in the missing sites ==========
+	site_df.replace(regions, inplace=True)
 	# region_fn =
 	if exp is None:
 		vi_df["NanFrac"] = vi_df.isnull().mean(axis=1)

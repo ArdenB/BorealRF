@@ -67,6 +67,7 @@ from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 import matplotlib.ticker as mticker
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.colors import LogNorm
+import shap
 
 
 # ========== Import ml packages ==========
@@ -110,29 +111,116 @@ def main():
 
 	# experiments = [400]
 	# exp = 402
-	exp = 424
+	exp = 434
+	FigureModelPerfomance(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exp, ppath)
+	FigureModelPerfomanceV2(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exp, ppath)
+	breakpoint()
 	FigureModelPerfomancePresentation(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exp, ppath)
 	breakpoint()
-	FigureModelPerfomance(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exp, ppath)
-
 	# ========== old plots that might end up in supplementary material ==========
 	oldplots(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, ppath)
 
 # ================================================================================
+def FigureModelPerfomanceV2(
+	df_setup, df_mres, keys, df_OvsP, 
+	df_clest, df_branch, path, exp, ppath, years=[2020], huex = "VariableGroup",	
+	lons = np.arange(-170, -50.1,  0.5),
+	lats = np.arange(  42,  70.1,  0.5), textsize=12):
+	"""
+	Build model performace figure
+	"""
+	# ========== Create the figure ==========
+	sns.set_style("whitegrid")
+	font = ({'weight' : 'bold', 'size'   : textsize})
+	mpl.rc('font', **font)
+	plt.rcParams.update({'axes.titleweight':"bold", 
+		"axes.labelweight":"bold", 'axes.titlesize':textsize, 'axes.titlelocation': 'left',})
+	# plt.rcParams.update({'axes.titleweight':"bold", })
+
+	# ========== Create the map projection ==========
+	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
+	df = Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, [exp], path)
+
+	# ========== Convert to a dataarray ==========
+	# ds = gridder(path, exp, years, fpred(path, exp, years), lats, lons)
+	
+	pred = OrderedDict()
+	pred['Delta_biomass'] = ({
+		"obsvar":"ObsDelta",
+		"estvar":"EstDelta", 
+		"limits":(-300, 300),
+		"Resname":"Residual", 
+		"gap":10
+		})
+	pred["Biomass"] = ({
+		"obsvar":"Observed",
+		"estvar":"Estimated", 
+		"limits":(0, 1000), 
+		"Resname":"Residual"
+		})
+
+	# ========== Create the figure ==========
+	fig  = plt.figure(constrained_layout=True, figsize=(18,18))
+	spec = gridspec.GridSpec(ncols=2, nrows=2, figure=fig)#, width_ratios=[6,1,6,1], )#height_ratios=[5, 10, 5]
+
+
+	ax1 = fig.add_subplot(spec[0, 0])
+	_confusion_plots(df, keys, exp, fig, ax1, pred, df_setup, norm=False, title="a)")
+
+	ax2 = fig.add_subplot(spec[0, 1])
+	_confusion_plots(df, keys, exp, fig, ax2, pred, df_setup, title="b)")
+	# Temporal_predictability(ppath, [exp], df_setup, df, keys,  fig, ax1, "Residual", hue="ChangeDirection",
+	# 	va = "Residual", CI = "QuantileInterval", single=False)
+	
+	# ========== Create the figure ==========
+	df, ver, hueord = _ImpOpener(path, [exp], AddFeature=True)
+	ax3  = fig.add_subplot(spec[1, :])
+	# g = sns.catplot(x="Variable", y="PermutationImportance", hue=huex, 	dodge=False, data=df, palette= hueord["cmap"], col="experiment",  ax=ax3)
+	g = sns.boxplot(
+		x="Variable", y="PermutationImportance", hue=huex, 
+		dodge=False, data=df.loc[df.Count >= 7], palette= hueord["cmap"], ax=ax3)
+	ax3.set_yscale('log')
+	g.set_xticklabels(g.get_xticklabels(), rotation=15, horizontalalignment='right')
+	ax3.set_title(f"c)")
+	# breakpoint()
+	# ax2 = fig.add_subplot(spec[1, 0])
+	# _confusion_plots(df, keys, exp, fig, ax2, pred, df_setup)
+
+	# ax3 = fig.add_subplot(spec[1, 2:])
+	# _regplot(df, ax3, fig)
+
+	
+	# ax4 = fig.add_subplot(spec[2, 2:], projection= map_proj)
+	# _simplemapper(ds, "MedianDeltaBiomass", fig, ax4, map_proj, 0, "Delta Biomass", lats, lons,  dim="Version")
+
+	# # ========== Save tthe plot ==========
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS02_PaperFig03_ModelPerformanceV2" 
+	for ext in [".png", ".pdf"]:#".pdf",
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+
+	breakpoint()
+
+
 def FigureModelPerfomancePresentation(
 	df_setup, df_mres, keys, df_OvsP, 
 	df_clest, df_branch, path, exp, ppath, years=[2020], 	
 	lons = np.arange(-170, -50.1,  0.5),
-	lats = np.arange(  42,  70.1,  0.5)):
+	lats = np.arange(  42,  70.1,  0.5), textsize=24):
 	"""
 	Build model performace figure. This makes each subplot as its own figure so i can 
 	use them in presentations
 	"""
 	# ========== Create the figure ==========
-	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':16})
-	font = {'family' : 'normal',
-	        'weight' : 'bold', #,
-	        'size'   : 16}
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':textsize})
+	font = {'weight' : 'bold', #,
+	        'size'   : textsize}
 	mpl.rc('font', **font)
 	sns.set_style("whitegrid")
 	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
@@ -259,15 +347,13 @@ def FigureModelPerfomance(
 	df_setup, df_mres, keys, df_OvsP, 
 	df_clest, df_branch, path, exp, ppath, years=[2020], 	
 	lons = np.arange(-170, -50.1,  0.5),
-	lats = np.arange(  42,  70.1,  0.5)):
+	lats = np.arange(  42,  70.1,  0.5), textsize=14):
 	"""
 	Build model performace figure
 	"""
 	# ========== Create the figure ==========
-	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':12})
-	font = {'family' : 'normal',
-	        'weight' : 'bold', #,
-	        'size'   : 12}
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':textsize})
+	font = ({'weight' : 'bold', 'size'   : textsize})
 	mpl.rc('font', **font)
 	sns.set_style("whitegrid")
 	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
@@ -277,7 +363,7 @@ def FigureModelPerfomance(
 	df = Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, [exp], path)
 
 	# ========== Convert to a dataarray ==========
-	ds = gridder(path, exp, years, fpred(path, exp, years), lats, lons)
+	# ds = gridder(path, exp, years, fpred(path, exp, years), lats, lons)
 	
 	pred = OrderedDict()
 	pred['Delta_biomass'] = ({
@@ -296,7 +382,7 @@ def FigureModelPerfomance(
 
 	# ========== Create the figure ==========
 	fig  = plt.figure(constrained_layout=True, figsize=(16,20))
-	spec = gridspec.GridSpec(ncols=4, nrows=3, figure=fig, width_ratios=[5,1,5,5], height_ratios=[5, 10, 5])
+	spec = gridspec.GridSpec(ncols=1, nrows=3, figure=fig, width_ratios=[5,1,5,5], height_ratios=[5, 10, 5])
 
 
 	ax1 = fig.add_subplot(spec[0, :])
@@ -304,19 +390,19 @@ def FigureModelPerfomance(
 		va = "Residual", CI = "QuantileInterval", single=False)
 
 	
-	ax2 = fig.add_subplot(spec[1, 0])
-	_confusion_plots(df, keys, exp, fig, ax2, pred, df_setup)
+	# ax2 = fig.add_subplot(spec[1, 0])
+	# _confusion_plots(df, keys, exp, fig, ax2, pred, df_setup)
 
-	ax3 = fig.add_subplot(spec[1, 2:])
+	ax3 = fig.add_subplot(spec[1, :])
 	_regplot(df, ax3, fig)
 
 	
-	ax4 = fig.add_subplot(spec[2, 2:], projection= map_proj)
-	_simplemapper(ds, "MedianDeltaBiomass", fig, ax4, map_proj, 0, "Delta Biomass", lats, lons,  dim="Version")
+	# ax4 = fig.add_subplot(spec[2, 2:], projection= map_proj)
+	# _simplemapper(ds, "MedianDeltaBiomass", fig, ax4, map_proj, 0, "Delta Biomass", lats, lons,  dim="Version")
 
 	# # ========== Save tthe plot ==========
 	print("starting save at:", pd.Timestamp.now())
-	fnout = f"{ppath}PS02_PaperFig03_ModelPerformance" 
+	fnout = f"{ppath}PS02_PaperFig03_ModelPerformanceLimits" 
 	for ext in [".png", ".pdf"]:#".pdf",
 		plt.savefig(fnout+ext)#, dpi=130)
 	
@@ -359,12 +445,12 @@ def _regplot(df, ax, fig):
 	g.set(ylim=(-400, 400))
 
 
-def oldplots(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, ppath):
+def oldplots(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, ppath, textsize=24):
 	# ========== Create the figure ==========
-	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':12})
-	font = {'family' : 'normal',
-	        'weight' : 'bold', #,
-	        'size'   : 12}
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':textsize})
+	font = ({
+		'weight' : 'bold', #,
+		'size'   : textsize})
 	mpl.rc('font', **font)
 	sns.set_style("whitegrid")
 	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
@@ -430,7 +516,9 @@ def oldplots(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, ppath)
 def _confusion_plots(
 	df, keys, exp, fig, ax, pred, df_setup,  #split,
 	inc_class=False, sumtxt="", annot=False, zline=True, 
-	num=0, cbar=True, mask=True, norm=True):
+	num=0, cbar=True, mask=True, norm=True, title=""):
+
+	# ========== Create the figure ==========
 	"""Function to create and plot the confusion matrix"""
 	setup   = df_setup.loc[f"Exp{exp}"]
 	
@@ -509,39 +597,17 @@ def _confusion_plots(
 	if norm:
 		g = sns.heatmap(
 			df_cm, annot=ann, vmin=0, vmax=1, ax = ax, 
-			cbar=cbar, square=True, cmap=cmap, #cbar_kwargs={"pad": 0.015, "shrink":0.85},
+			cbar=cbar, square=True, cmap=cmap, cbar_kws={"shrink":0.65},
 			)
 	else:
 		print(f"Checking nanmax counts {bn.nanmax(df_cm)}")
 		g = sns.heatmap(df_cm, annot=ann,  
 			ax = ax, cbar=cbar, square=True, 
 			cmap=cmap, norm=LogNorm(vmin=1, vmax=10000,),
-			cbar_kws={"extend":"max"})
+			cbar_kws={"extend":"max", "shrink":0.65})
 	ax.plot(np.flip(np.arange(expsize+1)), np.arange(expsize+1), "darkgrey", alpha=0.75)
 
-	# ========== fix the labels +++++
-	# if (sptsze > 10):
-	# 	# +++++ The location of the ticks +++++
-	# 	interval = int(np.floor(sptsze/10))
-	# 	location = np.arange(0, sptsze, interval)
-	# 	# +++++ The new values +++++
-	# 	values = np.round(np.linspace(split[0], split[-1], location.size))
-	# 	breakpoint()
-	# 	ax.set_xticks(location)
-	# 	ax.set_xticklabels(values, rotation=90)
-	# 	ax.set_yticks(location)
-	# 	ax.set_yticklabels(np.flip(values), rotation=0)
-	# 	# ========== Add the cross hairs ==========
-	# 	if zline:
-	# 		try:
-	# 			ax.axvline(location[values == 0][0], alpha =0.25, linestyle="--", c="grey")
-	# 			ax.axhline(location[values == 0][0], alpha =0.25, linestyle="--", c="grey")
-	# 		except Exception as er:
-	# 			print(er)
-	# 			breakpoint()
-	# else:
-	# 	# warn.warn("Yet to fix the ticks here")
-	# 	# breakpoint()
+
 	# 	# ========== Calculate the zero lines ==========
 	if zline:
 		# ========== Calculate the zero line location ==========
@@ -555,20 +621,12 @@ def _confusion_plots(
 		ax.axvline(x=zeroP, alpha =0.5, linestyle="--", c="darkgrey", zorder=101)
 		ax.axhline(y=zeroP, alpha =0.5, linestyle="--", c="darkgrey", zorder=102)
 
-	# 	# +++++ fix the values +++++
-	# 	location = np.arange(0., sptsze)#+1
-	# 	location[ 0] += 0.00001
-	# 	location[-1] -= 0.00001
-	# 	ax.set_xticks(location)
-	# 	ax.set_xticklabels(np.round(split, 2), rotation=90)
-	# 	ax.set_yticks(location)
-	# 	ax.set_yticklabels(np.flip(np.round(split, 2)), rotation=0)
-
 
 	# ax.set_title(f"{exp}-{keys[exp]} $R^{2}$ {df_set.R2.mean()}", loc= 'left')
 	delt = r"$\Delta$"
 	ax.set_xlabel(f'Observed {delt}Biomass')
 	ax.set_ylabel(f'Predicted {delt}Biomass')
+	ax.set_title(f"{title}")
 
 	
 def pdfplot(ppath, df, exp, keys, fig, ax, obsvar, estvar, var, clip, single=True):
@@ -938,15 +996,15 @@ def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiment
 	return df
 
 
-def gridder(path, exp, years, df, lats, lons, var = "DeltaBiomass"):
+def gridder(path, exp, years, df, lats, lons, var = "DeltaBiomass", textsize=24):
 
 	# ========== Setup params ==========
-	plt.rcParams.update({'axes.titleweight':"bold","axes.labelweight":"bold", 'axes.titlesize':10})
-	font = {'family' : 'normal',
-	        'weight' : 'bold', #,
-	        'size'   : 10}
-	mpl.rc('font', **font)
-	sns.set_style("whitegrid")
+	# plt.rcParams.update({'axes.titleweight':"bold","axes.labelweight":"bold", 'axes.titlesize':textsize})
+	# font = {'family' : 'normal',
+	#         'weight' : 'bold', #,
+	#         'size'   : textsize}
+	# mpl.rc('font', **font)
+	# sns.set_style("whitegrid")
 	""" Function to convert the points into a grid """
 	# ========== Copy the df so i can export multiple grids ==========
 	dfC = df.copy()#.dropna()
@@ -1026,7 +1084,7 @@ def fpred(path, exp, years,
 		# dfout.loc[dfout["Longitude"] >  180, ["Longitude", "Latitude"]] = np.NaN
 		# dfout.loc[dfout["Latitude"] <= 0, ["Longitude", "Latitude"]] = np.NaN
 		# dfout.loc[dfout["Latitude"] >  90, ["Longitude", "Latitude"]] = np.NaN
-
+		# exp = shap.Explainer(model)
 		# breakpoint()
 		for yr in years:
 			dfoutC = dfout.copy()
@@ -1078,6 +1136,100 @@ def fpred(path, exp, years,
 
 
 	return pd.concat(est_list)
+
+def _ImpOpener(path, exps, var = "PermutationImportance", AddFeature=False):
+	"""
+	Function to open the feature importance files and return them as a single 
+	DataFrame"""
+
+	# ========== Loop over the exps ==========
+	df_list = []
+	for exp in exps:
+		fnames = sorted(glob.glob(f"{path}{exp}/Exp{exp}_*PermutationImportance.csv"))
+		for ver, fn in enumerate(fnames):
+			dfin = pd.read_csv( fn, index_col=0)
+			if AddFeature:
+				ver    = int(fn[-28:-26])
+				fn_mod = f"{path}{exp}/models/XGBoost_model_exp{exp}_version{ver}.dat"
+				model  = pickle.load(open(f"{fn_mod}", "rb"))
+				try:
+					dfin["FeatureImportance"] = model.feature_importances_
+				except :
+					warn.warn("This usually fails when there is an XGBoost version mismatch")
+					breakpoint()
+					raise ValueError
+				
+				# if not os.path.isfile()
+				if var == "Importance":
+					dfin = pd.melt(dfin, id_vars="Variable", value_vars=["PermutationImportance", "FeatureImportance"], var_name="Metric", value_name=var)
+					dfin.replace({"PermutationImportance":"PI", "FeatureImportance":"FI"}, inplace=True)
+				# breakpoint()
+			dfin["experiment"] = exp
+			dfin["version"]    = ver
+			df_list.append(dfin)
+	
+	# ========== Group them together ==========
+	df = pd.concat(df_list).reset_index(drop=True)
+	
+	# ========== Calculate the counts ==========
+	df["Count"] = df.groupby(["experiment", "Variable"])[var].transform("count")
+	df.sort_values(['experiment', 'Count'], ascending=[True, False], inplace=True)
+	df.reset_index(drop=True,inplace=True)
+
+	# ========== group the vartypes ==========
+	sp_groups  = pd.read_csv("./EWS_package/data/raw_psp/SP_groups.csv", index_col=0)
+	soils      = pd.read_csv( "./EWS_package/data/psp/modeling_data/soil_properties_aggregated.csv", index_col=0).columns.values
+	permafrost = pd.read_csv("./EWS_package/data/psp/modeling_data/extract_permafrost_probs.csv", index_col=0).columns.values
+	def _getgroup(VN, species=[], soils = [], permafrost=[]):
+		if VN in ["biomass", "stem_density", "ObsGap", "StandAge"]:
+			return "Survey"
+		elif VN in ["Disturbance", "DisturbanceGap", "Burn", "BurnGap", "DistPassed"]:
+			return "Disturbance"
+		elif (VN.startswith("Group")) or (VN in species):
+			return "Species"
+		elif VN.startswith("LANDSAT"):
+			return "RS VI"
+		elif VN.endswith("30years"):
+			return "Climate"
+		elif VN in soils:
+			return "Soil"
+		elif VN in permafrost:
+			return "Permafrost"
+		else: 
+			print(VN)
+			breakpoint()
+			return "Unknown"
+
+	
+	df["VariableGroup"] = df.Variable.apply(_getgroup, 
+		species = sp_groups.scientific.values, soils=soils, permafrost=permafrost).astype("category")
+	hueord =  cmapper(df["VariableGroup"], AddFeature, var)
+	if AddFeature and var == "Importance":
+		df["VariableGroup"] = pd.Series([f"{MI}-{VG}" for MI, VG in zip(df["Metric"], df["VariableGroup"])]).astype("category")
+	
+	# ========== set the cat order ==========
+	df["VariableGroup"].cat.set_categories(hueord["HueOrder"], inplace=True)
+	return df, ver, hueord
+
+# ==============================================================================
+def cmapper(varlist, AddFeature, var):
+	# pick the cmap
+	# "Disturbance", 
+	if "Disturbance" in varlist:
+		warn.warn("THis is not implemented, currently no provision for disturbance")
+		breakpoint()
+		sys.exit()
+
+	vaorder = ["Climate", "RS VI", "Survey", "Species","Permafrost", "Soil",]
+	cmapHex = palettable.colorbrewer.qualitative.Paired_12.hex_colors
+	if AddFeature and var == "Importance":
+		vaorder = [f"{MI}-{VG}" for VG, MI in product(vaorder, ["FI", "PI"])]
+		# breakpoint()
+	else:
+		cmapHex = cmapHex[1::2]
+	# ========== Decide the order of stuff =========
+	return ({"cmap":cmapHex, "HueOrder":vaorder})
+
 
 def _delag(b0, bl):
 	if bl == 1.:

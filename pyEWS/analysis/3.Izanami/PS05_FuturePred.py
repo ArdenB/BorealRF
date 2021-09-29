@@ -68,6 +68,7 @@ import cartopy.feature as cpf
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 import matplotlib.ticker as mticker
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+import geopandas as gpd
 
 # ========== Import ml packages ==========
 # from sklearn.model_selection import train_test_split
@@ -100,10 +101,10 @@ def main():
 	# var  = "PermutationImportance"
 	# var  = "Importance"
 
-	# experiments = [402]#, 401]
+
 	experiments = [424]#, 401]
-	years       = [2025, 2030, 2040]
-	# years       = [2021]
+	years       = [2030]
+	# years       = [2025, 2030, 2040]
 	# ========== Simple lons and lats ========== 
 	lons = np.arange(-170, -50.1,  0.5)
 	lats = np.arange(  42,  70.1,  0.5)
@@ -113,7 +114,16 @@ def main():
 
 
 
-		df = fpred(path, exp, years)
+		df  = fpred(path, exp, years)
+
+		dfg = df.groupby(["Region","Plot_ID", "time"]).median().reset_index()
+		gdf = gpd.GeoDataFrame(dfg)
+		gdf.set_geometry(
+		    geopandas.points_from_xy(gdf['Longitude'], gdf['Latitude']),
+		    inplace=True, crs='EPSG:4326')
+		gdf.drop(['Latitude', 'Longitude'], axis=1, inplace=True)
+		gdf[["DeltaBiomass", "geometry"]].to_file('test.shp')
+		breakpoint()
 		# ========== Convert to a dataarray ==========
 		ds = gridder(path, exp, years, df, lats, lons)
 		FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass")
@@ -126,7 +136,7 @@ def main():
 
 
 # ==============================================================================
-def FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass"):
+def FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass", textsize=24):
 
 
 
@@ -138,12 +148,18 @@ def FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass"):
 	# 		1, 1, sharex=True, subplot_kw={'projection': map_proj}, 
 	# 		figsize=(20,9)
 	# 		)
+	# ========== Create the figure ==========
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':textsize})
+	font = ({'weight' : 'bold', 'size'   : textsize})
+	mpl.rc('font', **font)
+	sns.set_style("whitegrid")
+	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
 
 	# ========== Create the mapp projection ==========
 	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
 
 	# ========== Create the figure ==========
-	fig  = plt.figure(constrained_layout=True, figsize=(14,ds.time.size*5))
+	fig  = plt.figure(constrained_layout=True, figsize=(18,ds.time.size*7))
 	spec = gridspec.GridSpec(ncols=4, nrows=ds.time.size, figure=fig, width_ratios=[11,1,11,1])
 
 	for pos in range(ds.time.size):
@@ -174,7 +190,9 @@ def FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass"):
 def _simplemapper(ds, vas, fig, ax, map_proj, indtime, title, lats, lons,  
 	dim="Version", norm=False, extend=None):
 	if norm:
-		f = ds[vas].mean(dim=dim).isel(time=indtime).plot(
+		dsa = ds[vas].mean(dim=dim).isel(time=indtime)
+		dsa.attrs = ds[vas].attrs
+		f = dsa.plot(
 			x="longitude", y="latitude", #col="time", col_wrap=2, 
 			transform=ccrs.PlateCarree(), 
 			cbar_kwargs={"pad": 0.015, "shrink":0.65, "extend":"max"},
@@ -183,10 +201,14 @@ def _simplemapper(ds, vas, fig, ax, map_proj, indtime, title, lats, lons,
 			norm=LogNorm(vmin=1, vmax=1000,),
 			ax=ax)
 	else:
-		f = ds[vas].mean(dim=dim).isel(time=indtime).plot(
+		cmap = palettable.colorbrewer.diverging.PiYG_11.mpl_colormap
+		dsa = ds[vas].mean(dim=dim).isel(time=indtime)
+		dsa.attrs = ds[vas].attrs
+		f = dsa.plot(
 			x="longitude", y="latitude", #col="time", col_wrap=2, 
 			transform=ccrs.PlateCarree(), 
-			cbar_kwargs={"pad": 0.015, "shrink":0.65,},#, "extend":extend}
+			cbar_kwargs={"pad": 0.015, "shrink":0.65,},
+			cmap=cmap,
 			# subplot_kws={'projection': map_proj}, 
 			# size=6,	aspect=ds.dims['longitude'] / ds.dims['latitude'],  
 			ax=ax)
@@ -235,6 +257,7 @@ def gridder(path, exp, years, df, lats, lons, var = "DeltaBiomass"):
 	dsp      = dfC.loc[dfC["DeltaBiomass"]> 0].groupby(["time","latitude", "longitude", "Version"])[var].count().to_xarray().sortby("latitude", ascending=False)
 	dsn      = dfC.loc[dfC["DeltaBiomass"]<=0].groupby(["time","latitude", "longitude", "Version"])[var].count().to_xarray().sortby("latitude", ascending=False)
 	dspos    = (dsp-dsn)/dscount
+	dspos.attrs["units"] = "Fraction of sites Increasing"
 	
 	dsmean   = dfC.groupby(["time","latitude", "longitude", "Version"])[var].mean().to_xarray().sortby("latitude", ascending=False)
 	dsmedian = dfC.groupby(["time","latitude", "longitude", "Version"])[var].median().to_xarray().sortby("latitude", ascending=False)
@@ -246,6 +269,7 @@ def gridder(path, exp, years, df, lats, lons, var = "DeltaBiomass"):
 		f"Mean{var}":dsmean, 
 		f"Median{var}":dsmedian, 
 		f"AnnualMeanBiomass":dsannual})
+	# breakpoint()
 	return ds
 	
 
@@ -300,7 +324,12 @@ def fpred(path, exp, years,
 			dfoutC = dfout.copy()
 
 			# ========== pull out the variables and apply transfors ==========
-			dfX = vi_df.loc[:, feat].copy()
+			try:
+				dfX = vi_df.loc[:, feat].copy()	
+			except Exception as err:
+				warn.warn(str(err))
+				# vi_dfo = pd.read_csv(f"{fpath}VI_df_AllSampleyears_ObsBiomass.csv", index_col=0)
+				breakpoint()
 			if not type(setup.loc["Transformer"].values[0]) == float:
 				warn.warn("Not implemented yet")
 				breakpoint()
