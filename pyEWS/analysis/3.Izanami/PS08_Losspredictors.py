@@ -144,8 +144,8 @@ def _ImpOpener(path, exp, var = "PermutationImportance", AddFeature=False, texts
 		shap.dependence_plot("biomass", shap_values, X_test)
 		shap.dependence_plot("ObsGap", shap_values, X_test)
 		# shap.summary_plot(shap_values, X_test, plot_type="layered_violin")#, color='coolwarm')
-		breakpoint()
-		if ver == 0:
+		# breakpoint()
+		if ver == 2:
 			explainer2   = shap.Explainer(model, X_test)
 			shap_values2 = explainer2(X_test)
 			shap.plots.waterfall(shap_values2[0])

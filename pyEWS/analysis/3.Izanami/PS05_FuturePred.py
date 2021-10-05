@@ -102,8 +102,9 @@ def main():
 	# var  = "Importance"
 
 
-	experiments = [424]#, 401]
+	experiments = [434]#, 401]
 	years       = [2030]
+	# years       = [2020, 2025, 2030, 2040]
 	# years       = [2025, 2030, 2040]
 	# ========== Simple lons and lats ========== 
 	lons = np.arange(-170, -50.1,  0.5)
@@ -114,19 +115,34 @@ def main():
 
 
 
-		df  = fpred(path, exp, years)
+		df  = fpred(path, exp, years, lats, lons)
 
+		# ========== Convert to a dataarray ==========
+		ds = gridder(path, exp, years, df, lats, lons)
+
+		breakpoint()
+		
+		for fvar in ["MeanDeltaBiomass", "sites","EnsembleDirection"]:
+			splotmap(df, ds, ppath, lats, lons, fvar)
+		breakpoint()
+
+
+		FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass")
+		
+		breakpoint()
 		dfg = df.groupby(["Region","Plot_ID", "time"]).median().reset_index()
 		gdf = gpd.GeoDataFrame(dfg)
 		gdf.set_geometry(
 		    geopandas.points_from_xy(gdf['Longitude'], gdf['Latitude']),
 		    inplace=True, crs='EPSG:4326')
 		gdf.drop(['Latitude', 'Longitude'], axis=1, inplace=True)
-		gdf[["DeltaBiomass", "geometry"]].to_file('test.shp')
-		breakpoint()
-		# ========== Convert to a dataarray ==========
-		ds = gridder(path, exp, years, df, lats, lons)
-		FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass")
+		gdf[["DeltaBiomass", "geometry"]].to_file(f'{ppath}test.shp')
+
+		fnout = f"{ppath}/Examplenetcdf.nc"
+		ds.to_netcdf(fnout, 
+			format         = 'NETCDF4', 
+			# encoding       = encoding,
+			unlimited_dims = ["time"])
 		breakpoint()
 
 
@@ -136,6 +152,75 @@ def main():
 
 
 # ==============================================================================
+def splotmap(df, ds, ppath, lats, lons, var, textsize=14, col_wrap=1, dim="Version", norm=None, robust=False):
+	"""
+	Plot function for a single var
+	"""
+	if var == "EnsembleDirection":
+		cmap = mpc.ListedColormap(palettable.colorbrewer.diverging.PiYG_11.mpl_colors)
+		cbkw = {"pad": 0.015, "shrink":0.85,}
+	elif var == "sites":
+		norm=LogNorm(vmin=1, vmax=1000,)
+		cmap = mpc.ListedColormap(palettable.cmocean.sequential.Matter_20.mpl_colors)
+		cbkw = {"pad": 0.015, "shrink":0.85, "extend":"max"}
+	elif var in ["MedianDeltaBiomass", "MeanDeltaBiomass"]:
+		cmap = mpc.ListedColormap(palettable.colorbrewer.diverging.BrBG_11.mpl_colors)
+		cbkw = {"pad": 0.015, "shrink":0.85, "extend":"both"}
+		robust=True
+	else:
+		breakpoint()
+		cmap = mpc.ListedColormap(palettable.cmocean.sequential.Ice_20_r.mpl_colors)
+	# ========== Create the figure ==========
+	# plt.rcParams.update({'axes.titleweight':"bold", })
+	font = ({'weight' : 'bold', 'size'   : textsize})
+	mpl.rc('font', **font)
+	sns.set_style("whitegrid")
+	plt.rcParams.update({
+		'axes.titleweight':"bold", 
+		"axes.labelweight":"bold", 
+		'axes.titlelocation': 'left',
+		'axes.titlesize':textsize})
+
+	# ========== Create the mapp projection ==========
+	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
+	# fig  = plt.figure(constrained_layout=True, figsize=(18,ds.time.size*7))
+	f = ds[var].mean(dim).plot(
+		x="longitude", y="latitude", col="time", 
+		col_wrap=col_wrap, 
+		transform=ccrs.PlateCarree(), 
+		cbar_kwargs=cbkw,
+		subplot_kws={'projection': map_proj}, 
+		cmap=cmap, #size =8,
+		figsize=(18,ds.time.size*7),
+		norm=norm, 
+		robust=robust,
+		)
+		# norm=LogNorm(vmin=1, vmax=1000,)
+		# size=6,	aspect=ds.dims['longitude'] / ds.dims['latitude'],  
+
+	for ax in f.axes.flat:
+		ax.set_extent([lons.min()+10, lons.max()-5, lats.min()-13, lats.max()])
+		ax.gridlines()
+		coast = cpf.GSHHSFeature(scale="intermediate")
+		ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
+		ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
+		ax.add_feature(coast, zorder=101, alpha=0.5)
+		ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
+		ax.add_feature(cpf.RIVERS, zorder=104)
+		ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
+
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS05_PaperFig04_FuturePredSvar_{ds.time.size}_{var}" 
+	for ext in [".png", ".pdf"]:#".pdf",
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Paper figure made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+	breakpoint()
+
 def FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass", textsize=24):
 
 
@@ -241,10 +326,9 @@ def gridder(path, exp, years, df, lats, lons, var = "DeltaBiomass"):
 	""" Function to convert the points into a grid """
 	# ========== Copy the df so i can export multiple grids ==========
 	dfC = df.copy()#.dropna()
+
 	# breakpoint()
-	dfC["longitude"] = pd.cut(dfC["Longitude"], lons, labels=bn.move_mean(lons, 2)[1:])
-	dfC["latitude"]  = pd.cut(dfC["Latitude" ], lats, labels=bn.move_mean(lats, 2)[1:])
-	dfC["ObsGap"]    = dfC.time.dt.year - dfC.year
+
 	if var == 'DeltaBiomass':
 		dfC["AnnualBiomass"] = dfC[var] / dfC["ObsGap"]
 	else:
@@ -262,19 +346,21 @@ def gridder(path, exp, years, df, lats, lons, var = "DeltaBiomass"):
 	dsmean   = dfC.groupby(["time","latitude", "longitude", "Version"])[var].mean().to_xarray().sortby("latitude", ascending=False)
 	dsmedian = dfC.groupby(["time","latitude", "longitude", "Version"])[var].median().to_xarray().sortby("latitude", ascending=False)
 	dsannual = dfC.groupby(["time","latitude", "longitude", "Version"])["AnnualBiomass"].mean().to_xarray().sortby("latitude", ascending=False)
+	dschange = dfC.groupby(["time","latitude", "longitude", "Version"])["ModelAgreement"].mean().to_xarray().sortby("latitude", ascending=False)
 	# ========== Convert the different measures into xarray formats ==========
 	ds = xr.Dataset({
 		"sites":dscount, 
 		"sitesInc":dspos, 
 		f"Mean{var}":dsmean, 
 		f"Median{var}":dsmedian, 
-		f"AnnualMeanBiomass":dsannual})
+		f"AnnualMeanBiomass":dsannual,
+		"EnsembleDirection":dschange})
 	# breakpoint()
 	return ds
 	
 
 
-def fpred(path, exp, years, 
+def fpred(path, exp, years, lats, lons, var = "DeltaBiomass",
 	fpath    = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/", 
 	maxdelta = 30):
 	"""
@@ -322,14 +408,26 @@ def fpred(path, exp, years,
 		# breakpoint()
 		for yr in years:
 			dfoutC = dfout.copy()
+			# ========== Check for missing columns ==========
+			fcheck = []
+			for ft in feat:	
+				fcheck.append(ft not in vi_df.columns)
 
+			if any(fcheck):
+				print("Fixing missing columns")
+				vi_dfX = pd.read_csv(f"{fpath}VI_df_AllSampleyears.csv", index_col=0)
+				for clnm in feat[fcheck]:
+					vi_df[clnm] = vi_dfX.loc[:, ["site", clnm]].groupby("site").median().loc[vi_df.site]
+				vi_df.to_csv(f"{fpath}VI_df_AllSampleyears_FutureBiomass.csv")
 			# ========== pull out the variables and apply transfors ==========
-			try:
-				dfX = vi_df.loc[:, feat].copy()	
-			except Exception as err:
-				warn.warn(str(err))
-				# vi_dfo = pd.read_csv(f"{fpath}VI_df_AllSampleyears_ObsBiomass.csv", index_col=0)
-				breakpoint()
+			dfX = vi_df.loc[:, feat].copy()
+			# ========== pull out the variables and apply transfors ==========
+			# try:
+			# 	dfX = vi_df.loc[:, feat].copy()	
+			# except Exception as err:
+			# 	warn.warn(str(err))
+			# 	# vi_dfo = pd.read_csv(f"{fpath}VI_df_AllSampleyears_ObsBiomass.csv", index_col=0)
+			# 	breakpoint()
 			if not type(setup.loc["Transformer"].values[0]) == float:
 				warn.warn("Not implemented yet")
 				breakpoint()
@@ -361,9 +459,18 @@ def fpred(path, exp, years,
 			dfoutC.loc[(dfoutC.time.dt.year - dfoutC.year) > maxdelta, ['Biomass', 'DeltaBiomass']] = np.NaN
 			est_list.append(dfoutC)
 
+	df = pd.concat(est_list)
+	df["longitude"] = pd.cut(df["Longitude"], lons, labels=bn.move_mean(lons, 2)[1:])
+	df["latitude"]  = pd.cut(df["Latitude" ], lats, labels=bn.move_mean(lats, 2)[1:])
+	df["ObsGap"]    = df.time.dt.year - df.year
+	df = df[df.ObsGap <= 30]
 
-
-	return pd.concat(est_list)
+	# ========== do the direction stuff ==========
+	dft = df[[var, "Plot_ID", "year", "ObsGap"]].copy()
+	dft[var] = dft[var]>=0
+	df["ModelAgreement"] = (dft.groupby(["Plot_ID", "year", "ObsGap"]).transform("sum") - 5) / 5
+	# breakpoint()
+	return df
 
 
 

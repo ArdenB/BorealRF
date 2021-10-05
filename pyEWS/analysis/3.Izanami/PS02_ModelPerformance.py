@@ -382,19 +382,21 @@ def FigureModelPerfomance(
 
 	# ========== Create the figure ==========
 	fig  = plt.figure(constrained_layout=True, figsize=(16,20))
-	spec = gridspec.GridSpec(ncols=1, nrows=3, figure=fig, width_ratios=[5,1,5,5], height_ratios=[5, 10, 5])
+	spec = gridspec.GridSpec(ncols=2, nrows=3, figure=fig)#, width_ratios=[5,1,5,5], height_ratios=[5, 10, 5])
 
 
 	ax1 = fig.add_subplot(spec[0, :])
-	Temporal_predictability(ppath, [exp], df_setup, df, keys,  fig, ax1, "Residual", hue="ChangeDirection",
-		va = "Residual", CI = "QuantileInterval", single=False)
+	Temporal_predictability(ppath, [exp], df_setup, df, keys,  fig, ax1, "Residual", hue="ChangeDirectionAll",
+		va = "Residual", CI = "QuantileInterval", single=False, title="a)")
 
-	
+	ax2 = fig.add_subplot(spec[1, :])
+	Temporal_predictability(ppath, [exp], df_setup, df, keys,  fig, ax2, "Residual", hue="ChangeDirectionNorm",
+		va = "Residual", CI = "QuantileInterval", single=False, title="b)")
 	# ax2 = fig.add_subplot(spec[1, 0])
 	# _confusion_plots(df, keys, exp, fig, ax2, pred, df_setup)
 
-	ax3 = fig.add_subplot(spec[1, :])
-	_regplot(df, ax3, fig)
+	ax3 = fig.add_subplot(spec[2, :])
+	_regplot(df, ax3, fig, title="c)")
 
 	
 	# ax4 = fig.add_subplot(spec[2, 2:], projection= map_proj)
@@ -435,7 +437,7 @@ def _simplemapper(ds, vas, fig, ax, map_proj, indtime, title, lats, lons,  dim="
 	ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
 
 
-def _regplot(df, ax, fig):
+def _regplot(df, ax, fig, title=""):
 	regions   = regionDict()
 	dfx = df.copy()
 	dfx["Region"].replace(regions, inplace=True)
@@ -443,6 +445,7 @@ def _regplot(df, ax, fig):
 	# ax.set_ylim((-500, 500))
 	g.set_xticklabels(g.get_xticklabels(), rotation=15, horizontalalignment='right')
 	g.set(ylim=(-400, 400))
+	ax.set_title(f"{title}", loc= 'left')
 
 
 def oldplots(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, ppath, textsize=24):
@@ -813,7 +816,7 @@ def confusion_plots(path, df_mres, df_setup, df_OvsP, keys, exp, fig, ax,
 
 def Temporal_predictability(
 	ppath, experiments, df_setup, df, keys,  fig, ax, var, hue="experiment",
-	va = "Residual", CI = "QuantileInterval", single=True):
+	va = "Residual", CI = "QuantileInterval", single=True, title=""):
 
 	"""
 	Function to make a figure that explores the temporal predictability. This 
@@ -821,6 +824,7 @@ def Temporal_predictability(
 	"""
 	cats = experiments
 	lab = [keys[expn] for expn in experiments]
+	huex = hue
 	if len(experiments) > 1:
 		# pick only the subset that are matched 
 		dfX = df.dropna()
@@ -834,13 +838,29 @@ def Temporal_predictability(
 		cats     = dfX[hue].cat.categories
 		lab      = [ct for ct in cats]
 	elif hue =="ChangeDirectionAll":
+		huex = "ChangeDirection"
 		dfX      = df.copy()
-		dfX[hue] = "All" #dfX[hue].cat.categories[0]
+		dfX[huex] = "All" #dfX[hue].cat.categories[0]
 		dfX      = pd.concat([dfX,df]).reset_index(drop=True)
-		dfX[hue] = pd.Categorical(dfX[hue].values, categories=["All", "Gain", "Loss"], ordered=True)
-		huecount = len(dfX[hue].cat.categories)
-		cats     = dfX[hue].cat.categories
+		dfX[huex] = pd.Categorical(dfX[huex].values, categories=["All", "Gain", "Loss"], ordered=True)
+		huecount = len(dfX[huex].cat.categories)
+		cats     = dfX[huex].cat.categories
 		lab      = [ct for ct in cats]
+		# breakpoint()
+	elif hue == "ChangeDirectionNorm":
+		dfX      = df.copy()
+		huex = "ChangeDirection"
+		try:
+			mean = dfX.loc[:,["ObsDelta", "ObsGap"]].abs().groupby("ObsGap").transform("mean").values.flatten()
+			dfX[va] /= mean 
+		except Exception as er:
+			warn.warn(str(er))
+			breakpoint()
+		dfX[huex] = pd.Categorical(dfX[huex].values, categories=["Gain", "Loss"], ordered=True)
+		huecount = len(dfX[huex].cat.categories)
+		cats     = dfX[huex].cat.categories
+		lab      = [ct for ct in cats]
+
 	elif hue is None:
 		dfX = df.dropna()
 		huecount = 1
@@ -864,16 +884,16 @@ def Temporal_predictability(
 	# ========== Build the first part of the figure ==========
 	if CI == "SD":
 		sns.lineplot(y=va, x="ObsGap", data=dfX, 
-			hue=hue, ci="sd", ax=ax, 
+			hue=huex, ci="sd", ax=ax, 
 			palette=colours[:huecount], legend=False)
 	else:
 		# Use 
 		sns.lineplot(y=va, x="ObsGap", data=dfX, 
-			hue=hue, ci=None, ax=ax, 
+			hue=huex, ci=None, ax=ax, 
 			palette=colours[:huecount], legend=False)
 		# if hue=="experiment":
 		for cat, colr in zip(cats, colours[:huecount]) :
-			df_ci = dfX[dfX[hue] == cat].groupby("ObsGap")[va].quantile([0.05, 0.95]).reset_index()
+			df_ci = dfX[dfX[huex] == cat].groupby("ObsGap")[va].quantile([0.05, 0.95]).reset_index()
 			# breakpoint()
 			ax.fill_between(
 				df_ci[df_ci.level_1 == 0.05]["ObsGap"].values, 
@@ -882,11 +902,18 @@ def Temporal_predictability(
 		# else:
 	# ========== fix the labels ==========
 	ax.set_xlabel('Years Between Observation', fontsize=12, fontweight='bold')
-	ax.set_ylabel(r'Mean Residual ($\pm$ %s)' % CI, fontsize=12, fontweight='bold')
 	# ========== Create hhe legend ==========
-	ax.legend(title=hue, loc='upper right', labels=lab)
-	ax.set_title(f"{var} {va} {CI}", loc= 'left')
+	ax.legend(title=huex, loc='upper right', labels=lab)
+	if hue == "ChangeDirectionNorm":
+		# breakpoint()
+		ax.set_ylim(-5, 5)
+		ax.set_ylabel(r'Normalised Mean Residual ($\pm$ %s)' % CI, fontsize=12, fontweight='bold')
+		# ax.set_title(f"{var} {va} {CI}", loc= 'left')
+	else:
+		ax.set_ylabel(r'Mean Residual ($\pm$ %s)' % CI, fontsize=12, fontweight='bold')
+		pass
 
+	ax.set_title(f"{title}", loc= 'left')
 
 	# ========== The second subplot ==========
 	# breakpoint()
