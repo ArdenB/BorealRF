@@ -95,18 +95,169 @@ def main():
 	fpath = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/"
 	vi_df   = pd.read_csv(f"{fpath}VI_df_AllSampleyears_ObsBiomass.csv", index_col=0)
 	site_df = pd.read_csv(f"{fpath}SiteInfo_AllSampleyears_ObsBiomass.csv", index_col=0)
-	exp      = 434
-	# ========= Load in the observations ==========
-	OvP_fnames = glob.glob(f"{path}{exp}/Exp{exp}*_OBSvsPREDICTED.csv")
-	df_OvsP    = pd.concat([load_OBS(ofn) for ofn in OvP_fnames], sort=True)
-	df_mod     = df_OvsP[~df_OvsP.index.duplicated(keep='first')]
+	experiment = [ 434, 424]
+	# exp      = 434
+	for exp in experiment:
+		# ========= Load in the observations ==========
+		OvP_fnames = glob.glob(f"{path}{exp}/Exp{exp}*_OBSvsPREDICTED.csv")
+		df_OvsP    = pd.concat([load_OBS(ofn) for ofn in OvP_fnames], sort=True)
+		df_OvsP["Region"] = site_df.loc[df_OvsP.index, "Region"]
+		regions    = regionDict()
+		df_OvsP.replace(regions, inplace=True)
 
-	predictions(path, ppath, exp, fpath, vi_df, site_df, df_OvsP)
-	breakpoint()
-	# ========== Chose the experiment ==========
-	sitedtb(path, ppath, exp, fpath, vi_df, site_df, df_mod)
+
+		df_OvsP["ObsGap"] = vi_df.loc[df_OvsP.index, "ObsGap"]
+		df_OvsP["Residual"] = df_OvsP["Estimated"].values - df_OvsP["Observed"].values
+		df_OvsP["ABSResidual"] = np.abs(df_OvsP["Estimated"].values - df_OvsP["Observed"].values)
+		df_mod     = df_OvsP[~df_OvsP.index.duplicated(keep='first')]
+
+		# ========== predictions ==========
+
+		Futuredfmaker(path, ppath, exp, fpath, vi_df, site_df, df_OvsP)
+
+		ensemblper(path, ppath, exp, fpath, vi_df, site_df, df_OvsP)
+		
+		predictions(path, ppath, exp, fpath, vi_df, site_df, df_OvsP)
+		# breakpoint()
+		# ========== Chose the experiment ==========
+		sitedtb(path, ppath, exp, fpath, vi_df, site_df, df_mod)
 
 # ==============================================================================
+def Futuredfmaker(path, ppath, exp, fpath, vi_df, site_df, df_OvsP):
+
+
+	Scriptinfo = "Stats Exported using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	keystats = [Scriptinfo, gitinfo]
+
+
+	years = [2020, 2025, 2030, 2040]
+	df    = fpred(path, exp, years)
+
+	dfmean = df.groupby(["Plot_ID", "time"]).mean()
+	dfmean["Region"]      = df.groupby(["Plot_ID", "time"]).first()["Region"]
+	dfmean.reset_index(inplace=True)
+	dfmean["MMMIncrease"] =  dfmean.DeltaBiomass > 0	
+
+	keystats.append("\n Stats About Future Predictions\n")
+	keystats.append("\n Fraction of sites that are predicted to increase \n")
+	keystats.append(dfmean[["time", "MMMIncrease"]].groupby(["time"]).mean())
+	keystats.append(dfmean[["time", "MMMIncrease", "ModelAgreement"]].groupby(["time", "MMMIncrease"]).count())
+
+	keystats.append("\n Number of sites that are predicted to increase by ModelAgreement \n")
+	keystats.append(dfmean[["time", "MMMIncrease", "ModelAgreement"]].groupby(["time", "ModelAgreement"]).count())
+
+	# keystats.append(dfmean[["time", "MMMIncrease", "ModelAgreement"]].groupby(["time", "ModelAgreement"]).count())
+	
+	dfa = dfmean[["time", "Region", "MMMIncrease"]].groupby(["time", "Region"]).mean()
+	dfa["MMMDecrease"] = 1- dfa["MMMIncrease"]
+	dfa["SiteCount"] = dfmean[["time", "Region", "MMMIncrease"]].groupby(["time", "Region"]).count().values
+	dfa["SiteCountInc"] = dfmean[["time", "Region", "MMMIncrease"]].groupby(["time", "Region"]).sum().values
+	keystats.append("\n Regional Breakdown predicted to increase by ModelAgreement \n")
+	keystats.append(dfa)
+	# breakpoint()
+	# ========== Save the info =========
+	fname = f'{ppath}PS09_FuturePredictionSummary_exp{exp}.txt'
+	f = open(fname,'w')
+	for info in keystats:
+		f.write("%s\n" %info)
+	f.close()
+
+
+# def ensemblper(path, ppath, exp, fpath, vi_df, site_df, df_OvsP):
+
+def ensemblper(path, ppath, exp, fpath, vi_df, site_df, df_OvsP):
+	"""
+	Look at how the ensemble median does compared to the mean
+	"""
+	Scriptinfo = "Stats Exported using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	keystats = [Scriptinfo, gitinfo]
+
+	# ========== Summary of prediction scores ==========
+	df_O = df_OvsP.reset_index()
+	df_O["Ncount"] = df_O.groupby("index")["Estimated"].transform("count")
+	dfen = df_O[df_O["Ncount"]==10].sort_values(["index", "version"])
+	dfen["CorrectDir"] = (dfen.Estimated > 0) == (dfen.Observed > 0)
+
+	dfen["ObservedGain"] = (dfen.Observed > 0)
+	dfen["EstimatedGain"] = (dfen.Estimated > 0)
+	# dfen.groupby("index").mean()
+	
+
+	# observed in range of predictions 
+	dfens = dfen.groupby("index").agg(
+		minest=pd.NamedAgg(column='Estimated', aggfunc='min'),
+		maxest=pd.NamedAgg(column='Estimated', aggfunc='max'),
+		Observed=pd.NamedAgg(column='Observed', aggfunc='mean'),
+		MeanEst=pd.NamedAgg(column='Estimated', aggfunc='mean'),
+		MedianEst=pd.NamedAgg(column='Estimated', aggfunc='median'),
+		ModelGainFrac=pd.NamedAgg(column='EstimatedGain', aggfunc='mean'),
+		)
+	dfens["Inrange"  ] = np.logical_and(dfens.maxest > dfens.Observed, dfens.minest < dfens.Observed)
+	dfens["MeanRes"  ] = dfens.MeanEst - dfens.Observed
+	dfens["AbsMeanRes"] = dfens["MeanRes"  ].abs()
+	dfens["MedianRes"] = dfens.MedianEst - dfens.Observed
+	dfens["AbsMedianRes"] = dfens["MedianRes"].abs()
+	dfens["CorrectDir"] = (dfens.MeanEst > 0) == (dfens.Observed > 0)
+	dfens["ObservedGain"] = (dfens.Observed > 0)
+	
+
+	keystats.append("\n The median indivdual model performance \n")
+	keystats.append(dfen.groupby("version").median().drop(["CorrectDir", "Ncount", "index"], axis=1))
+
+	keystats.append("\n The median ensemble performance \n")
+	keystats.append(dfens[["Inrange", "MeanRes", "AbsMeanRes", "MedianRes", "AbsMedianRes"]].median())
+
+	keystats.append("\n The mean indivdual model performance \n")
+	keystats.append(dfen.groupby("version").mean().drop(["Ncount", "index"], axis=1))
+
+	keystats.append("\n The mean ensemble performance \n")
+	keystats.append(dfens[["Inrange", "MeanRes", "AbsMeanRes", "MedianRes", "AbsMedianRes", "CorrectDir"]].mean())
+	
+	keystats.append("\n The total perormace accuracy by observed direction \n")
+	keystats.append(dfen[["ObservedGain", "CorrectDir"]].groupby("ObservedGain").mean())
+
+	keystats.append("\n The total perormace accuracy by observed direction and model \n")
+	keystats.append(dfen[["version", "ObservedGain", "CorrectDir"]].groupby(["version","ObservedGain"]).mean())
+
+	keystats.append("\n The total perormace accuracy by observed direction \n")
+	keystats.append(dfens[["ObservedGain", "CorrectDir"]].groupby("ObservedGain").mean())
+	
+	dfens["ErrorType"]  = ""
+	dfens.loc[ np.logical_and(dfens["ObservedGain"], dfens["CorrectDir"]), "ErrorType"] = "CorrectGain"
+	dfens.loc[ np.logical_and((~dfens["ObservedGain"]), dfens["CorrectDir"]), "ErrorType"] = "Correctloss"
+	
+	dfens.loc[ np.logical_and(dfens["ObservedGain"], ~dfens["CorrectDir"]), "ErrorType"] = "FalseLoss"
+	dfens.loc[ np.logical_and((~dfens["ObservedGain"]), ~dfens["CorrectDir"]), "ErrorType"] = "FalseGain"
+	keystats.append("\n Error types \n")
+	keystats.append(dfens.groupby(["ObservedGain", "ErrorType"]).count()["Observed"])
+	keystats.append(dfens.groupby(["ModelGainFrac", "ErrorType"]).count()["Observed"])
+	# breakpoint()
+
+	# ========== loss frequency ==========
+	dfenL  = dfen[dfen.Observed < 0 ]
+	dfensL = dfens[dfens.Observed < 0 ]
+	keystats.append("\n Performance in areas with loss \n \n")
+
+	keystats.append("\n Mean ensemble member \n")
+	keystats.append(dfenL.groupby("version").mean()["CorrectDir"])
+
+	keystats.append("\n Mulitmodel mean \n")
+	keystats.append(dfenL["CorrectDir"].mean())
+
+	# keystats.append(f'\n Fraction of measurments where models guess directionalty correctly:{np.sum((y_test > 0) == (y_pred > 0)) / df_OvsP.shape[0]}')
+
+	# ========== Save the info =========
+	fname = f'{ppath}PS09_EnsemblePerfSummary_exp{exp}.txt'
+	f = open(fname,'w')
+	for info in keystats:
+		f.write("%s\n" %info)
+	f.close()
+
+
 def predictions(path, ppath, exp, fpath, vi_df, site_df, df_OvsP):
 	"""
 	open the database and pull out the relevant files
@@ -123,12 +274,20 @@ def predictions(path, ppath, exp, fpath, vi_df, site_df, df_OvsP):
 	keystats.append(f'\n R squared score: {sklMet.r2_score(y_test, y_pred)}')
 	keystats.append(f'\n Mean Absolute Error: {sklMet.mean_absolute_error(y_test, y_pred)}')
 	keystats.append(f'\n Root Mean Squared Error: {np.sqrt(sklMet.mean_squared_error(y_test, y_pred))}')
+	# breakpoint()
+	# ========== overall trends in the model data =======
+	keystats.append(f"\n The fraction sites with Observed increases:\n {(df_OvsP['Observed'] > 0).sum() / df_OvsP.shape[0]}")
+	keystats.append(f"\n The fraction sites with Estimated increases:\n {(df_OvsP['Estimated'] > 0).sum() / df_OvsP.shape[0]}")
 	# +++++ did it get direction correct +++++
-
 	keystats.append(f'\n Fraction of measurments where models guess directionalty correctly:{np.sum((y_test > 0) == (y_pred > 0)) / df_OvsP.shape[0]}')
 
 	# ========== THe number of features per model ==========
+	keystats.append('\n Permutation Importantce and feature counts \n')
 	df_perm = loadperm(exp, path)
+	# regions = regionDict()
+	# site_dfM
+	# df_perm.replace(regions, inplace=True)
+	# breakpoint()
 	keystats.append("\n Number of features per model \n")
 	keystats.append(df_perm.groupby("Version").count()["index"])
 
@@ -146,12 +305,41 @@ def predictions(path, ppath, exp, fpath, vi_df, site_df, df_OvsP):
 	keystats.append(dfg)
 
 	keystats.append("\n Mean Importance \n")
-	keystats.append(df_perm.groupby("Variable").mean().sort_values("PermutationImportance"))
+	keystats.append(df_perm.groupby("Variable").mean().sort_values("PermutationImportance", ascending=False).drop(["index", "Version"], axis=1).reset_index())
 
 
-	breakpoint()
+	# ========== Residual Performance by region ==========
+	keystats.append('\n Permutation Importantce and feature counts \n')
+	# site_dfM
+
+	keystats.append("\n Mean and absmean residuals by region \n")
+	keystats.append(df_OvsP.groupby("Region").mean()[["Estimated","Observed", "Residual", "ABSResidual", "ObsGap"]])
+	keystats.append("\n Median and absmedian residuals by region \n")
+	keystats.append(df_OvsP.groupby("Region").median()[["Estimated","Observed", "Residual", "ABSResidual", "ObsGap"]])
+
+	df_OvsP["ObservedGain"] = y_test > 0
+	df_OvsP["CorrectDir"] = (df_OvsP.Estimated > 0) == (df_OvsP.Observed > 0)
+
+	keystats.append("\n The total perormace accuracy by observed direction \n")
+	keystats.append(df_OvsP[["ObservedGain", "CorrectDir"]].groupby("ObservedGain").mean())
+
+	df_OvsP["ErrorType"]  = ""
+	df_OvsP.loc[ np.logical_and(df_OvsP["ObservedGain"], df_OvsP["CorrectDir"]), "ErrorType"] = "CorrectGain"
+	df_OvsP.loc[ np.logical_and((~df_OvsP["ObservedGain"]), df_OvsP["CorrectDir"]), "ErrorType"] = "Correctloss"
+	
+	df_OvsP.loc[ np.logical_and(df_OvsP["ObservedGain"], ~df_OvsP["CorrectDir"]), "ErrorType"] = "FalseLoss"
+	df_OvsP.loc[ np.logical_and((~df_OvsP["ObservedGain"]), ~df_OvsP["CorrectDir"]), "ErrorType"] = "FalseGain"
+	keystats.append("\n Error types \n")
+	keystats.append(df_OvsP.groupby(["ObservedGain", "ErrorType"]).count()["Observed"])
+
+
+	keystats.append("\n Mean and absmean residuals by change direction \n")
+	keystats.append(df_OvsP.groupby("ObservedGain").mean()[["Estimated","Observed", "Residual", "ABSResidual", "ObsGap", "CorrectDir"]])
+
+	# breakpoint()
+
 	# ========== Save the info =========
-	fname = f'{ppath}DatasetSummary.txt'
+	fname = f'{ppath}PS09_ModelPerfSummary_exp{exp}.txt'
 	f = open(fname,'w')
 	for info in keystats:
 		f.write("%s\n" %info)
@@ -215,7 +403,7 @@ def sitedtb(path, ppath, exp, fpath, vi_df, site_df, df_mod):
 
 
 	# ========== Save the info =========
-	fname = f'{ppath}DatasetSummary.txt'
+	fname = f'{ppath}PS09_DatasetSummary_exp{exp}.txt'
 	f = open(fname,'w')
 	for info in keystats:
 		f.write("%s\n" %info)
@@ -225,14 +413,13 @@ def sitedtb(path, ppath, exp, fpath, vi_df, site_df, df_mod):
 
 
 	site_dfM["Region"] = site_dfM.Region.astype('category')#.cat.reorder_categories(ks)
-	plotter(ppath, site_dfM, inc, cnt)
+	plotter(ppath, exp, site_dfM, inc, cnt)
 	breakpoint()
 	warn.warn("Do the future sites as well")
 
 # ==============================================================================
 
-
-def plotter(ppath, site_dfM, inc, cnt):
+def plotter(ppath, exp, site_dfM, inc, cnt):
 
 	plt.rcParams.update({
 		'axes.titleweight':"bold", 
@@ -289,7 +476,7 @@ def plotter(ppath, site_dfM, inc, cnt):
 
 	# ========== Save tthe plot ==========
 	print("starting save at:", pd.Timestamp.now())
-	fnout = f"{ppath}PS09_RegionalOverview" 
+	fnout = f"{ppath}PS09_RegionalOverview_exp{exp}" 
 	for ext in [".png", ]:#".pdf",
 		plt.savefig(fnout+ext)#, dpi=130)
 	
@@ -299,15 +486,126 @@ def plotter(ppath, site_dfM, inc, cnt):
 	cf.writemetadata(fnout, [plotinfo, gitinfo])
 	plt.show()
 
-	ipdb.set_trace()
-	breakpoint()
-
-
-
-
-
+	# ipdb.set_trace()
+	# breakpoint()
 
 # ==============================================================================
+def fpred(path, exp, years, var = "DeltaBiomass",
+	fpath    = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/", 
+	maxdelta = 30):
+	"""
+	function to predict future biomass
+	args:
+	path:	str to files
+	exp:	in of experiment
+	years:  list of years to predict 
+	"""
+	# warn.warn("\nTo DO: Implemnt obsgap filtering")
+	# ========== Load the variables ==========
+	site_df = pd.read_csv(f"{fpath}SiteInfo_AllSampleyears_FutureBiomass.csv", index_col=0)
+	vi_df   = pd.read_csv(f"{fpath}VI_df_AllSampleyears_FutureBiomass.csv", index_col=0)
+	setup   = pd.read_csv(f"{path}{exp}/Exp{exp}_setup.csv", index_col=0)
+	pvar    = setup.loc["predvar"].values[0]
+	if type(pvar) == float:
+		# deal with the places i've alread done
+		pvar = "lagged_biomass"
+
+	# ========== Loop over the model versions
+	est_list = []
+	for ver in tqdm(range(10)):
+		fn_mod = f"{path}{exp}/models/XGBoost_model_exp{exp}_version{ver}.dat"
+		if not os.path.isfile(fn_mod):
+			# missing file
+			continue
+		# ========== Load the run specific params ==========
+		model  = pickle.load(open(f"{fn_mod}", "rb"))
+		fname  = glob.glob(f"{path}{exp}/Exp{exp}_*_vers{ver:02}_PermutationImportance.csv")
+		feat   = pd.read_csv(fname[0], index_col=0)["Variable"].values
+
+		# ========== Make a dataframe ==========
+		dfout = site_df.loc[:, ["Plot_ID", "Longitude", "Latitude", "Region", "year"]].copy()
+		dfout["Version"]  = ver
+		dfout["Original"] = vi_df["biomass"].values
+
+		# ========== Make a filter for bad latitudes ==========
+		# dfout.loc[dfout["Longitude"] == 0, ["Longitude", "Latitude"]] = np.NaN
+		# dfout.loc[dfout["Longitude"] < -180, ["Longitude", "Latitude"]] = np.NaN
+		# dfout.loc[dfout["Longitude"] >  180, ["Longitude", "Latitude"]] = np.NaN
+		# dfout.loc[dfout["Latitude"] <= 0, ["Longitude", "Latitude"]] = np.NaN
+		# dfout.loc[dfout["Latitude"] >  90, ["Longitude", "Latitude"]] = np.NaN
+
+		for yr in years:
+			dfoutC = dfout.copy()
+			# ========== Check for missing columns ==========
+			fcheck = []
+			for ft in feat:	
+				fcheck.append(ft not in vi_df.columns)
+
+			if any(fcheck):
+				print("Fixing missing columns")
+				vi_dfX = pd.read_csv(f"{fpath}VI_df_AllSampleyears.csv", index_col=0)
+				for clnm in feat[fcheck]:
+					vi_df[clnm] = vi_dfX.loc[:, ["site", clnm]].groupby("site").median().loc[vi_df.site]
+				vi_df.to_csv(f"{fpath}VI_df_AllSampleyears_FutureBiomass.csv")
+			# ========== pull out the variables and apply transfors ==========
+			dfX = vi_df.loc[:, feat].copy()
+			# ========== pull out the variables and apply transfors ==========
+			# try:
+			# 	dfX = vi_df.loc[:, feat].copy()	
+			# except Exception as err:
+			# 	warn.warn(str(err))
+			# 	# vi_dfo = pd.read_csv(f"{fpath}VI_df_AllSampleyears_ObsBiomass.csv", index_col=0)
+			# 	breakpoint()
+			if not type(setup.loc["Transformer"].values[0]) == float:
+				warn.warn("Not implemented yet")
+				breakpoint()
+
+			# ========== calculate the obsgap ==========
+			if "ObsGap" in feat:
+				dfX["ObsGap"] = yr - site_df["year"].values
+
+			# ========== Perform the prediction ==========
+			est = model.predict(dfX.values)
+			if not type(setup.loc["yTransformer"].values[0]) == float:
+				warn.warn("Not implemented yet")
+				breakpoint()
+
+			# ========== Convert to common forms ==========
+			if pvar == "lagged_biomass":
+				breakpoint()
+			elif pvar == 'Delta_biomass':
+				dfoutC[f"Biomass"]      = vi_df["biomass"].values + est
+				dfoutC[f"DeltaBiomass"] = est
+				# breakpoint()
+			elif pvar == 'Obs_biomass':
+				# dfout[f"BIO_{yr}"]   = est
+				# dfout[f"DELTA_{yr}"] = est - vi_df["biomass"].values
+				dfoutC[f"Biomass"]      = est
+				dfoutC[f"DeltaBiomass"] = est - vi_df["biomass"].values
+			
+			dfoutC["time"] = pd.Timestamp(f"{yr}-12-31")
+			dfoutC.loc[(dfoutC.time.dt.year - dfoutC.year) > maxdelta, ['Biomass', 'DeltaBiomass']] = np.NaN
+			est_list.append(dfoutC)
+
+	df = pd.concat(est_list)
+	# df["longitude"] = pd.cut(df["Longitude"], lons, labels=bn.move_mean(lons, 2)[1:])
+	# df["latitude"]  = pd.cut(df["Latitude" ], lats, labels=bn.move_mean(lats, 2)[1:])
+	df["Region"] = site_df.loc[df.index, "Region"]
+	regions = regionDict()
+	df.replace(regions, inplace=True)
+
+
+	df["ObsGap"] = df.time.dt.year - df.year
+	df = df[df.ObsGap <= 30]
+
+	# ========== do the direction stuff ==========
+	dft = df[[var, "Plot_ID", "year", "ObsGap"]].copy()
+	dft[var] = dft[var]>=0
+	df["ModelAgreement"] = (dft.groupby(["Plot_ID", "year", "ObsGap"]).transform("sum") - 5) / 5
+	# breakpoint()
+	return df
+
+
 def loadperm(exp, path):
 
 	perm = []

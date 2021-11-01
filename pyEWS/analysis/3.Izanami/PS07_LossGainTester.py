@@ -345,6 +345,13 @@ def fpred(path, exp, fpath = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets
 		dft.set_index("rownum", inplace=True)
 		dft = dft.loc[dfpm.index].reset_index()
 	
+	# ========== Pull in some landsat trend results ==========
+	# fnout = f"./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/{exp}/Exp{exp}_MODISandLANDSATndvi_delta.csv"
+	# dfin = pd.read_csv(fnout, index_col=0)
+	# dfi = dfin.groupby("Plot_ID").first()
+
+	# breakpoint()
+
 	# ========== get the number of models that are cexreasing ==========
 	dftest = dft.loc[:, ["ObsGap", "rownum", "Observed", 'DeltaBiomass']].copy()
 	# dftest["BiomassLoss"]

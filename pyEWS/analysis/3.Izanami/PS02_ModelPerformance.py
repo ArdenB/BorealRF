@@ -1390,11 +1390,11 @@ def fix_results(fn):
 
 def VIload():
 	print(f"Loading the VI_df, this can be a bit slow: {pd.Timestamp.now()}")
-	vi_df = pd.read_csv("./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears.csv", index_col=0)#[['lagged_biomass','ObsGap']]
+	vi_df = pd.read_csv("./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears_ObsBiomass.csv", index_col=0)#[['lagged_biomass','ObsGap']]
 	vi_df["NanFrac"] = vi_df.isnull().mean(axis=1)
 
 	# ========== Fill in the missing sites ==========
-	region_fn ="./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears.csv"
+	region_fn ="./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears_ObsBiomass.csv.csv"
 	site_df = pd.read_csv(region_fn, index_col=0)
 	# breakpoint()
 

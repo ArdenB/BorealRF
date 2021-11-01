@@ -103,9 +103,9 @@ def main():
 
 
 	experiments = [434]#, 401]
-	years       = [2030]
+	# years       = [2030]
 	# years       = [2020, 2025, 2030, 2040]
-	# years       = [2025, 2030, 2040]
+	years       = [2025, 2030, 2040]
 	# ========== Simple lons and lats ========== 
 	lons = np.arange(-170, -50.1,  0.5)
 	lats = np.arange(  42,  70.1,  0.5)
@@ -138,7 +138,7 @@ def main():
 		gdf.drop(['Latitude', 'Longitude'], axis=1, inplace=True)
 		gdf[["DeltaBiomass", "geometry"]].to_file(f'{ppath}test.shp')
 
-		fnout = f"{ppath}/Examplenetcdf.nc"
+		fnout = f"{ppath}Examplenetcdf.nc"
 		ds.to_netcdf(fnout, 
 			format         = 'NETCDF4', 
 			# encoding       = encoding,

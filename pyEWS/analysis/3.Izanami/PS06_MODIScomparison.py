@@ -77,7 +77,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 # from sklearn.inspection import permutation_importance
 from sklearn import metrics as sklMet
 # from sklearn.utils import shuffle
-# from scipy.stats import spearmanr
+from scipy.stats import spearmanr
 # from scipy.cluster import hierarchy
 
 
@@ -90,38 +90,102 @@ def main():
 	cf.pymkdir(path+"plots/")
 	ppath = "./pyEWS/analysis/3.Izanami/Figures/PS06/"
 	cf.pymkdir(ppath)
+	fn="./data/NDVI/5.MODIS/NorthAmerica/MOD13Q1.006_250m_aid0001.nc"
 	# dpath = 
 	# fn="/mnt/f/Data51/NDVI/5.MODIS/NorthAmerica/MOD13Q1.006_250m_aid0001.nc"
-	fn="./data/NDVI/5.MODIS/NorthAmerica/MOD13Q1.006_250m_aid0001.nc"
+	
 	yr       = 2020
-	exp      = 402
+	exp      = 434
 	maxdelta = 20
 
 	# ========== Load the data ==========
+	df = fulldata(path, exp, yr, maxdelta=maxdelta)
 	# regions       = regionDict()
 	# vi_df, fcount = VIload(regions, path, exp = exp)
+	# df_ls = pd.read_csv("./data/NDVI/6.Landsat/lsat_nam_psps_ndvi_timeseries_20210628.csv")
+	# def cusfun(dss):
+	# 	lr = sp.stats.linregress(x=dss.year, y=dss["ndvi.max"])
+	# 	# breakpoint()
+	# 	return lr[0:3]
+	# test = df_ls.groupby("site")[["year","ndvi.max"]].apply(cusfun)
+	# out = pd.DataFrame(test.tolist(), columns=['slope','Intercept', "R2"], index=test.index)
 	
 	# ========== Simple lons and lats ========== 
 	lons = np.arange(-170, -50.1,  0.5)
 	lats = np.arange(  42,  70.1,  0.5)
 
-	# ========== Load the Modeled data ==========
-	df = fpred(path, exp, yr, maxdelta=maxdelta)
 
-
-	# ========== Load the MODIS data ========== 
-	df = modis(df, yr, exp, fn=fn)
 	
 	# ========== Convert to a dataarray ==========
 	ds = gridder(path, exp, df, lats, lons)
-	breakpoint()
+	print()
+	print(spearmanr(df.dropna().lsVItrend.values, df.dropna().DeltaBiomass.values))
+	# print(spearmanr(df.dropna().lsVItrend.values, df.dropna().DeltaBiomass.values))
+	# breakpoint()
 
 	# ========== Setup and build the maps ========== 
+	VIMapper(df, ds, ppath, lats, lons, var = "AGBgain", vivar = "lsVItrendgain")
 	VIMapper(df, ds, ppath, lats, lons)
 	breakpoint()
 
 
 # ==============================================================================
+
+def fulldata(path, exp, yr, maxdelta=20, fn="./data/NDVI/5.MODIS/NorthAmerica/MOD13Q1.006_250m_aid0001.nc"):
+
+	# ds = xr.open_dataset(fn).chunk()
+	# da = ds["_250m_16_days_VI_Quality"]
+	# with ProgressBar(): 
+	# 	dap = da.polyfit(dim="time", deg=1)
+	# breakpoint()
+
+	
+	fnout = f"./pyEWS/experiments/3.ModelBenchmarking/2.ModelResults/{exp}/Exp{exp}_MODISandLANDSATndvi_delta.csv"
+	if os.path.isfile(fnout):
+		dfin = pd.read_csv(fnout, index_col=0)
+		dfin["time"] = pd.to_datetime(dfin.time)
+		return dfin
+	else:
+		# ========== Load the Modeled data ==========
+		df = fpred(path, exp, yr, maxdelta=maxdelta)
+
+		# ========== Load the MODIS data ========== 
+		df = modis(df, yr, exp, fn=fn)
+
+	# ========== Bring in the landsat data ========== 
+	df_ls = pd.read_csv("./data/NDVI/6.Landsat/lsat_nam_psps_ndvi_timeseries_20210628.csv")
+	Mean  = df_ls.groupby(["site"])["ndvi.max"].transform('mean')    
+	Std   = df_ls.groupby(['site'])["ndvi.max"].transform('std')
+	df_ls["Zscore"] = (df_ls["ndvi.max"] - Mean)/Std
+	
+	dfsimp = df.groupby(["Plot_ID"]).first().reset_index()
+
+	pd.options.mode.chained_assignment = None
+	df["lsVItrend"] = np.NaN
+	df["lsVIdelta"] = np.NaN
+	df["lsVIzscore"] = np.NaN
+	for site, yrls in tqdm(zip(dfsimp.Plot_ID.values, dfsimp.year.values), total=dfsimp.Plot_ID.values.size):
+		lssub = df_ls.loc[df_ls.site == site]
+		try:
+			df.loc[df.Plot_ID == site, "lsVIdelta"] = float(lssub.loc[lssub.year==int(2020), "ndvi.max"].values - lssub.loc[lssub.year==int(yrls), "ndvi.max"].values)
+			df.loc[df.Plot_ID == site, "lsVIzscore"] = float(lssub.loc[lssub.year==int(2020), "Zscore"].values - lssub.loc[lssub.year==int(yrls), "Zscore"].values)
+			df.loc[df.Plot_ID == site, "lsVItrend"] = sp.stats.linregress(x=lssub.year, y=lssub["ndvi.max"])[0]
+			# breakpoint()
+		except TypeError:
+			# df.loc[df.Plot_ID == site, "lsVIdelta"] = np.NaN
+			pass
+		# raise e
+	# LSVI.append(lssub.loc[lssub.year==int(yrls), "ndvi.max"].values - lssub.loc[lssub.year==int(2020), "ndvi.max"].values)
+	df["AGBincrease"]  = df.DeltaBiomass > 0
+	df["VIincrease"]   = df.VIdelta > 0
+	df["lsVIincrease"] = df.lsVIdelta > 0
+	df["lsVITincrease"] = df.lsVItrend > 0
+	df.loc[np.isnan(df.lsVIdelta), "lsVIincrease"] = np.NaN
+	df.to_csv(fnout)
+	return df
+
+
+
 def VIMapper(df, ds, ppath, lats, lons, var = "MeanDeltaBiomass", vivar = "MeanVIdelta"):
 
 	# ========== Create the mapp projection ==========
@@ -152,7 +216,7 @@ def VIMapper(df, ds, ppath, lats, lons, var = "MeanDeltaBiomass", vivar = "MeanV
 	plt.show()
 	breakpoint()
 # ==============================================================================
-def gridder(path, exp, df, lats, lons, var = "DeltaBiomass", vivar = "VIdelta"):
+def gridder(path, exp, df, lats, lons, var = "DeltaBiomass", vivar = "VIdelta", lsvivar = "lsVIdelta"):
 
 	# ========== Setup params ==========
 	# plt.rcParams.update({'axes.titleweight':"bold","axes.labelweight":"bold", 'axes.titlesize':10})
@@ -167,6 +231,7 @@ def gridder(path, exp, df, lats, lons, var = "DeltaBiomass", vivar = "VIdelta"):
 	# breakpoint()
 	dfC["longitude"] = pd.cut(dfC["Longitude"], lons, labels=bn.move_mean(lons, 2)[1:])
 	dfC["latitude"]  = pd.cut(dfC["Latitude" ], lats, labels=bn.move_mean(lats, 2)[1:])
+	# breakpoint()
 	dfC["ObsGap"]    = dfC.time.dt.year - dfC.year
 	if var == 'DeltaBiomass':
 		dfC["AnnualBiomass"] = dfC[var] / dfC["ObsGap"]
@@ -186,6 +251,13 @@ def gridder(path, exp, df, lats, lons, var = "DeltaBiomass", vivar = "VIdelta"):
 	dsannual = dfC.groupby(["time","latitude", "longitude", "Version"])["AnnualBiomass"].mean().to_xarray().sortby("latitude", ascending=False)
 	dsVImean   = dfC.groupby(["time","latitude", "longitude", "Version"])[vivar].mean().to_xarray().sortby("latitude", ascending=False)
 	dsVImedian = dfC.groupby(["time","latitude", "longitude", "Version"])[vivar].median().to_xarray().sortby("latitude", ascending=False)
+	dfAGBgain = dfC.groupby(["time","latitude", "longitude", "Version"])["AGBincrease"].mean().to_xarray().sortby("latitude", ascending=False)*2-1
+	dfVIgain  = dfC.groupby(["time","latitude", "longitude", "Version"])["VIincrease"].mean().to_xarray().sortby("latitude", ascending=False)*2-1
+	dslsVImean   = dfC.groupby(["time","latitude", "longitude", "Version"])[lsvivar].mean().to_xarray().sortby("latitude", ascending=False)
+	dflsVIgain  = dfC.groupby(["time","latitude", "longitude", "Version"])["lsVIincrease"].mean().to_xarray().sortby("latitude", ascending=False)*2-1
+	dslsVItrend   = dfC.groupby(["time","latitude", "longitude", "Version"])["lsVItrend"].mean().to_xarray().sortby("latitude", ascending=False)
+	dslsVItrendgain   = dfC.groupby(["time","latitude", "longitude", "Version"])["lsVITincrease"].mean().to_xarray().sortby("latitude", ascending=False)*2-1
+	# breakpoint()
 	# ========== Convert the different measures into xarray formats ==========
 	ds = xr.Dataset({
 		"sites":dscount, 
@@ -194,7 +266,14 @@ def gridder(path, exp, df, lats, lons, var = "DeltaBiomass", vivar = "VIdelta"):
 		f"Median{var}":dsmedian, 
 		f"AnnualMeanBiomass":dsannual,
 		"MeanVIdelta":dsVImean, 
-		"MedianVIdelta":dsVImedian, })
+		"MedianVIdelta":dsVImedian, 
+		"lsMeanVIdelta":dslsVImean,
+		"AGBgain":dfAGBgain,
+		"VIgain":dfVIgain,
+		"lsVIgain":dflsVIgain,
+		"lsVItrend":dslsVItrend,
+		"lsVItrendgain":dslsVItrendgain
+		})
 	return ds
 
 def modis(df, yr, exp, fn="/mnt/f/Data51/NDVI/5.MODIS/NorthAmerica/MOD13Q1.006_250m_aid0001.nc"):
@@ -349,10 +428,10 @@ def fpred(path, exp, yr,
 
 def VIload(regions, path, exp = None):
 	print(f"Loading the VI_df, this can be a bit slow: {pd.Timestamp.now()}")
-	vi_df = pd.read_csv("./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears.csv", index_col=0)#[['lagged_biomass','ObsGap']]
+	vi_df = pd.read_csv("./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears_ObsBiomass.csv.csv", index_col=0)#[['lagged_biomass','ObsGap']]
 
 	# ========== Fill in the missing sites ==========
-	region_fn ="./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears.csv"
+	region_fn ="./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears_ObsBiomass.csv.csv"
 	site_df = pd.read_csv(region_fn, index_col=0)
 	site_df.replace(regions, inplace=True)
 	if exp is None:
