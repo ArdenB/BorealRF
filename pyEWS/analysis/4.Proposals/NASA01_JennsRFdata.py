@@ -29,7 +29,7 @@ sys.path.append(os.getcwd())
 # ========== Import packages ==========
 import numpy as np
 import pandas as pd
-# import geopandas as gpd
+import geopandas as gpd
 import argparse
 import datetime as dt
 import warnings as warn
@@ -69,6 +69,7 @@ import cartopy.feature as cpf
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 import matplotlib.ticker as mticker
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+import geopandas as gpd
 
 # ========== Import ml packages ==========
 # from sklearn.model_selection import train_test_split
@@ -84,11 +85,134 @@ from scipy.stats import spearmanr
 # ==============================================================================
 
 def main():
-	df = pd.read_csv("./data/RFdata/BorealNA_Postfire_Regeneration_1989_2014.csv", index_col=0)
+		# ========== Setup the matplotlib params ==========
+	plt.rcParams.update({
+		'axes.titleweight':"bold", 'axes.titlesize':14, "axes.labelweight":"bold"})
+	font = ({'family' : 'normal','weight' : 'bold', 'size': 14})
+	mpl.rc('font', **font)
+	sns.set_style("whitegrid")
+	# map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
 
+	# fig, ax = plt.subplots(constrained_layout=True, figsize=(13,7))
+
+
+
+	df = pd.read_csv("./data/RFdata/BorealNA_Postfire_Regeneration_1989_2014.csv")
+	df = df[~(df["total_density"] == 0)]
+	df["RecRatio"] =  df["total_sdlng_sucker_dens"] / df["total_density"]
+	# df2 = pd.read_csv("../fireflies/data/field/ProcessedFD.csv", index_col=0)
+
+	# df.hist(column="RecRatio", range=(0, 1), bins=100)
+	# plt.figure(2)
+	# sns.histplot(data=df, x="RecRatio")
+	df["Pathway"] = 0
+	# df["total_sdlng_sucker_dens"]
+	df.loc[df["RecRatio"] >= 1, "Pathway"] = 2
+	df.loc[df["RecRatio"] < 1, "Pathway"] = 1
+	df.loc[df["total_sdlng_sucker_dens"] == 0, "Pathway"] = 0
+	df2 = Field_data()
+	df3 = Field_data(year=2017)
+
+	# breakpoint()
+
+	# dfg = df.groupby(["Region","Plot_ID", "time"]).median().reset_index()
+	gdf = gpd.GeoDataFrame(pd.concat([df[['longitude', 'latitude', 'Pathway']], df2, df3]))
+	gdf.set_geometry(
+	    gpd.points_from_xy(gdf['longitude'], gdf['latitude']),
+	    inplace=True, crs='EPSG:4326')
+	gdf.drop(['latitude', 'longitude'], axis=1, inplace=True)
+	# gdf[["Pathway", "geometry"]].to_file('./data/RFdata/BorealNA_Postfire_Regeneration_1989_2014.shp')
+
+
+	da = xr.open_rasterio("./data/RFdata/EuroasiaLidar.tif").rename({"y":"latitude", "x":"longitude"})
+	da = da.where(da>=0)
+	# dfx = df2.copy()
+	dfx = pd.concat([df2, df3]).reset_index()#.groupby("sn").mean()
+	dfx.replace({0:"Failure", 1:"Poor", 2:"Sucessfull"}, inplace=True)
+	dfx["Pathway"] = dfx["Pathway"].astype("category")
+
+	cph = np.array([da.sel({"band":1, "longitude":lon, "latitude":lat}, method='nearest').values	for lon , lat  in zip(dfx.longitude.values.tolist(), dfx.latitude.values.tolist())])
+	cph[cph > 8] = np.NaN
+	# breakpoint()
+	dfx["CanopyHeight (m)"] = cph
+	# sns.violinplot(y="CanopyHeight", x="Pathway",data=dfx)
+	sns.swarmplot(y="CanopyHeight (m)", x="Pathway",data=dfx)
+
+	plt.savefig("./data/RFdata/testplot.png")
+	plt.show()
+	# da.sel(dict(longitude=df2.longitude.values.tolist(), latitude=df2.latitude.values.tolist()), method='nearest').values
 	breakpoint()
-	pass 
 	
 # ==============================================================================
+
+def Field_data(year = 2018):
+	"""
+	# Aim of this function is to look at the field data a bit
+	To start it just opens the file and returns the lats and longs 
+	i can then use these to look up netcdf fils
+	"""
+	# ========== Load in the relevant data ==========
+	if year == 2018:
+		fd18 = pd.read_csv("../fireflies/data/field/2018data/siteDescriptions18.csv")
+	else:
+		fd18 = pd.read_csv("../fireflies/data/field/2018data/siteDescriptions17.csv")
+
+	fd18.sort_values(by=["site number"],inplace=True) 
+	# ========== Create and Ordered Dict for important info ==========
+	info = OrderedDict()
+	info["sn"]  = fd18["site number"]
+	try:
+		info["latitude"] = fd18.lat
+		info["longitude"] = fd18.lon
+		info["Pathway"]  = fd18.rcrtmnt
+	except AttributeError:
+		info["latitude"] = fd18.strtY
+		info["longitude"] = fd18.strtX
+		info["Pathway"]  = fd18.recruitment
+	
+	# ========== function to return nan when a value is missing ==========
+	def _missingvalfix(val):
+		try:
+			return float(val)
+		except Exception as e:
+			return np.NAN
+
+	def _fireyear(val):
+		try:
+			year = float(val)
+			if (year <= 2018):
+				return year
+			else:
+				return np.NAN
+		except ValueError: #not a simple values
+			try:
+				year = float(str(val[0]).split(" and ")[0])
+				if year < 1980:
+					warn.warn("wrong year is being returned")
+					year = float(str(val).split(" ")[0])
+					# ipdb.set_trace()
+
+				return year
+			except Exception as e:
+				# ipdb.set_trace()
+				# print(e)
+				print(val)
+				return np.NAN
+		
+	# ========== Convert to dataframe and replace codes ==========
+	# info["fireyear"] = [_fireyear(fyv) for fyv in fd18["estimated fire year"].values]
+	RFinfo = pd.DataFrame(info).set_index("sn")
+
+	# ipdb.set_trace()
+	RFinfo.Pathway[    RFinfo["Pathway"].str.contains("poor")] = "RF"  #"no regeneration"
+	RFinfo.Pathway[    RFinfo["Pathway"].str.contains("no regeneration")] = "RF" 
+	RFinfo.Pathway[RFinfo["Pathway"].str.contains("singular")] = "IR"  
+	for repstring in ["abundunt", "sufficient", "abundant", "sufficent", "sifficient"]:
+		RFinfo.Pathway[RFinfo["Pathway"].str.contains(repstring)] = "AR"  
+	
+
+	RFinfo.replace({"RF":0, "IR":1, "AR":2}, inplace=True)
+	return RFinfo
+
 if __name__ == '__main__':
 	main()
