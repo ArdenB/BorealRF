@@ -128,7 +128,7 @@ def main():
 	da = da.where(da>=0)
 	# dfx = df2.copy()
 	dfx = pd.concat([df2, df3]).reset_index()#.groupby("sn").mean()
-	dfx.replace({0:"Failure", 1:"Poor", 2:"Sucessfull"}, inplace=True)
+	dfx.replace({0:"Failure", 1:"Poor", 2:"Successfull"}, inplace=True)
 	dfx["Pathway"] = dfx["Pathway"].astype("category")
 
 	cph = np.array([da.sel({"band":1, "longitude":lon, "latitude":lat}, method='nearest').values	for lon , lat  in zip(dfx.longitude.values.tolist(), dfx.latitude.values.tolist())])
@@ -136,12 +136,15 @@ def main():
 	# breakpoint()
 	dfx["CanopyHeight (m)"] = cph
 	# sns.violinplot(y="CanopyHeight", x="Pathway",data=dfx)
-	sns.swarmplot(y="CanopyHeight (m)", x="Pathway",data=dfx)
+	fig, ax = plt.subplots()
+	sns.violinplot(y="CanopyHeight (m)", x="Pathway",data=dfx, ax=ax)
+	sns.swarmplot(y="CanopyHeight (m)", x="Pathway",data=dfx, ax=ax, color='w')
 
-	plt.savefig("./data/RFdata/testplot.png")
+	plt.savefig("./data/RFdata/testplot2.png")
 	plt.show()
 	# da.sel(dict(longitude=df2.longitude.values.tolist(), latitude=df2.latitude.values.tolist()), method='nearest').values
 	breakpoint()
+
 	
 # ==============================================================================
 
