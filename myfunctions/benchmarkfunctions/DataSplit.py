@@ -361,7 +361,7 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 	vi_fn = "./EWS_package/data/models/input_data/vi_df_all_V2.csv", 
 	region_fn=None,
 	folder = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/", 
-	force = False, y_names=None, sitefix = False, basestr="TTS", dropvar=[]
+	force = False, y_names=None, sitefix = False, basestr="TTS", dropvar=[], column_retuner=False
 	):
 	"""
 	This function opens and performs all preprocessing on the dataframes.
@@ -529,7 +529,12 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 		else:
 			print(f"Adding Disturbance columns at: {pd.Timestamp.now()}")
 			distcols = ["Disturbance",  "DisturbanceGap",   "Burn",  "BurnGap",  "StandAge"]
+			if column_retuner:
+				warn.warn("This is a hacky workaround when quickly returning stuff")
+				df_site.fillna(value={"Disturbance":-1,  "DisturbanceGap":-1,   "Burn":-1,  "BurnGap":-1,  "StandAge":-1}, inplace=True)
+				# breakpoint()
 			# ========== Add additional columns here ==========
+			vi_df   =  pd.concat([vi_df, df_site.loc[vi_df.index, distcols]], axis=1)
 			X_train =  pd.concat([X_train, df_site.loc[X_train.index, distcols]], axis=1)
 			X_test  =  pd.concat([X_test,  df_site.loc[X_test.index, distcols]], axis=1)
 			y_train =  pd.concat([y_train, df_site.loc[y_train.index, distcols]], axis=1)
@@ -654,7 +659,11 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 			Xa = X.copy().dropna()
 			if Xa.shape[0]/X.shape[0] < 0.6:
 				if not final:
-					warn.warn("too small fraction")
+					warn.warn("Warning: too small fraction")
+					breakpoint()
+					raise ValueError
+				else:
+					warn.warn("Warning: too small fraction")
 					breakpoint()
 			corr = spearmanr(Xa).correlation	
 		else:

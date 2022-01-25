@@ -198,7 +198,7 @@ def PSPfigure(ppath, vi_df, fcount, exp, lons, lats, inclfin=True, textsize=12):
 	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
 
 	# ========== Create the figure ==========
-	fig  = plt.figure(constrained_layout=True, figsize=(14,13))
+	fig  = plt.figure(constrained_layout=True, figsize=(12,13))
 	spec = gridspec.GridSpec(ncols=2, nrows=3, figure=fig)
 
 	# +++++ the plot of the number of sites +++++
@@ -223,7 +223,7 @@ def PSPfigure(ppath, vi_df, fcount, exp, lons, lats, inclfin=True, textsize=12):
 	# ========== Save tthe plot ==========
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS01_PaperFig01_PSPdatabase" 
-	for ext in [".png", ]:#".pdf",
+	for ext in [".png", ".pdf"]:#".pdf",
 		plt.savefig(fnout+ext)#, dpi=130)
 	
 	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
@@ -241,12 +241,18 @@ def _biomasschange(vi_df, fig, ax,title="",):
 	test.sort_values("Obs.Year", inplace=True)
 	test["Biomass Increase"] = test.Delta_biomass > 0
 	sns.countplot(x="Obs.Year", hue="Biomass Increase", data=test, ax=ax)
-	ax.set_xlabel("Year of Observations")
+	# ax.set_xlabel("Year of Observations")
+	ax.set_xlabel("")
 	# ax.xaxis.set_major_locator(mdates.AutoDateLocator())
 	# ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
-	ax.set_xticklabels(ax.get_xticklabels(), rotation=90, horizontalalignment='right')
+	ax.set_xticklabels(ax.get_xticklabels(), rotation=90)#, horizontalalignment='right')
 	ax.set_title("")
 	ax.set_title(f"{title}", loc= 'left')
+	ax.set_xlabel("")
+	ax.set_ylabel("Observations")
+	handles, labels = ax.get_legend_handles_labels()
+	ax.legend(handles=handles, labels=["AGB loss", "AGB gain"])
+	# breakpoint()
 
 
 def _obsgap(vi_df, fig, ax, title="", currentyr=pd.Timestamp.now().year, inclfin=True):
@@ -257,16 +263,20 @@ def _obsgap(vi_df, fig, ax, title="", currentyr=pd.Timestamp.now().year, inclfin
 
 	# ========== create a column to hold the obstype ==========
 
-	vi_df["Obs_Type"] = pd.Categorical(["Unmodelled" for i in range(vi_df.shape[0])], 
+	vi_df["Obs. Type"] = pd.Categorical(["Unmodelled" for i in range(vi_df.shape[0])], 
 		categories=cats, ordered=True)
 	if inclfin:
-		vi_df.loc[vi_df["Future"]==1, "Obs_Type"] = "Final"
+		vi_df.loc[vi_df["Future"]==1, "Obs. Type"] = "Final"
 		# ========== add the gap from the current year ==========
 		vi_df.loc[vi_df["Future"]==1, "ObsGap"] = currentyr - vi_df.loc[vi_df["Future"]==1, "year"]
 	
-	vi_df.loc[np.logical_and(vi_df["Future"]==0, vi_df["NanFrac"]==1), "Obs_Type"] = "Modelled"
+	vi_df.loc[np.logical_and(vi_df["Future"]==0, vi_df["NanFrac"]==1), "Obs. Type"] = "Modelled"
 
-	sns.kdeplot(data=vi_df, x="ObsGap", hue="Obs_Type", fill=True, alpha=0.50, ax=ax, common_norm=False)
+	sns.kdeplot(data=vi_df, x="ObsGap", hue="Obs. Type", fill=True, 
+		alpha=0.50, ax=ax, common_norm=False, legend=True,)
+	# breakpoint()
+	# handles, labels = ax.get_legend_handles_labels()
+	# ax.legend()
 	ax.set_xlabel("Years between Observations")
 	ax.set_ylabel("Probability Density")
 	ax.set_title("")
@@ -315,11 +325,16 @@ def _mapgridder(exp, vi_df, fig, ax, map_proj, lons, lats, title="", modelled=Tr
 
 	f = ds[vas].isel(time=0).plot(
 		x="longitude", y="latitude", transform=ccrs.PlateCarree(), vmin=vmin, vmax=vmax, levels=levels,
-		cbar_kwargs={"pad": 0.015, "shrink":0.80, "extend":"max"},	ax=ax)
+		cbar_kwargs={"pad": 0.015, "shrink":0.80, "extend":"max", "label": "Observations"},	ax=ax)
 
-	# ax.set_extent([lons.min(), lons.max()-10, lats.min(), lats.max()])
-	ax.set_extent([lons.min()+10, lons.max()-5, lats.min()-13, lats.max()])
+	ax.set_extent([lons.min()+15, lons.max()-3, lats.min()-5, lats.max()-10])
+	# print([lons.min()+15, lons.max()-5, lats.min()-5, lats.max()-10])
+	# ax.set_extent([lons.min()+10, lons.max()-5, lats.min()-13, lats.max()])
 	ax.gridlines()
+	os.environ["CARTOPY_USER_BACKGROUNDS"] = "./data/Background/"
+	# breakpoint()
+	ax.background_img(name='BM', resolution='low')
+
 	coast = cpf.GSHHSFeature(scale="intermediate")
 	ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
 	ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
@@ -360,7 +375,12 @@ def _annualcount(vi_df, fig, ax, inclfin=True, title="",):
 	vi_yc = df.groupby(["Count", "year"])['biomass'].count().reset_index().rename(
 		{"biomass":"Observations"}, axis=1).replace(0, np.NaN)
 	# ========== Make the plot ==========
-	sns.lineplot(y="Observations",x="year", hue="Count",dashes=[True, False, False], data=vi_yc, ci=None, legend=True, ax = ax)
+	sns.lineplot(y="Observations",x="year", hue="Count",dashes=[True, False, False], 
+		data=vi_yc, ci=None, legend=True, ax = ax)
+	# +++++ remove the title from the legend +++++
+	handles, labels = ax.get_legend_handles_labels()
+	ax.legend(handles=handles, labels=labels)
+	ax.set_xlabel("")
 	ax.set_title("")
 	ax.set_title(f"{title}", loc= 'left')
 

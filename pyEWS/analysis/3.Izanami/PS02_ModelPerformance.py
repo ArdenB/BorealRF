@@ -68,6 +68,7 @@ import matplotlib.ticker as mticker
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.colors import LogNorm
 import shap
+import string
 
 
 # ========== Import ml packages ==========
@@ -112,8 +113,10 @@ def main():
 	# experiments = [400]
 	# exp = 402
 	exp = 434
+	exps = [434, 424]
+	FigureModelPerfomanceV2(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exps, ppath)
+	
 	FigureModelPerfomance(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exp, ppath)
-	FigureModelPerfomanceV2(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exp, ppath)
 	breakpoint()
 	FigureModelPerfomancePresentation(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exp, ppath)
 	breakpoint()
@@ -121,9 +124,28 @@ def main():
 	oldplots(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, ppath)
 
 # ================================================================================
+def PermImportanceplot():
+		# ========== Create the figure ==========
+	sns.set_style("whitegrid")
+	font = ({'weight' : 'bold', 'size'   : textsize})
+	mpl.rc('font', **font)
+	plt.rcParams.update({'axes.titleweight':"bold", 
+		"axes.labelweight":"bold", 'axes.titlesize':textsize, 'axes.titlelocation': 'left',})
+	# ========== Create the figure ==========
+	df, ver, hueord = _ImpOpener(path, [exp], AddFeature=True)
+	ax3  = fig.add_subplot(spec[1, :])
+	# g = sns.catplot(x="Variable", y="PermutationImportance", hue=huex, 	dodge=False, data=df, palette= hueord["cmap"], col="experiment",  ax=ax3)
+	g = sns.boxplot(
+		x="Variable", y="PermutationImportance", hue=huex, 
+		dodge=False, data=df.loc[df.Count >= 7], palette= hueord["cmap"], ax=ax3)
+	ax3.set_yscale('log')
+	g.set_xticklabels(g.get_xticklabels(), rotation=15, horizontalalignment='right')
+	ax3.set_title(f"c)")
+
+
 def FigureModelPerfomanceV2(
 	df_setup, df_mres, keys, df_OvsP, 
-	df_clest, df_branch, path, exp, ppath, years=[2020], huex = "VariableGroup",	
+	df_clest, df_branch, path, exps, ppath, years=[2020], huex = "VariableGroup",	
 	lons = np.arange(-170, -50.1,  0.5),
 	lats = np.arange(  42,  70.1,  0.5), textsize=12):
 	"""
@@ -136,10 +158,11 @@ def FigureModelPerfomanceV2(
 	plt.rcParams.update({'axes.titleweight':"bold", 
 		"axes.labelweight":"bold", 'axes.titlesize':textsize, 'axes.titlelocation': 'left',})
 	# plt.rcParams.update({'axes.titleweight':"bold", })
+	if not isinstance(exps, list):
+		exps = [exps]
 
 	# ========== Create the map projection ==========
-	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
-	df = Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, [exp], path)
+	# map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
 
 	# ========== Convert to a dataarray ==========
 	# ds = gridder(path, exp, years, fpred(path, exp, years), lats, lons)
@@ -160,43 +183,58 @@ def FigureModelPerfomanceV2(
 		})
 
 	# ========== Create the figure ==========
-	fig  = plt.figure(constrained_layout=True, figsize=(18,18))
-	spec = gridspec.GridSpec(ncols=2, nrows=2, figure=fig)#, width_ratios=[6,1,6,1], )#height_ratios=[5, 10, 5]
+	fig  = plt.figure(constrained_layout=True, figsize=(11, (len(exps)+1)*5))
+	spec = gridspec.GridSpec(ncols=2, nrows=len(exps)+1, figure=fig)#, width_ratios=[6,1,6,1], )#height_ratios=[5, 10, 5]
+
+	# ========== create containers for 
+	dflist  = []
+	estlist = []
+
+	for num, exp in enumerate(exps):
+		df = Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, [exp], path)
+		estlist.append(df)
+		ax1 = fig.add_subplot(spec[num, 0])
+		_confusion_plots(df, keys, exp, fig, ax1, pred, df_setup, norm=False, title=f"{string.ascii_lowercase[num*2]})")
+
+		ax2 = fig.add_subplot(spec[num, 1])
+		_confusion_plots(df, keys, exp, fig, ax2, pred, df_setup, title=f"{string.ascii_lowercase[num*2 +1]})")
+
+		# warn.warn("Missing the Perm Importance section")
+		dfx, ver, hueord = _ImpOpener(path, [exp], AddFeature=True)
+		# dfx["Experiment"] = exp
+		dflist.append(dfx)
+
+		# breakpoint()
 
 
-	ax1 = fig.add_subplot(spec[0, 0])
-	_confusion_plots(df, keys, exp, fig, ax1, pred, df_setup, norm=False, title="a)")
-
-	ax2 = fig.add_subplot(spec[0, 1])
-	_confusion_plots(df, keys, exp, fig, ax2, pred, df_setup, title="b)")
-	# Temporal_predictability(ppath, [exp], df_setup, df, keys,  fig, ax1, "Residual", hue="ChangeDirection",
-	# 	va = "Residual", CI = "QuantileInterval", single=False)
+	num +=1
 	
-	# ========== Create the figure ==========
-	df, ver, hueord = _ImpOpener(path, [exp], AddFeature=True)
-	ax3  = fig.add_subplot(spec[1, :])
-	# g = sns.catplot(x="Variable", y="PermutationImportance", hue=huex, 	dodge=False, data=df, palette= hueord["cmap"], col="experiment",  ax=ax3)
-	g = sns.boxplot(
-		x="Variable", y="PermutationImportance", hue=huex, 
-		dodge=False, data=df.loc[df.Count >= 7], palette= hueord["cmap"], ax=ax3)
-	ax3.set_yscale('log')
-	g.set_xticklabels(g.get_xticklabels(), rotation=15, horizontalalignment='right')
-	ax3.set_title(f"c)")
-	# breakpoint()
-	# ax2 = fig.add_subplot(spec[1, 0])
-	# _confusion_plots(df, keys, exp, fig, ax2, pred, df_setup)
+	# ========== Create the figure of grouped importaance ==========
+	expname = {434:"Site", 424:"Endpoint"}
+	dfX  = pd.concat(dflist)
+	dfgr = dfX.groupby(["VariableGroup", 'experiment', 'version']).sum().reset_index()
+	dfgr["Withholding"] = dfgr.experiment.replace(expname)
+	ax3  = fig.add_subplot(spec[num, 0])
 
-	# ax3 = fig.add_subplot(spec[1, 2:])
-	# _regplot(df, ax3, fig)
+	g = sns.barplot(x="VariableGroup", y="PermutationImportance", hue='Withholding', data=dfgr, ax=ax3)
+	g.set_xticklabels(g.get_xticklabels(), rotation=15, horizontalalignment ="right")
+	ax3.set_title(f"{string.ascii_lowercase[num*2]})")
+	ax3.set_ylabel("Total Permutation Importance")
+	ax3.set_xlabel("")
+	# g.set_xscale('log')
 
-	
-	# ax4 = fig.add_subplot(spec[2, 2:], projection= map_proj)
-	# _simplemapper(ds, "MedianDeltaBiomass", fig, ax4, map_proj, 0, "Delta Biomass", lats, lons,  dim="Version")
+	ax4  = fig.add_subplot(spec[num, 1])
+	dfP  = pd.concat(estlist)
+	dfP["Median Absolute Error"] = dfP.Residual.abs()
+	dfP["Withholding"] = dfP.experiment.replace(expname)
+	dfmae = dfP.groupby(['No. Site Measurements', 'Withholding']).median()["Median Absolute Error"].reset_index()
+	sns.lineplot(y="Median Absolute Error", x="No. Site Measurements",hue="Withholding", data=dfmae, ax = ax4)
+	ax4.set_title(f"{string.ascii_lowercase[num*2+1]})")
 
-	# # ========== Save tthe plot ==========
+	# ========== Save tthe plot ==========
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS02_PaperFig03_ModelPerformanceV2" 
-	for ext in [".png", ".pdf"]:#".pdf",
+	for ext in [".png"]:#".pdf",
 		plt.savefig(fnout+ext)#, dpi=130)
 	
 	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
@@ -532,7 +570,8 @@ def _confusion_plots(
 	split   = np.arange(pred[setup["predvar"]]['limits'][0] - gap, pred[setup["predvar"]]['limits'][1]+gap+1, gap)
 	expsize = len(split) -1 # df_class.experiment.unique().size
 
-	labels = [f"{lb}" for lb in bn.move_mean(split, 2)[1:]]
+	# labels = [f"{lb}" for lb in np.round(bn.move_mean(split, 2)[1:])]
+	labels = [f"{int(lb+gap/2)}" for lb in np.round(bn.move_mean(split, 2)[1:])]
 	labels[ 0] = f"<{pred[setup['predvar']]['limits'][0]}"
 	labels[-1] = f">{pred[setup['predvar']]['limits'][1]}"
 	colconv = {cl:sp for cl, sp in zip([int(i) for i in np.arange(expsize)], labels)}
@@ -584,7 +623,6 @@ def _confusion_plots(
 
 	df_cm.rename(colconv, axis='columns', inplace=True)
 	df_cm.rename(colconv, inplace=True)
-	# breakpoint()
 
 	cmap = mpc.ListedColormap(palettable.matplotlib.Inferno_20_r.mpl_colors)
 	if mask:
@@ -601,14 +639,24 @@ def _confusion_plots(
 		g = sns.heatmap(
 			df_cm, annot=ann, vmin=0, vmax=1, ax = ax, 
 			cbar=cbar, square=True, cmap=cmap, cbar_kws={"shrink":0.65},
+			xticklabels=5, yticklabels=5
 			)
 	else:
 		print(f"Checking nanmax counts {bn.nanmax(df_cm)}")
 		g = sns.heatmap(df_cm, annot=ann,  
 			ax = ax, cbar=cbar, square=True, 
 			cmap=cmap, norm=LogNorm(vmin=1, vmax=10000,),
-			cbar_kws={"extend":"max", "shrink":0.65})
+			cbar_kws={"extend":"max", "shrink":0.75}, xticklabels=5, yticklabels=5)
+		# +++++ Fix the ticks +++++
+		# ax.set_yticklabels(ax.get_yticklabels(), rotation=90)
+		# ax.set_yticklabels(ax.get_xticklabels()[::-1])
+		# plt.show()
+		# breakpoint()
+		# ax.set_xticklabels(xtt)
+	
+	# breakpoint()
 	ax.plot(np.flip(np.arange(expsize+1)), np.arange(expsize+1), "darkgrey", alpha=0.75)
+	
 
 
 	# 	# ========== Calculate the zero lines ==========
@@ -624,12 +672,26 @@ def _confusion_plots(
 		ax.axvline(x=zeroP, alpha =0.5, linestyle="--", c="darkgrey", zorder=101)
 		ax.axhline(y=zeroP, alpha =0.5, linestyle="--", c="darkgrey", zorder=102)
 
+	if not gap == 10:
+		warn.warn("this tick spacing is untested")
+		breakpoint()
+	else:
+		xtl = ax.get_xticks().tolist()
+		xtl[-1] += 1
+		xtt = [item.get_text() for item in ax.get_xticklabels()]
+		xtt[-1] = labels[-1]
+		ax.set_xticks(ticks = xtl)#, labels = xtt)
+		ax.set_xticklabels(xtt, rotation="vertical")
+		ax.set_yticks(ticks = xtl)
+		ax.set_yticklabels(xtt[::-1], rotation="horizontal")
+		# breakpoint()
 
 	# ax.set_title(f"{exp}-{keys[exp]} $R^{2}$ {df_set.R2.mean()}", loc= 'left')
 	delt = r"$\Delta$"
 	ax.set_xlabel(f'Observed {delt}Biomass')
 	ax.set_ylabel(f'Predicted {delt}Biomass')
 	ax.set_title(f"{title}")
+
 
 	
 def pdfplot(ppath, df, exp, keys, fig, ax, obsvar, estvar, var, clip, single=True):
@@ -958,6 +1020,7 @@ def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiment
 	regions   = regionDict()
 	region_fn =f"{dpath}SiteInfo_AllSampleyears_ObsBiomass.csv"
 	site_df   = pd.read_csv(region_fn, index_col=0)
+	site_df["No. Site Measurements"] = (site_df.groupby(["Plot_ID", "year"]).first().reset_index().groupby("Plot_ID").count()["year"]+1)[site_df.Plot_ID].values
 	assert site_df.shape[0] == vi_df.shape[0]
 
 	# site_df.replace(regions, inplace=True)
@@ -1001,6 +1064,7 @@ def Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, experiment
 		# dfC["DeltaResidual"] = dfC["EstDelta"] - dfC["ObsDelta"]
 		dfC["ObsGap"]        = df_act["ObsGap"].values
 		dfC["Region"]        = df_s["Region"].values
+		dfC["No. Site Measurements"] = site_df.loc[dfC.index, "No. Site Measurements"]
 		bioMls.append(dfC)
 		# breakpoint()
 

@@ -94,10 +94,14 @@ def main():
 	cf.pymkdir(ppath)
 	fpath = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/"
 	vi_df   = pd.read_csv(f"{fpath}VI_df_AllSampleyears_ObsBiomass.csv", index_col=0)
+	VIfvi   = pd.read_csv(f"{fpath}VI_df_AllSampleyears_FutureBiomass.csv", index_col=0)
+	
 	site_df = pd.read_csv(f"{fpath}SiteInfo_AllSampleyears_ObsBiomass.csv", index_col=0)
 	experiment = [ 434, 424]
+	exper = experiments()
 	# exp      = 434
 	for exp in experiment:
+		setup = exper[exp].copy()
 		# ========= Load in the observations ==========
 		OvP_fnames = glob.glob(f"{path}{exp}/Exp{exp}*_OBSvsPREDICTED.csv")
 		df_OvsP    = pd.concat([load_OBS(ofn) for ofn in OvP_fnames], sort=True)
@@ -106,13 +110,17 @@ def main():
 		df_OvsP.replace(regions, inplace=True)
 
 
-		df_OvsP["ObsGap"] = vi_df.loc[df_OvsP.index, "ObsGap"]
-		df_OvsP["Residual"] = df_OvsP["Estimated"].values - df_OvsP["Observed"].values
+		df_OvsP["ObsGap"]      = vi_df.loc[df_OvsP.index, "ObsGap"]
+		df_OvsP["Residual"]    = df_OvsP["Estimated"].values - df_OvsP["Observed"].values
 		df_OvsP["ABSResidual"] = np.abs(df_OvsP["Estimated"].values - df_OvsP["Observed"].values)
+		df_OvsP["AnnualResidual"   ] = df_OvsP["Residual"]    /df_OvsP["ObsGap"]
+		df_OvsP["AnnualABSResidual"] = df_OvsP["ABSResidual"] /df_OvsP["ObsGap"]
 		df_mod     = df_OvsP[~df_OvsP.index.duplicated(keep='first')]
+		# breakpoint()
+
+		PredictorInfo(ppath, exp, setup, ColNm = None)
 
 		# ========== predictions ==========
-
 		Futuredfmaker(path, ppath, exp, fpath, vi_df, site_df, df_OvsP)
 
 		ensemblper(path, ppath, exp, fpath, vi_df, site_df, df_OvsP)
@@ -120,9 +128,73 @@ def main():
 		predictions(path, ppath, exp, fpath, vi_df, site_df, df_OvsP)
 		# breakpoint()
 		# ========== Chose the experiment ==========
-		sitedtb(path, ppath, exp, fpath, vi_df, site_df, df_mod)
+		sitedtb(path, ppath, exp, fpath, vi_df, site_df, df_mod, VIfvi)
 
 # ==============================================================================
+def PredictorInfo(ppath, exp, setup, ColNm = None, inheritrows=True):
+	"""Load in the predicto varrs"""
+
+	if setup['predictwindow'] is None:
+		if setup["predvar"] == "lagged_biomass":
+			fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears.csv"
+			sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears.csv"
+		else:
+			fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_AllSampleyears_ObsBiomass.csv"
+			sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_AllSampleyears_ObsBiomass.csv"
+	else:
+		fnamein  = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/VI_df_{setup['predictwindow']}years.csv"
+		sfnamein = f"./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/SiteInfo_{setup['predictwindow']}years.csv"
+	
+	# ========== create a base string ==========
+	if not setup['predictwindow'] is None:
+		basestr = f"TTS_VI_df_{setup['predictwindow']}years"
+	else:
+		if (setup["predvar"] == "lagged_biomass") or inheritrows :
+			basestr = f"TTS_VI_df_AllSampleyears" 
+		else:
+			basestr = f"TTS_VI_df_AllSampleyears_{setup['predvar']}" 
+
+		if not setup["FullTestSize"] is None:
+			basestr += f"_{int(setup['FullTestSize']*100)}FWH"
+			if setup["splitvar"] == ["site", "yrend"]:
+				basestr += f"_siteyear{setup['splitmethod']}"
+			elif setup["splitvar"] == "site":
+				basestr += f"_site{setup['splitmethod']}"
+
+
+	X_train, X_test, y_train, y_test, col_nms, loadstats, corr, df_site, dbg = bf.datasplit(
+		setup["predvar"], exp, 0,  0, setup, 
+		final=True,  cols_keep=ColNm, vi_fn=fnamein, region_fn=sfnamein, basestr=basestr, 
+		dropvar=setup["dropvar"], column_retuner=True)
+
+	Scriptinfo = "Stats about variables Exported using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	keystats = [Scriptinfo, gitinfo]
+
+
+
+	# +++++ summary +++++
+	# Number of sites
+	keystats.append("\n Total number of predictor variables \n")
+	keystats.append(col_nms.shape)
+	# mean obs per site
+	col_df = Grouper(col_nms)
+	
+	keystats.append("\nVariables by source \n")
+	keystats.append(col_df.groupby("VariableGroup").count())
+
+	# breakpoint()
+
+	# ========== Save the info =========
+	fname = f'{ppath}PS09_PredictorVarsSummary_exp{exp}.txt'
+	f = open(fname,'w')
+	for info in keystats:
+		f.write("%s\n" %info)
+	f.close()
+
+
+
 def Futuredfmaker(path, ppath, exp, fpath, vi_df, site_df, df_OvsP):
 
 
@@ -273,6 +345,7 @@ def predictions(path, ppath, exp, fpath, vi_df, site_df, df_OvsP):
 	keystats.append('\n Prediction Score Metric for the entire prediction ensemble \n')
 	keystats.append(f'\n R squared score: {sklMet.r2_score(y_test, y_pred)}')
 	keystats.append(f'\n Mean Absolute Error: {sklMet.mean_absolute_error(y_test, y_pred)}')
+	keystats.append(f'\n Median Absolute Error: {sklMet.median_absolute_error(y_test, y_pred)}')
 	keystats.append(f'\n Root Mean Squared Error: {np.sqrt(sklMet.mean_squared_error(y_test, y_pred))}')
 	# breakpoint()
 	# ========== overall trends in the model data =======
@@ -313,9 +386,9 @@ def predictions(path, ppath, exp, fpath, vi_df, site_df, df_OvsP):
 	# site_dfM
 
 	keystats.append("\n Mean and absmean residuals by region \n")
-	keystats.append(df_OvsP.groupby("Region").mean()[["Estimated","Observed", "Residual", "ABSResidual", "ObsGap"]])
+	keystats.append(df_OvsP.groupby("Region").mean()[["Estimated","Observed", "Residual", "ABSResidual", "ObsGap", "AnnualResidual", "AnnualABSResidual"   ]])
 	keystats.append("\n Median and absmedian residuals by region \n")
-	keystats.append(df_OvsP.groupby("Region").median()[["Estimated","Observed", "Residual", "ABSResidual", "ObsGap"]])
+	keystats.append(df_OvsP.groupby("Region").median()[["Estimated","Observed", "Residual", "ABSResidual", "ObsGap", "AnnualResidual", "AnnualABSResidual"]])
 
 	df_OvsP["ObservedGain"] = y_test > 0
 	df_OvsP["CorrectDir"] = (df_OvsP.Estimated > 0) == (df_OvsP.Observed > 0)
@@ -346,7 +419,7 @@ def predictions(path, ppath, exp, fpath, vi_df, site_df, df_OvsP):
 	f.close()
 
 
-def sitedtb(path, ppath, exp, fpath, vi_df, site_df, df_mod):
+def sitedtb(path, ppath, exp, fpath, vi_df, site_df, df_mod, VIfvi):
 	"""
 	open the database and pull out the relevant files
 	"""
@@ -363,10 +436,21 @@ def sitedtb(path, ppath, exp, fpath, vi_df, site_df, df_mod):
 	keystats.append(vi_df.groupby(["site"]).count()["year"].shape[0])
 	# mean obs per site
 	keystats.append("\n Observations per sites \n")
-	keystats.append(vi_df.groupby(["site", "year"]).first().reset_index().groupby("site").count()["year"].mean())
+	keystats.append((vi_df.groupby(["site", "year"]).first().reset_index().groupby("site").count()["year"]+1).mean())
 	# total measurments 
-	keystats.append("\n Total number of measurements in the database \n")
+	keystats.append("\n Total number of site measurements in the database \n")
+	keystats.append(vi_df.groupby(["site", "year"]).first().reset_index().groupby("site").count()["year"].sum()+VIfvi.shape[0])
+
+	keystats.append("\n Total number of all measurements (all gaps) in the database \n")
 	keystats.append(vi_df.shape[0])
+	keystats.append("\n Total number of Site that can be used for prediction in the database \n")
+	keystats.append(VIfvi.shape[0])
+
+	keystats.append("\n First year in database \n")
+	keystats.append(vi_df.year.min())
+
+	keystats.append("\n Last year in database \n")
+	keystats.append(VIfvi.year.max())
 
 	site_dfM = site_df.loc[df_mod.index]
 	site_dfM["Observed"] = df_mod["Observed"]
@@ -375,9 +459,31 @@ def sitedtb(path, ppath, exp, fpath, vi_df, site_df, df_mod):
 	regions = regionDict()
 	# site_dfM
 	site_dfM.replace(regions, inplace=True)
-	# +++++ Sites included in the models +++++
-	keystats.append("\n Total number of measurements Modelled \n")
+	keystats.append("\n Modelled Total number of sites \n")
+	keystats.append(site_dfM.groupby(["Plot_ID"]).count()["year"].shape[0])
+
+	keystats.append("\n Modelled Observations per sites \n")
+	keystats.append((site_dfM.groupby(["Plot_ID", "year"]).first().reset_index().groupby("Plot_ID").count()["year"]+1).mean())
+	# total measurments 
+	keystats.append("\n Modelled Total number of site measurements in the database \n")
+	keystats.append(site_dfM.groupby(["Plot_ID", "year"]).first().reset_index().groupby("Plot_ID").count()["year"].sum() + VIfvi[VIfvi.year>1990].shape[0])
+
+	keystats.append("\n Modelled Total number of all measurements (all gaps) in the database \n")
 	keystats.append(site_dfM.shape[0])
+
+	keystats.append("\n Total number of Site that can be used for prediction valid window in the database \n")
+	keystats.append(VIfvi[VIfvi.year>1990].shape[0])
+
+	keystats.append("\n First year in Modelled database \n")
+	keystats.append(site_dfM.year.min())
+
+	keystats.append("\n Last year in Modelled database \n")
+	keystats.append(VIfvi.year.max())
+	# keystats.append(vi_df.shape[0])
+	# +++++ Sites included in the models +++++
+	# keystats.append("\n Total number of measurements Modelled \n")
+
+
 
 	# number of site per region
 	keystats.append("\n Total number of sites Modelled by region \n")
@@ -418,6 +524,36 @@ def sitedtb(path, ppath, exp, fpath, vi_df, site_df, df_mod):
 	warn.warn("Do the future sites as well")
 
 # ==============================================================================
+def Grouper(col_nms):
+	df = pd.DataFrame({"Variable":col_nms})
+	# ========== group the vartypes ==========
+	sp_groups  = pd.read_csv("./EWS_package/data/raw_psp/SP_groups.csv", index_col=0)
+	soils      = pd.read_csv( "./EWS_package/data/psp/modeling_data/soil_properties_aggregated.csv", index_col=0).columns.values
+	permafrost = pd.read_csv("./EWS_package/data/psp/modeling_data/extract_permafrost_probs.csv", index_col=0).columns.values
+	def _getgroup(VN, species=[], soils = [], permafrost=[]):
+		if VN in ["biomass", "stem_density", "ObsGap", "StandAge"]:
+			return "Survey"
+		elif VN in ["Disturbance", "DisturbanceGap", "Burn", "BurnGap", "DistPassed"]:
+			return "Disturbance"
+		elif (VN.startswith("Group")) or (VN in species):
+			return "Species"
+		elif VN.startswith("LANDSAT"):
+			return "RS VI"
+		elif VN.endswith("30years"):
+			return "Climate"
+		elif VN in soils:
+			return "Soil"
+		elif VN in permafrost:
+			return "Permafrost"
+		else: 
+			print(VN)
+			breakpoint()
+			return "Unknown"
+
+	
+	df["VariableGroup"] = df.Variable.apply(_getgroup, 
+		species = sp_groups.scientific.values, soils=soils, permafrost=permafrost).astype("category")
+	return df
 
 def plotter(ppath, exp, site_dfM, inc, cnt):
 
@@ -667,6 +803,106 @@ def regionDict():
 		'CAFI':"Alaska"
 		})
 	return regions
+
+
+def experiments(ncores = -1):
+	""" Function contains all the infomation about what experiments i'm 
+	performing """
+	expr = OrderedDict()
+
+	expr[424] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :424,
+		"predvar"          :"Delta_biomass",
+		"dropvar"          :["Obs_biomass"],
+		"name"             :"XGBAllGap_Debug_yrfnsplit_CV_RFECVBHYP",
+		"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
+		"window"           :10,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"model"            :"XGBoost",
+		"debug"            :True,
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.1, 
+		"FullTestSize"     :0.05,
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
+		"yTransformer"     :None, 
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"maxitter"         :14, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :False,
+		"StopPoint"        :5,
+		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"pariedRun"        :423, # identical runs except at the last stage
+		"Step"             :4,
+		"AltMethod"        :"RFECVBHYP", # alternate method to use after slowdown point is reached
+		"FutDist"          :0, 
+		"splitmethod"      :"GroupCV",
+		"splitvar"         :["site", "yrend"],
+		"Hyperpram"        :False,
+		})
+
+	
+	expr[434] = ({
+		# +++++ The experiment name and summary +++++
+		"Code"             :434,
+		"predvar"          :"Delta_biomass",
+		"dropvar"          :["Obs_biomass"],
+		"name"             :"XGBAllGap_Debug_sitesplit_CV_RFECVBHYP",
+		"desc"             :"Taking what i've learn't in my simplidfied experiments and incoperating it back in",
+		"window"           :10,
+		"predictwindow"    :None,
+		"Nstage"           :1, 
+		"model"            :"XGBoost",
+		"debug"            :True,
+		# +++++ The Model setup params +++++
+		"ntree"            :10,
+		"nbranch"          :2000,
+		"max_features"     :'auto',
+		"max_depth"        :5,
+		"min_samples_split":2,
+		"min_samples_leaf" :2,
+		"bootstrap"        :True,
+		# +++++ The experiment details +++++
+		"test_size"        :0.1, 
+		"FullTestSize"     :0.05,
+		"SelMethod"        :"RecursiveHierarchicalPermutation",
+		"ImportanceMet"    :"Permutation",
+		"Transformer"      :None,
+		"yTransformer"     :None, 
+		"ModVar"           :"ntree, max_depth", "dataset"
+		"classifer"        :None, 
+		"cores"            :ncores,
+		"maxitter"         :14, 
+		"DropNAN"          :0.5, 
+		"DropDist"         :False,
+		"StopPoint"        :5,
+		"SlowPoint"        :120, # The point i start to slow down feature selection and allow a different method
+		"maxR2drop"        :0.025,
+		"pariedRun"        :433, # identical runs except at the last stage
+		"Step"             :4,
+		"AltMethod"        :"RFECVBHYP", # alternate method to use after slowdown point is reached
+		"FutDist"          :0, 
+		"splitmethod"      :"GroupCV",
+		"splitvar"         :"site",
+		"Hyperpram"        :False,
+		})
+	return expr
+
+# ==============================================================================
 # ==============================================================================
 if __name__ == '__main__':
 	main()
