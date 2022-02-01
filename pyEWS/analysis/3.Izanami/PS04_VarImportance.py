@@ -81,12 +81,12 @@ def main():
 	cf.pymkdir(path+"plots/")
 	ppath = "./pyEWS/analysis/3.Izanami/Figures/PS04/"
 	cf.pymkdir(ppath)
-	exp = 424
+	exp = 434
 
 	# ==========  ========== 
 	corr, col_nms, corr_linkage = _getcorr(path, exp)
 	df, ver, hueord = _ImpOpener(path, [exp], AddFeature=True)
-	featureFigPres(ppath, corr, col_nms, corr_linkage, df, ver, hueord, huex = "VariableGroup")
+	featureFigPres(exp, ppath, corr, col_nms, corr_linkage, df, ver, hueord, huex = "VariableGroup")
 	breakpoint()
 	
 	featureFig(ppath, corr, col_nms, corr_linkage, df, ver, hueord, huex = "VariableGroup")
@@ -114,16 +114,59 @@ def main():
 	breakpoint()
 
 # ==============================================================================
-def featureFigPres(ppath, corr, col_nms, corr_linkage, df, ver, hueord, huex = "VariableGroup"):
+def featureFigPres(exp, ppath, corr, col_nms, corr_linkage, df, ver, hueord, huex = "VariableGroup"):
 	""" 
 	Figure to look at features, figures in presentation format
 	"""
 	# ========== Setup the matplotlib params ==========
-	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':12, "axes.labelweight":"bold"})
-	font = ({'family' : 'normal','weight' : 'bold', 'size'   : 12})
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':8, "axes.labelweight":"bold"})
+	font = ({'family' : 'normal','weight' : 'bold', 'size'   : 8})
 	mpl.rc('font', **font)
 	sns.set_style("whitegrid")
 	# map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
+
+	# ========== Create the figure ==========
+	fig, ax = plt.subplots(constrained_layout=True, figsize=(11,13))
+	# g = sns.catplot(x="Variable", y="PermutationImportance", hue=huex, 	dodge=False, data=df, palette= hueord["cmap"], col="experiment",  ax=ax3)
+	
+	vorder = df.loc[df.Count >= 5].groupby("VariableName").mean().sort_values("PermutationImportance", ascending=False).index
+	g = sns.boxplot(
+		y="VariableName", x="PermutationImportance", hue=huex, 
+		dodge=False, data=df.loc[df.Count >= 5], palette= hueord["cmap"], ax=ax, order=vorder)
+	# g.set_xticklabels(g.get_xticklabels(),  rotation=15, horizontalalignment='right')
+
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS04_PaperFig02_VarImportance_Perm_{exp}_in5" 
+	for ext in [".png", ".pdf",]:
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+
+
+	fig, ax = plt.subplots(constrained_layout=True, figsize=(11,13))
+	# g = sns.catplot(x="Variable", y="PermutationImportance", hue=huex, 	dodge=False, data=df, palette= hueord["cmap"], col="experiment",  ax=ax3)
+	
+	forder = df.groupby("VariableName").mean().sort_values("PermutationImportance", ascending=False).index
+	g = sns.boxplot(
+		y="VariableName", x="PermutationImportance", hue=huex, 
+		dodge=False, data=df, palette= hueord["cmap"], ax=ax, order=forder)
+	# g.set_xticklabels(g.get_xticklabels(),  rotation=15, horizontalalignment='right')
+
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS04_PaperFig02_VarImportance_Perm_{exp}_full" 
+	for ext in [".png", ".pdf",]:
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+	breakpoint()
 
 	# ========== Create the figure ==========
 	# fig  = plt.figure(constrained_layout=True, figsize=(12,18))
@@ -159,49 +202,30 @@ def featureFigPres(ppath, corr, col_nms, corr_linkage, df, ver, hueord, huex = "
 	cf.writemetadata(fnout, [plotinfo, gitinfo])
 	plt.show()
 
-	# ========== Create the figure ==========
-	fig, ax = plt.subplots(constrained_layout=True, figsize=(27,15))
-	# g = sns.catplot(x="Variable", y="PermutationImportance", hue=huex, 	dodge=False, data=df, palette= hueord["cmap"], col="experiment",  ax=ax3)
-	g = sns.boxplot(
-		x="Variable", y="PermutationImportance", hue=huex, 
-		dodge=False, data=df.loc[df.Count >= 5], palette= hueord["cmap"], ax=ax)
-	g.set_xticklabels(g.get_xticklabels(),  rotation=15, horizontalalignment='right')
-
-	print("starting save at:", pd.Timestamp.now())
-	fnout = f"{ppath}PS04_PaperFig02_VarImportance_Perm" 
-	for ext in [".png", ".pdf",]:
-		plt.savefig(fnout+ext)#, dpi=130)
-	
-	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
-		__title__, __version__,  __author__, pd.Timestamp.now())
-	gitinfo = cf.gitmetadata()
-	cf.writemetadata(fnout, [plotinfo, gitinfo])
-	plt.show()
 
 	# g.set(ylim=(0, 1))
 	# g.set_axis_labels("", var)
-	# breakpoint()
 	
 
 	# ========== Create the figure ==========
-	fig, ax = plt.subplots(constrained_layout=True, figsize=(27,15))
-	# g = sns.catplot(x="Variable", y="PermutationImportance", hue=huex, 	dodge=False, data=df, palette= hueord["cmap"], col="experiment",  ax=ax3)
-	g2 = sns.boxplot(
-		x="Variable", y="FeatureImportance", hue=huex, 
-		dodge=False, data=df.loc[df.Count >= 5], palette= hueord["cmap"], ax=ax)
-	g2.set_xticklabels(g.get_xticklabels(),  rotation=15, horizontalalignment='right')
-		# ========== Save tthe plot ==========
-	print("starting save at:", pd.Timestamp.now())
-	fnout = f"{ppath}PS04_PaperFig02_VarImportance" 
-	for ext in [".png", ".pdf",]:
-		plt.savefig(fnout+ext)#, dpi=130)
+	# fig, ax = plt.subplots(constrained_layout=True, figsize=(27,15))
+	# # g = sns.catplot(x="Variable", y="PermutationImportance", hue=huex, 	dodge=False, data=df, palette= hueord["cmap"], col="experiment",  ax=ax3)
+	# g2 = sns.boxplot(
+	# 	x="VariableName", y="FeatureImportance", hue=huex, 
+	# 	dodge=False, data=df.loc[df.Count >= 5], palette= hueord["cmap"], ax=ax)
+	# g2.set_xticklabels(g.get_xticklabels(),  rotation=15, horizontalalignment='right')
+	# 	# ========== Save tthe plot ==========
+	# print("starting save at:", pd.Timestamp.now())
+	# fnout = f"{ppath}PS04_PaperFig02_VarImportance" 
+	# for ext in [".png", ".pdf",]:
+	# 	plt.savefig(fnout+ext)#, dpi=130)
 	
-	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
-		__title__, __version__,  __author__, pd.Timestamp.now())
-	gitinfo = cf.gitmetadata()
-	cf.writemetadata(fnout, [plotinfo, gitinfo])
-	plt.show()
-	breakpoint()
+	# plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+	# 	__title__, __version__,  __author__, pd.Timestamp.now())
+	# gitinfo = cf.gitmetadata()
+	# cf.writemetadata(fnout, [plotinfo, gitinfo])
+	# plt.show()
+	# breakpoint()
 
 
 
@@ -260,11 +284,12 @@ def featureFig(ppath, corr, col_nms, corr_linkage, df, ver, hueord, huex = "Vari
 
 
 
-def _Network_plot(corr, corr_linkage, col_nms, fig, ax):
+def _Network_plot(corr, corr_linkage, col_nms, fig, ax, ):
 	# +++++ Calculate the ward hierarchy +++++
 	# ========== Build a plot ==========
 	dendro  = hierarchy.dendrogram(corr_linkage, labels=col_nms, ax=ax, 
 		leaf_rotation=90, color_threshold=6)
+	# breakpoint()
 	
 
 def _heatmap(corr, col_nms, fig, ax, cbar=True):
@@ -421,8 +446,10 @@ def _getcorr(path, exp,
 		# bsestr = f"TTS_VI_df_AllSampleyears_{setup.loc[0, 'predvar']}" 
 
 	# ========== load in the data ==========
+	# breakpoint()
+	setup["DropDist"] = True
 	X_train, X_test, y_train, y_test, col_nms, loadstats, corr, df_site, dbg = bf.datasplit(
-		setup.loc["predvar"], exp, version,  branch, setup,  #cols_keep=ColNm, #force=True,
+		setup.loc["predvar"], exp, version,  branch, setup, final=True, #cols_keep=ColNm, #force=True,
 		vi_fn=fnamein, region_fn=sfnamein, basestr=basestr, dropvar=setup.loc["dropvar"])
 
 	corr_linkage = hierarchy.ward(corr)
@@ -460,11 +487,24 @@ def _ImpOpener(path, exps, var = "PermutationImportance", AddFeature=False):
 				# breakpoint()
 			dfin["experiment"] = exp
 			dfin["version"]    = ver
+			vnames = Smartrenamer(dfin.Variable.values)
+			dfin["VariableName"]  = vnames.VariableGroup
+			if dfin.groupby("VariableName")["version"].count().max() >1:
+				dfin = dfin.groupby("VariableName").agg(
+					Variable              = ('Variable', 'first'), 
+					PermutationImportance = ('PermutationImportance', 'sum'),
+					FeatureImportance     = ('FeatureImportance', 'sum'),
+					experiment            = ('experiment', 'first'), 
+					version               = ('version', 'first'), 
+					).reset_index().reindex(dfin.columns, axis=1).sort_values("PermutationImportance", ascending=False)
+
+				# warn.warn("Similarr feature in model")
+				# breakpoint()
 			df_list.append(dfin)
 	# ========== Group them together ==========
 	df = pd.concat(df_list).reset_index(drop=True)
 	# ========== Calculate the counts ==========
-	df["Count"] = df.groupby(["experiment", "Variable"])[var].transform("count")
+	df["Count"] = df.groupby(["experiment", "VariableName"])[var].transform("count")
 	df.sort_values(['experiment', 'Count'], ascending=[True, False], inplace=True)
 	df.reset_index(drop=True,inplace=True)
 
@@ -495,6 +535,8 @@ def _ImpOpener(path, exps, var = "PermutationImportance", AddFeature=False):
 	
 	df["VariableGroup"] = df.Variable.apply(_getgroup, 
 		species = sp_groups.scientific.values, soils=soils, permafrost=permafrost).astype("category")
+	
+
 	hueord =  cmapper(df["VariableGroup"], AddFeature, var)
 	if AddFeature and var == "Importance":
 		df["VariableGroup"] = pd.Series([f"{MI}-{VG}" for MI, VG in zip(df["Metric"], df["VariableGroup"])]).astype("category")
@@ -502,6 +544,80 @@ def _ImpOpener(path, exps, var = "PermutationImportance", AddFeature=False):
 	# ========== set the cat order ==========
 	df["VariableGroup"].cat.set_categories(hueord["HueOrder"], inplace=True)
 	return df, ver, hueord
+
+def Smartrenamer(names):
+	
+	df = pd.DataFrame({"Variable":names})
+
+	sitenm     = {"biomass":"(st) Initial Biomass", "stem_density":"(st) Stem Density", "ObsGap":"(st) Observation Gap", "StandAge": "(st) Stand Age"}
+	sp_groups  = pd.read_csv("./EWS_package/data/raw_psp/SP_groups.csv", index_col=0)
+	soils      = pd.read_csv( "./EWS_package/data/psp/modeling_data/soil_properties_aggregated.csv", index_col=0).columns.values
+	permafrost = pd.read_csv("./EWS_package/data/psp/modeling_data/extract_permafrost_probs.csv", index_col=0).columns.values
+	
+	def _getname(VN, sitenm=[], species=[], soils = [], permafrost=[], droptime=True):
+		if VN in sitenm.keys():
+			return sitenm[VN]
+		elif VN in ["Disturbance", "DisturbanceGap", "Burn", "BurnGap", "DistPassed"]:
+			return f"(Dis) {VN}"
+		elif VN.startswith("Group"):
+			VNcl = VN.split("_")
+			if len(VNcl) == 3:
+				return f"(sp.) GP{VNcl[1]} {VNcl[2]}"
+			if len(VNcl) == 4:
+				return f"(sp.) GP{VNcl[1]} {VNcl[2]} {VNcl[3]}"
+			else:
+				breakpoint()
+
+		elif VN in species:
+			return f"(sp.) {VN}"
+
+		elif VN.startswith("LANDSAT"):
+			if not droptime:
+				breakpoint()
+
+			# VNc = VN.split(".")[0]
+			VNcl = VN.split("_")
+			if not len(VNcl) in [4, 5]:
+				print("Length is wrong")
+			# breakpoint()
+
+			return f"(RSVI) {VNcl[1].upper()} {VNcl[2] if not VNcl[2]=='trend' else 'Theil.'} {VNcl[3] if not VNcl[3] == 'pulse' else 'size'}"
+
+		elif VN.endswith("30years"):
+			if "DD_" in VN:
+				VN = VN.replace("DD_", "DDb")
+			
+			if "abs_trend" in VN:
+				VN = VN.replace("abs_trend", "abs. trend")
+			
+			VNcl = VN.split("_")
+			if len(VNcl) == 3:
+				return f"(Cli.) {VNcl[0]} {VNcl[1]}"
+			elif len(VNcl) == 4:
+				breakpoint()
+				return f"(Cli.) {VNcl[0]} {VNcl[1]} {VNcl[2]}"
+			elif len(VNcl) == 5:
+				print(VN, "Not uunderstood")
+				breakpoint()
+				return f"(Cli.) {VNcl[0]} {VNcl[1]} {VNcl[3]} {VNcl[4]}"
+			else:
+				breakpoint()
+		elif VN in soils:
+			VNcl = VN.split("_")
+			if not len(VNcl)==5:
+				breakpoint()
+			return f"(Soil) {VNcl[0]} {VNcl[3]}cm"
+		elif VN in permafrost:
+			return f"(PF.) {VN}"
+		else: 
+			print(VN)
+			breakpoint()
+			return "Unknown"
+
+	df["VariableGroup"] = df.Variable.apply(_getname, sitenm=sitenm,
+		species = sp_groups.scientific.values, soils=soils, permafrost=permafrost).astype("category")
+	return df
+
 
 # ==============================================================================
 def cmapper(varlist, AddFeature, var):

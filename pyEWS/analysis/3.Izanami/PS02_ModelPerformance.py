@@ -114,9 +114,11 @@ def main():
 	# exp = 402
 	exp = 434
 	exps = [434, 424]
+	FigureRegionalLimits(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exps, ppath)
+	FigureModelLimits(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exps, ppath)
+	
 	FigureModelPerfomanceV2(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exps, ppath)
 	
-	FigureModelPerfomance(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exp, ppath)
 	breakpoint()
 	FigureModelPerfomancePresentation(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exp, ppath)
 	breakpoint()
@@ -124,6 +126,87 @@ def main():
 	oldplots(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, ppath)
 
 # ================================================================================
+def FigureRegionalLimits(
+	df_setup, df_mres, keys, df_OvsP, 
+	df_clest, df_branch, path, exps, ppath, years=[2020], 	
+	lons = np.arange(-170, -50.1,  0.5),
+	lats = np.arange(  42,  70.1,  0.5), textsize=14):
+	"""
+	Build model performace figure
+	"""
+	# ========== Create the figure ==========
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':textsize})
+	font = ({'weight' : 'bold', 'size'   : textsize})
+	mpl.rc('font', **font)
+	sns.set_style("whitegrid")
+	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
+	
+	if not isinstance(exps, list):
+		exps = [exps]
+
+	# ========== Setup the multi ensemble plot ==========
+	fig  = plt.figure(constrained_layout=True, figsize=(6*len(exps),12))
+	spec = gridspec.GridSpec(ncols=len(exps), nrows=2, figure=fig)#, width_ratios=[5,1,5,5], height_ratios=[5, 10, 5])
+	expname = {434:"Site Withholding Ensemble", 424:"Endpoint Withholding Ensemble"}
+	for num, exp in enumerate(exps):
+		# ========== Create the figure ==========
+		df = Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, [exp], path)
+		df["Normalised Residual"] = df["Residual"]/df["ObsGap"]
+
+		ax1 = fig.add_subplot(spec[0, num])
+		_regplot(df, ax1, fig, "Residual", title=f"{string.ascii_lowercase[num]})", Center_title=expname[exp],)
+		# Regional direction breakkdowns
+		# ax3 = fig.add_subplot(spec[2, :])
+
+		# Temporal_predictability(ppath, [exp], df_setup, df, keys,  fig, ax1, "Residual", hue="ChangeDirectionAll",
+		# 	va = "Residual", CI = "QuantileInterval", single=False, title=f"{string.ascii_lowercase[num]})",
+		# 	ylim=(-150, 200), Center_title=expname[exp], lgfs =8, loc='upper left')
+
+		ax2 = fig.add_subplot(spec[1, num])
+		_regplot(df, ax2, fig, "Normalised Residual", title=f"{string.ascii_lowercase[num+ len(exps)]})", ylim=(-25, 25))
+		# breakpoint()
+		# Temporal_predictability(ppath, [exp], df_setup, df, keys,  fig, ax2, "Residual", hue="ChangeDirectionNorm",
+		# 	va = "Residual", CI = "QuantileInterval", single=False, title=f"{string.ascii_lowercase[num+ len(exps)]})",
+		# 	ylim=(-3.5, 3.5), lgfs=8, loc='lower right')
+		# ax2 = fig.add_subplot(spec[1, 0])
+		# _confusion_plots(df, keys, exp, fig, ax2, pred, df_setup)
+
+
+		
+		# ax4 = fig.add_subplot(spec[2, 2:], projection= map_proj)
+		# _simplemapper(ds, "MedianDeltaBiomass", fig, ax4, map_proj, 0, "Delta Biomass", lats, lons,  dim="Version")
+
+	# # ========== Save tthe plot ==========
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS02_PaperFig03_ModelRegionalLimits" #_exp{exp}
+	for ext in [".png", ".pdf"]:#".pdf",
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+
+	breakpoint()
+
+def _regplot(df, ax, fig, var, title="", Center_title=None, ylim=(-250, 250), yfontsize=10,
+	lgfs = 10, loc='lower right', ltitle = "Obs. AGB Change"):
+	regions   = regionDict()
+	dfx = df.copy()
+	dfx["Region"].replace(regions, inplace=True)
+	g = sns.violinplot( y=var, x="Region", hue="ChangeDirection", data=dfx, ax=ax, split=True, cut=0)
+	# ax.set_ylim((-500, 500))
+	g.set_xticklabels(g.get_xticklabels(), rotation=25, horizontalalignment='right', fontsize=yfontsize)
+	g.set_ylim(ylim)
+	ax.set_title(title, loc= 'left')
+	if not Center_title is None:
+		ax.set_title(f"{Center_title}",)
+	ax.set_xlabel("")
+	ax.legend(loc=loc,  fontsize=lgfs, title=ltitle, title_fontsize=lgfs)#labels=lab,
+
+
+
 def PermImportanceplot():
 		# ========== Create the figure ==========
 	sns.set_style("whitegrid")
@@ -381,9 +464,9 @@ def FigureModelPerfomancePresentation(
 
 
 
-def FigureModelPerfomance(
+def FigureModelLimits(
 	df_setup, df_mres, keys, df_OvsP, 
-	df_clest, df_branch, path, exp, ppath, years=[2020], 	
+	df_clest, df_branch, path, exps, ppath, years=[2020], 	
 	lons = np.arange(-170, -50.1,  0.5),
 	lats = np.arange(  42,  70.1,  0.5), textsize=14):
 	"""
@@ -395,54 +478,39 @@ def FigureModelPerfomance(
 	mpl.rc('font', **font)
 	sns.set_style("whitegrid")
 	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
-
-	# ========== Create the map projection ==========
-	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
-	df = Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, [exp], path)
-
-	# ========== Convert to a dataarray ==========
-	# ds = gridder(path, exp, years, fpred(path, exp, years), lats, lons)
 	
-	pred = OrderedDict()
-	pred['Delta_biomass'] = ({
-		"obsvar":"ObsDelta",
-		"estvar":"EstDelta", 
-		"limits":(-300, 300),
-		"Resname":"Residual", 
-		"gap":10
-		})
-	pred["Biomass"] = ({
-		"obsvar":"Observed",
-		"estvar":"Estimated", 
-		"limits":(0, 1000), 
-		"Resname":"Residual"
-		})
+	if not isinstance(exps, list):
+		exps = [exps]
 
-	# ========== Create the figure ==========
-	fig  = plt.figure(constrained_layout=True, figsize=(16,20))
-	spec = gridspec.GridSpec(ncols=2, nrows=3, figure=fig)#, width_ratios=[5,1,5,5], height_ratios=[5, 10, 5])
+	# ========== Setup the multi ensemble plot ==========
+	fig  = plt.figure(constrained_layout=True, figsize=(6*len(exps),12))
+	spec = gridspec.GridSpec(ncols=len(exps), nrows=2, figure=fig)#, width_ratios=[5,1,5,5], height_ratios=[5, 10, 5])
+	expname = {434:"Site Withholding Ensemble", 424:"Endpoint Withholding Ensemble"}
+	for num, exp in enumerate(exps):
+		# ========== Create the figure ==========
+		df = Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, [exp], path)
 
 
-	ax1 = fig.add_subplot(spec[0, :])
-	Temporal_predictability(ppath, [exp], df_setup, df, keys,  fig, ax1, "Residual", hue="ChangeDirectionAll",
-		va = "Residual", CI = "QuantileInterval", single=False, title="a)")
+		ax1 = fig.add_subplot(spec[0, num])
+		Temporal_predictability(ppath, [exp], df_setup, df, keys,  fig, ax1, "Residual", hue="ChangeDirectionAll",
+			va = "Residual", CI = "QuantileInterval", single=False, title=f"{string.ascii_lowercase[num]})",
+			ylim=(-150, 200), Center_title=expname[exp], lgfs =10, loc='upper left')
 
-	ax2 = fig.add_subplot(spec[1, :])
-	Temporal_predictability(ppath, [exp], df_setup, df, keys,  fig, ax2, "Residual", hue="ChangeDirectionNorm",
-		va = "Residual", CI = "QuantileInterval", single=False, title="b)")
-	# ax2 = fig.add_subplot(spec[1, 0])
-	# _confusion_plots(df, keys, exp, fig, ax2, pred, df_setup)
+		ax2 = fig.add_subplot(spec[1, num])
+		Temporal_predictability(ppath, [exp], df_setup, df, keys,  fig, ax2, "Residual", hue="ChangeDirectionNorm",
+			va = "Residual", CI = "QuantileInterval", single=False, title=f"{string.ascii_lowercase[num+ len(exps)]})",
+			ylim=(-3.5, 3.5), lgfs=10, loc='lower right')
+		# ax2 = fig.add_subplot(spec[1, 0])
+		# _confusion_plots(df, keys, exp, fig, ax2, pred, df_setup)
 
-	ax3 = fig.add_subplot(spec[2, :])
-	_regplot(df, ax3, fig, title="c)")
 
-	
-	# ax4 = fig.add_subplot(spec[2, 2:], projection= map_proj)
-	# _simplemapper(ds, "MedianDeltaBiomass", fig, ax4, map_proj, 0, "Delta Biomass", lats, lons,  dim="Version")
+		
+		# ax4 = fig.add_subplot(spec[2, 2:], projection= map_proj)
+		# _simplemapper(ds, "MedianDeltaBiomass", fig, ax4, map_proj, 0, "Delta Biomass", lats, lons,  dim="Version")
 
 	# # ========== Save tthe plot ==========
 	print("starting save at:", pd.Timestamp.now())
-	fnout = f"{ppath}PS02_PaperFig03_ModelPerformanceLimits" 
+	fnout = f"{ppath}PS02_PaperFig03_ModelPerformanceLimits" #_exp{exp}
 	for ext in [".png", ".pdf"]:#".pdf",
 		plt.savefig(fnout+ext)#, dpi=130)
 	
@@ -453,6 +521,14 @@ def FigureModelPerfomance(
 	plt.show()
 
 	breakpoint()
+	# Regional direction breakkdowns
+	# ax3 = fig.add_subplot(spec[2, :])
+	# _regplot(df, ax3, fig, title="c)")
+
+
+
+
+
 
 def _simplemapper(ds, vas, fig, ax, map_proj, indtime, title, lats, lons,  dim="Version"):
 	f = ds[vas].mean(dim=dim).isel(time=indtime).plot(
@@ -475,15 +551,7 @@ def _simplemapper(ds, vas, fig, ax, map_proj, indtime, title, lats, lons,  dim="
 	ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
 
 
-def _regplot(df, ax, fig, title=""):
-	regions   = regionDict()
-	dfx = df.copy()
-	dfx["Region"].replace(regions, inplace=True)
-	g = sns.violinplot( y="Residual", x="Region", hue="ChangeDirection", data=dfx, ax=ax, split=True, cut=0)
-	# ax.set_ylim((-500, 500))
-	g.set_xticklabels(g.get_xticklabels(), rotation=15, horizontalalignment='right')
-	g.set(ylim=(-400, 400))
-	ax.set_title(f"{title}", loc= 'left')
+
 
 
 def oldplots(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, ppath, textsize=24):
@@ -878,7 +946,8 @@ def confusion_plots(path, df_mres, df_setup, df_OvsP, keys, exp, fig, ax,
 
 def Temporal_predictability(
 	ppath, experiments, df_setup, df, keys,  fig, ax, var, hue="experiment",
-	va = "Residual", CI = "QuantileInterval", single=True, title=""):
+	va = "Residual", CI = "QuantileInterval", single=True, title="", 
+	Center_title=None, ylim=None, lgfs = 12, loc='upper right', ltitle = "Obs. AGB Change"):
 
 	"""
 	Function to make a figure that explores the temporal predictability. This 
@@ -963,19 +1032,26 @@ def Temporal_predictability(
 				df_ci[df_ci.level_1 == 0.05][va].values, alpha=0.20, color=colr)
 		# else:
 	# ========== fix the labels ==========
-	ax.set_xlabel('Years Between Observation', fontsize=12, fontweight='bold')
+	ax.set_xlabel('Years Between Observations',  fontweight='bold')#fontsize=lgfs,
+	if not ylim is None:
+		ax.set_ylim(ylim)
 	# ========== Create hhe legend ==========
-	ax.legend(title=huex, loc='upper right', labels=lab)
+	if ltitle is None:
+		ltitle = huex
+	ax.legend(loc=loc, labels=lab, fontsize=lgfs, title=ltitle, title_fontsize=lgfs)
+	# breakpoint()
 	if hue == "ChangeDirectionNorm":
 		# breakpoint()
-		ax.set_ylim(-5, 5)
-		ax.set_ylabel(r'Normalised Mean Residual ($\pm$ %s)' % CI, fontsize=12, fontweight='bold')
+		# ax.set_ylim(-5, 5)
+		ax.set_ylabel(r'Normalised Mean Residual ($\pm$ %s)' % CI,  fontweight='bold')#fontsize=lgfs,
 		# ax.set_title(f"{var} {va} {CI}", loc= 'left')
 	else:
-		ax.set_ylabel(r'Mean Residual ($\pm$ %s)' % CI, fontsize=12, fontweight='bold')
+		ax.set_ylabel(r'Mean Residual ($\pm$ %s)' % CI,  fontweight='bold')#fontsize=lgfs,
 		pass
 
 	ax.set_title(f"{title}", loc= 'left')
+	if not Center_title is None:
+		ax.set_title(f"{Center_title}",)
 
 	# ========== The second subplot ==========
 	# breakpoint()

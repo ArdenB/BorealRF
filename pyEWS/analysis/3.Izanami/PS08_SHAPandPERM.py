@@ -94,11 +94,12 @@ def main():
 	cf.pymkdir(ppath)
 
 	# ========== Chose the experiment ==========
-	exp      = 434
-	_ImpOpener(path, exp)
+	exps      = [434, 424]
+	_ImpOpener(path, ppath, exps)
 
 
-def _ImpOpener(path, exp, var = "PermutationImportance", AddFeature=False, textsize=14):
+def _ImpOpener(path, ppath, exps, var = "PermutationImportance", AddFeature=False, 
+	textsize=14, plotSHAP=True, plotind=False):
 	"""
 	Function to open the feature importance files and return them as a single 
 	DataFrame"""
@@ -109,70 +110,101 @@ def _ImpOpener(path, exp, var = "PermutationImportance", AddFeature=False, texts
 		"axes.labelweight":"bold", 'axes.titlesize':textsize, 'axes.titlelocation': 'left',}) 
 
 	# ========== Loop over the exps ==========
-	df_list = []
-	SHAPlst = []
-	fnames = sorted(glob.glob(f"{path}{exp}/Exp{exp}_*PermutationImportance.csv"))
-	for ver, fn in enumerate(fnames):
-		print(ver)
+	
+	for exp in exps:
+		SHAPlst = []
+		df_list = []
+		
 
-		# ========== load the model ==========
-		dfin = pd.read_csv( fn, index_col=0)
-		fn_mod = f"{path}{exp}/models/XGBoost_model_exp{exp}_version{ver}.dat"
-		model  = pickle.load(open(f"{fn_mod}", "rb"))
+		fnames = sorted(glob.glob(f"{path}{exp}/Exp{exp}_*PermutationImportance.csv"))
 
-		ColNm = dfin["Variable"].values
-		X_train, X_test, y_train, y_test, col_nms, loadstats, corr, df_site, dbg = _getdata(path, exp, ColNm)
-		y_pred = model.predict(X_test)
-		# ========== do the increasing permutation and decreasing permutation ==========
-		# print("starting sklearn permutation importance calculation at:", pd.Timestamp.now())
-		# resultdec = permutation_importance(model, X_test[y_pred<=0].values, y_test[y_pred<=0].values.ravel(), n_repeats=5) #n_jobs=cores
-		# impMetdec = resultdec.importances_mean
-		# dfin["Loss"] = impMetdec
+		for ver, fn in enumerate(fnames):
+			print(ver)
 
-		# resultinc = permutation_importance(model, X_test[y_pred>0].values, y_test[y_pred>0].values.ravel(), n_repeats=5) #n_jobs=cores
-		# impMetinc = resultinc.importances_mean
-		# dfin["Gain"] = impMetinc
+			# ========== load the model ==========
+			dfin = pd.read_csv( fn, index_col=0)
+			dfin["experiment"] = exp
+			dfin["version"]    = ver
+			vnames = Smartrenamer(dfin.Variable.values)
+			dfin["VariableName"]  = vnames.VariableGroup
+			df_list.append(dfin)
 
-		dfin["experiment"] = exp
-		dfin["version"]    = ver
-		df_list.append(dfin)
+			if (not ver == 2) or (not plotSHAP):
+				warn.warn("Skipping SHAP values to start")
+				continue
 
-		# ========== calculate the SHAP values ==========
-		explainer   = shap.TreeExplainer(model)
-		shap_values = explainer.shap_values(X_test)
-		SHAPlst.append(shap_values)
-		# breakpoint()
-		makeindplots = False
-		if makeindplots:
-			plt.figure(1)
-			shap.summary_plot(shap_values, X_test, max_display=20, show=False)
-			shap.dependence_plot("biomass", shap_values, X_test)
-			shap.dependence_plot("ObsGap", shap_values, X_test)
-			# shap.summary_plot(shap_values, X_test, plot_type="layered_violin")#, color='coolwarm')
-			if ver == 2:
-				explainer2   = shap.Explainer(model, X_test)
-				shap_values2 = explainer2(X_test)
-				shap.plots.waterfall(shap_values2[0])
-				shap.plots.waterfall(shap_values2[1000])
-				breakpoint()
-			breakpoint()
+			fn_mod = f"{path}{exp}/models/XGBoost_model_exp{exp}_version{ver}.dat"
+			model  = pickle.load(open(f"{fn_mod}", "rb"))
+			ColNm = dfin["Variable"].values
+			X_train, X_test, y_train, y_test, col_nms, loadstats, corr, df_site, dbg = _getdata(path, exp, ColNm)
+
+			# ========== calculate the SHAP values ==========
+			explainer   = shap.TreeExplainer(model)
+			shap_values = explainer.shap_values(X_test)
+			SHAPlst.append(shap_values)
+
+			# ========== Make the relevant explainer plots ==========
+			shap.summary_plot(shap_values, X_test, feature_names= [vn for vn in vnames.VariableGroup],  
+				max_display=20, plot_size=(15, 13), show=False)
+			# Get the current figure and axes objects.
+			fig, ax = plt.gcf(), plt.gca()
+			plt.tight_layout()
+
+			# ========== Save the plot ==========
+			print("starting save at:", pd.Timestamp.now())
+			fnout = f"{ppath}PS08_{exp}_{var}_SHAPsummary" 
+			for ext in [".png"]:#".pdf",
+				plt.savefig(fnout+ext, dpi=130)
 			
+			plotinfo = "PLOT INFO: SHAP plots made using %s:v.%s by %s, %s" % (
+				__title__, __version__,  __author__, pd.Timestamp.now())
+			gitinfo = cf.gitmetadata()
+			cf.writemetadata(fnout, [plotinfo, gitinfo])
+			plt.show()
+			
+			X_test2 = X_test.copy()
+			X_test2.columns = dfin["VariableName"].values.tolist()
+			
+			fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(9.5,12))
+			for ax, varsig in zip([ax1, ax2, ax3, ax4], dfin.sort_values("PermutationImportance", ascending=False)["VariableName"][:4]):
+				shap.dependence_plot(varsig, shap_values, X_test2, ax=ax, show=False)
+			# shap.dependence_plot("ObsGap", shap_values, X_test, ax=ax2, show=False)
+			plt.tight_layout()
+			# ========== Save the plot ==========
+			print("starting save at:", pd.Timestamp.now())
+			fnout = f"{ppath}PS08_{exp}_{var}_SHAPpartialDependance" 
+			for ext in [".png"]:#".pdf",
+				plt.savefig(fnout+ext, dpi=130)
+			plt.show()
+			breakpoint()
+			if plotind:
+
+				explainer2   = shap.Explainer(model, X_test2)
+				shap_values2 = explainer2(X_test2)
+				shap.plots.waterfall(shap_values2[0])
+				shap.plots.waterfall(shap_values2[1000], show=False)
+				plt.tight_layout()
+				print("starting save at:", pd.Timestamp.now())
+				fnout = f"{ppath}PS08_{exp}_{var}_SHAPexamplepixel" 
+				for ext in [".png"]:#".pdf",
+					plt.savefig(fnout+ext, dpi=130)
+				plt.show()
+				breakpoint()
 
 
-		# X_output = X_test.copy()
-		# X_output.loc[:,'predict'] = y_pred
-		# random_picks = np.arange(1,330,50) # Every 50 rows
-		# S = X_output.iloc[random_picks]
-		# shap_values_Model = explainer.shap_values(S)
+		# ========== Group them together ==========
+		df = pd.concat(df_list).reset_index(drop=True)
+		df["Count"] = df.groupby(["experiment", "VariableName"])[var].transform("count")
 
-		# shap.force_plot(explainer.expected_value, shap_values[0,:], X_test.iloc[0,:])
+		print(df["VariableName"].unique().size)
+		
+		breakpoint()
 
-	# ========== Group them together ==========
-	df = pd.concat(df_list).reset_index(drop=True)
-	df["Count"] = df.groupby(["experiment", "Variable"])[var].transform("count")
-	breakpoint()
-
-
+	"""
+	IDEA:
+	Combine SPAP Plot
+	-  norm all the predictors by columns so i can group and simplify variables
+	"""
 	# df = pd.melt(df.drop(var, axis=1) , 
 	# 	id_vars=['Variable','experiment','version', 'Count'], value_vars=['Loss', 'Gain'],
 	# 	var_name='ChangeDirection', value_name=var)
@@ -193,9 +225,80 @@ def _ImpOpener(path, exp, var = "PermutationImportance", AddFeature=False, texts
 
 # ==============================================================================
 
+
 def Smartrenamer(names):
-	breakkpoint()
 	
+	df = pd.DataFrame({"Variable":names})
+
+	sitenm     = {"biomass":"(st) Initial Biomass", "stem_density":"(st) Stem Density", "ObsGap":"(st) Observation Gap", "StandAge": "(st) Stand Age"}
+	sp_groups  = pd.read_csv("./EWS_package/data/raw_psp/SP_groups.csv", index_col=0)
+	soils      = pd.read_csv( "./EWS_package/data/psp/modeling_data/soil_properties_aggregated.csv", index_col=0).columns.values
+	permafrost = pd.read_csv("./EWS_package/data/psp/modeling_data/extract_permafrost_probs.csv", index_col=0).columns.values
+	
+	def _getname(VN, sitenm=[], species=[], soils = [], permafrost=[], droptime=True):
+		if VN in sitenm.keys():
+			return sitenm[VN]
+		elif VN in ["Disturbance", "DisturbanceGap", "Burn", "BurnGap", "DistPassed"]:
+			return f"(Dis) {VN}"
+		elif VN.startswith("Group"):
+			VNcl = VN.split("_")
+			if len(VNcl) == 3:
+				return f"(sp.) GP{VNcl[1]} {VNcl[2]}"
+			if len(VNcl) == 4:
+				return f"(sp.) GP{VNcl[1]} {VNcl[2]} {VNcl[3]}"
+			else:
+				breakpoint()
+
+		elif VN in species:
+			return f"(sp.) {VN}"
+
+		elif VN.startswith("LANDSAT"):
+			if not droptime:
+				breakpoint()
+
+			# VNc = VN.split(".")[0]
+			VNcl = VN.split("_")
+			if not len(VNcl) in [4, 5]:
+				print("Length is wrong")
+			# breakpoint()
+
+			return f"(RSVI) {VNcl[1].upper()} {VNcl[2] if not VNcl[2]=='trend' else 'Theil.'} {VNcl[3] if not VNcl[3] == 'pulse' else 'size'}"
+
+		elif VN.endswith("30years"):
+			if "DD_" in VN:
+				VN = VN.replace("DD_", "DDb")
+			
+			if "abs_trend" in VN:
+				VN = VN.replace("abs_trend", "abs. trend")
+			
+			VNcl = VN.split("_")
+			if len(VNcl) == 3:
+				return f"(Cli.) {VNcl[0]} {VNcl[1]}"
+			elif len(VNcl) == 4:
+				breakpoint()
+				return f"(Cli.) {VNcl[0]} {VNcl[1]} {VNcl[2]}"
+			elif len(VNcl) == 5:
+				print(VN, "Not uunderstood")
+				breakpoint()
+				return f"(Cli.) {VNcl[0]} {VNcl[1]} {VNcl[3]} {VNcl[4]}"
+			else:
+				breakpoint()
+		elif VN in soils:
+			VNcl = VN.split("_")
+			if not len(VNcl)==5:
+				breakpoint()
+			return f"(Soil) {VNcl[0]} {VNcl[3]}cm"
+		elif VN in permafrost:
+			return f"(PF.) {VN}"
+		else: 
+			print(VN)
+			breakpoint()
+			return "Unknown"
+
+	df["VariableGroup"] = df.Variable.apply(_getname, sitenm=sitenm,
+		species = sp_groups.scientific.values, soils=soils, permafrost=permafrost).astype("category")
+	return df
+
 
 def _getdata(path, exp, ColNm,
 	dpath = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/", 
@@ -243,7 +346,7 @@ def _getdata(path, exp, ColNm,
 	# ========== load in the data ==========
 	X_train, X_test, y_train, y_test, col_nms, loadstats, corr, df_site, dbg = bf.datasplit(
 		setup.loc["predvar"], exp, version,  branch, setup,  cols_keep=ColNm, final=True, #force=True,
-		vi_fn=fnamein, region_fn=sfnamein, basestr=basestr, dropvar=setup.loc["dropvar"])
+		vi_fn=fnamein, region_fn=sfnamein, basestr=basestr, dropvar=setup.loc["dropvar"], column_retuner=True)
 
 	return X_train, X_test, y_train, y_test, col_nms, loadstats, corr, df_site, dbg
 

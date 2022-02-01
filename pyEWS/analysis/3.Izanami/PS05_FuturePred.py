@@ -77,6 +77,7 @@ import geopandas as gpd
 # from sklearn.inspection import permutation_importance
 from sklearn import metrics as sklMet
 from matplotlib.colors import LogNorm
+import string
 # from sklearn.utils import shuffle
 # from scipy.stats import spearmanr
 # from scipy.cluster import hierarchy
@@ -91,6 +92,7 @@ def main():
 	cf.pymkdir(path+"plots/")
 	ppath = "./pyEWS/analysis/3.Izanami/Figures/PS05/"
 	cf.pymkdir(ppath)
+	os.environ["CARTOPY_USER_BACKGROUNDS"] = "./data/Background/"
 	
 	# expr = OrderedDict()
 	# expr['DeltaBiomass']  = [402, 405]
@@ -102,10 +104,10 @@ def main():
 	# var  = "Importance"
 
 
-	experiments = [434]#, 401]
+	experiments = [434, 424]
 	# years       = [2030]
 	# years       = [2020, 2025, 2030, 2040]
-	years       = [2025, 2030, 2040]
+	years       = [2020, 2025, 2030, 2040]
 	# ========== Simple lons and lats ========== 
 	lons = np.arange(-170, -50.1,  0.5)
 	lats = np.arange(  42,  70.1,  0.5)
@@ -120,30 +122,30 @@ def main():
 		# ========== Convert to a dataarray ==========
 		ds = gridder(path, exp, years, df, lats, lons)
 
-		breakpoint()
+		# breakpoint()
 		
-		for fvar in ["MeanDeltaBiomass", "sites","EnsembleDirection"]:
-			splotmap(df, ds, ppath, lats, lons, fvar)
-		breakpoint()
+		for fvar in ["EnsembleDirection","MeanDeltaBiomass", "sites",]:
+			splotmap(exp, df, ds, ppath, lats, lons, fvar, years,)
+		# breakpoint()
 
 
-		FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass")
+		# FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass")
 		
-		breakpoint()
-		dfg = df.groupby(["Region","Plot_ID", "time"]).median().reset_index()
-		gdf = gpd.GeoDataFrame(dfg)
-		gdf.set_geometry(
-		    geopandas.points_from_xy(gdf['Longitude'], gdf['Latitude']),
-		    inplace=True, crs='EPSG:4326')
-		gdf.drop(['Latitude', 'Longitude'], axis=1, inplace=True)
-		gdf[["DeltaBiomass", "geometry"]].to_file(f'{ppath}test.shp')
+		# breakpoint()
+		# dfg = df.groupby(["Region","Plot_ID", "time"]).median().reset_index()
+		# gdf = gpd.GeoDataFrame(dfg)
+		# gdf.set_geometry(
+		#     geopandas.points_from_xy(gdf['Longitude'], gdf['Latitude']),
+		#     inplace=True, crs='EPSG:4326')
+		# gdf.drop(['Latitude', 'Longitude'], axis=1, inplace=True)
+		# gdf[["DeltaBiomass", "geometry"]].to_file(f'{ppath}test.shp')
 
-		fnout = f"{ppath}Examplenetcdf.nc"
-		ds.to_netcdf(fnout, 
-			format         = 'NETCDF4', 
-			# encoding       = encoding,
-			unlimited_dims = ["time"])
-		breakpoint()
+		# fnout = f"{ppath}Examplenetcdf.nc"
+		# ds.to_netcdf(fnout, 
+		# 	format         = 'NETCDF4', 
+		# 	# encoding       = encoding,
+		# 	unlimited_dims = ["time"])
+		# breakpoint()
 
 
 	# for epnm in expr:
@@ -152,20 +154,21 @@ def main():
 
 
 # ==============================================================================
-def splotmap(df, ds, ppath, lats, lons, var, textsize=14, col_wrap=1, dim="Version", norm=None, robust=False):
+def splotmap(exp, df, ds, ppath, lats, lons, var, years, 
+	textsize=14, col_wrap=1, dim="Version", norm=None, robust=False):
 	"""
 	Plot function for a single var
 	"""
 	if var == "EnsembleDirection":
 		cmap = mpc.ListedColormap(palettable.colorbrewer.diverging.PiYG_11.mpl_colors)
-		cbkw = {"pad": 0.015, "shrink":0.85,}
+		cbkw = {"pad": 0.015, "shrink":1./len(years), "label": r"$\Delta$AGB Direction"}
 	elif var == "sites":
 		norm=LogNorm(vmin=1, vmax=1000,)
 		cmap = mpc.ListedColormap(palettable.cmocean.sequential.Matter_20.mpl_colors)
-		cbkw = {"pad": 0.015, "shrink":0.85, "extend":"max"}
+		cbkw = {"pad": 0.015, "shrink":1./len(years), "extend":"max", "label":"No. Sites"}
 	elif var in ["MedianDeltaBiomass", "MeanDeltaBiomass"]:
 		cmap = mpc.ListedColormap(palettable.colorbrewer.diverging.BrBG_11.mpl_colors)
-		cbkw = {"pad": 0.015, "shrink":0.85, "extend":"both"}
+		cbkw = {"pad": 0.015, "shrink":1./len(years), "extend":"both", "label": r"$\Delta$AGB (t/ha/yr)"}
 		robust=True
 	else:
 		breakpoint()
@@ -191,15 +194,16 @@ def splotmap(df, ds, ppath, lats, lons, var, textsize=14, col_wrap=1, dim="Versi
 		cbar_kwargs=cbkw,
 		subplot_kws={'projection': map_proj}, 
 		cmap=cmap, #size =8,
-		figsize=(18,ds.time.size*7),
+		figsize=(12, ds.time.size*3.75),
 		norm=norm, 
 		robust=robust,
 		)
 		# norm=LogNorm(vmin=1, vmax=1000,)
 		# size=6,	aspect=ds.dims['longitude'] / ds.dims['latitude'],  
-
-	for ax in f.axes.flat:
-		ax.set_extent([lons.min()+10, lons.max()-5, lats.min()-13, lats.max()])
+	# for ax in :
+	for ax, tit, year in zip(f.axes.flat, string.ascii_lowercase, years):
+		ax.set_extent([lons.min()+15, lons.max()-3, lats.min()-5, lats.max()-10])
+		ax.background_img(name='BM', resolution='low')
 		ax.gridlines()
 		coast = cpf.GSHHSFeature(scale="intermediate")
 		ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
@@ -208,9 +212,11 @@ def splotmap(df, ds, ppath, lats, lons, var, textsize=14, col_wrap=1, dim="Versi
 		ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
 		ax.add_feature(cpf.RIVERS, zorder=104)
 		ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
+		ax.set_title(f"{tit}) {year}", loc= 'left')
 
+	# plt.tight_layout()
 	print("starting save at:", pd.Timestamp.now())
-	fnout = f"{ppath}PS05_PaperFig04_FuturePredSvar_{ds.time.size}_{var}" 
+	fnout = f"{ppath}PS05_PaperFig04_FuturePredSvar_{ds.time.size}_{var}_exp{exp}" 
 	for ext in [".png", ".pdf"]:#".pdf",
 		plt.savefig(fnout+ext)#, dpi=130)
 	
@@ -219,7 +225,7 @@ def splotmap(df, ds, ppath, lats, lons, var, textsize=14, col_wrap=1, dim="Versi
 	gitinfo = cf.gitmetadata()
 	cf.writemetadata(fnout, [plotinfo, gitinfo])
 	plt.show()
-	breakpoint()
+	# breakpoint()
 
 def FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass", textsize=24):
 
@@ -244,7 +250,7 @@ def FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass", textsize=24):
 	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
 
 	# ========== Create the figure ==========
-	fig  = plt.figure(constrained_layout=True, figsize=(18,ds.time.size*7))
+	fig  = plt.figure(constrained_layout=True, figsize=(10, 13))
 	spec = gridspec.GridSpec(ncols=4, nrows=ds.time.size, figure=fig, width_ratios=[11,1,11,1])
 
 	for pos in range(ds.time.size):
@@ -457,6 +463,7 @@ def fpred(path, exp, years, lats, lons, var = "DeltaBiomass",
 			
 			dfoutC["time"] = pd.Timestamp(f"{yr}-12-31")
 			dfoutC.loc[(dfoutC.time.dt.year - dfoutC.year) > maxdelta, ['Biomass', 'DeltaBiomass']] = np.NaN
+			dfoutC[f"DeltaBiomass"] /=(dfoutC.time.dt.year - dfoutC.year)
 			est_list.append(dfoutC)
 
 	df = pd.concat(est_list)

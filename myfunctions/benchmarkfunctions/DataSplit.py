@@ -659,13 +659,15 @@ def datasplit(predvar, experiment, version,  branch, setup, trans=None,  group=N
 			Xa = X.copy().dropna()
 			if Xa.shape[0]/X.shape[0] < 0.6:
 				if not final:
-					warn.warn("Warning: too small fraction")
-					breakpoint()
-					raise ValueError
+					warn.warn("Warning: too small fraction 1")
+					# breakpoint()
 				else:
-					warn.warn("Warning: too small fraction")
-					breakpoint()
-			corr = spearmanr(Xa).correlation	
+					warn.warn("Warning: too small fraction 2")
+					# breakpoint()
+					# raise ValueError
+				corr = 0
+			else:
+				corr = spearmanr(Xa).correlation	
 		else:
 			corr = spearmanr(X).correlation
 		

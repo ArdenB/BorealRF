@@ -11,7 +11,7 @@ __email__ = "arden.burrell@gmail.com"
 
 # ==============================================================================
 
-# +++++ Check the paths and set ex path to Boreal folder +++++
+  # +++++ Check the paths and set ex path to Boreal folder +++++
 import os
 import sys
 if not os.getcwd().endswith("Boreal"):
@@ -25,6 +25,7 @@ if not os.getcwd().endswith("Boreal"):
 sys.path.append(os.getcwd())
 
 # ==============================================================================
+
 
 # ========== Import packages ==========
 import numpy as np
@@ -256,6 +257,7 @@ def ensemblper(path, ppath, exp, fpath, vi_df, site_df, df_OvsP):
 
 	dfen["ObservedGain"] = (dfen.Observed > 0)
 	dfen["EstimatedGain"] = (dfen.Estimated > 0)
+	dfen["AnnualEst"] = dfen['Estimated'] / dfen["ObsGap"]
 	# dfen.groupby("index").mean()
 	
 
@@ -267,9 +269,12 @@ def ensemblper(path, ppath, exp, fpath, vi_df, site_df, df_OvsP):
 		MeanEst=pd.NamedAgg(column='Estimated', aggfunc='mean'),
 		MedianEst=pd.NamedAgg(column='Estimated', aggfunc='median'),
 		ModelGainFrac=pd.NamedAgg(column='EstimatedGain', aggfunc='mean'),
+		# AnnualMeanEst=pd.NamedAgg(column='AnnualEst', aggfunc='mean'),
+		ObsGap=pd.NamedAgg(column='ObsGap', aggfunc='mean'),
 		)
 	dfens["Inrange"  ] = np.logical_and(dfens.maxest > dfens.Observed, dfens.minest < dfens.Observed)
 	dfens["MeanRes"  ] = dfens.MeanEst - dfens.Observed
+	dfens["AnnMeanRes"]= dfens["MeanRes"]/dfens["ObsGap"]
 	dfens["AbsMeanRes"] = dfens["MeanRes"  ].abs()
 	dfens["MedianRes"] = dfens.MedianEst - dfens.Observed
 	dfens["AbsMedianRes"] = dfens["MedianRes"].abs()
@@ -281,13 +286,13 @@ def ensemblper(path, ppath, exp, fpath, vi_df, site_df, df_OvsP):
 	keystats.append(dfen.groupby("version").median().drop(["CorrectDir", "Ncount", "index"], axis=1))
 
 	keystats.append("\n The median ensemble performance \n")
-	keystats.append(dfens[["Inrange", "MeanRes", "AbsMeanRes", "MedianRes", "AbsMedianRes"]].median())
+	keystats.append(dfens[["Inrange", "MeanRes", "AnnMeanRes", "AbsMeanRes", "MedianRes", "AbsMedianRes"]].median())
 
 	keystats.append("\n The mean indivdual model performance \n")
 	keystats.append(dfen.groupby("version").mean().drop(["Ncount", "index"], axis=1))
 
 	keystats.append("\n The mean ensemble performance \n")
-	keystats.append(dfens[["Inrange", "MeanRes", "AbsMeanRes", "MedianRes", "AbsMedianRes", "CorrectDir"]].mean())
+	keystats.append(dfens[["Inrange", "MeanRes", "AnnMeanRes", "AbsMeanRes", "MedianRes", "AbsMedianRes", "CorrectDir"]].mean())
 	
 	keystats.append("\n The total perormace accuracy by observed direction \n")
 	keystats.append(dfen[["ObservedGain", "CorrectDir"]].groupby("ObservedGain").mean())
@@ -342,11 +347,17 @@ def predictions(path, ppath, exp, fpath, vi_df, site_df, df_OvsP):
 	# ========== Summary of prediction scores ==========
 	y_test = df_OvsP["Observed"].values
 	y_pred = df_OvsP["Estimated"].values
+	# breakpoint()
 	keystats.append('\n Prediction Score Metric for the entire prediction ensemble \n')
 	keystats.append(f'\n R squared score: {sklMet.r2_score(y_test, y_pred)}')
 	keystats.append(f'\n Mean Absolute Error: {sklMet.mean_absolute_error(y_test, y_pred)}')
 	keystats.append(f'\n Median Absolute Error: {sklMet.median_absolute_error(y_test, y_pred)}')
 	keystats.append(f'\n Root Mean Squared Error: {np.sqrt(sklMet.mean_squared_error(y_test, y_pred))}')
+
+	keystats.append(f'\n Annual Median Absolute Error: {sklMet.median_absolute_error(y_test/df_OvsP.ObsGap.values, y_pred/df_OvsP.ObsGap.values)}')
+	keystats.append(f'\n Annual Mean Absolute Error: {sklMet.mean_absolute_error(y_test/df_OvsP.ObsGap.values, y_pred/df_OvsP.ObsGap.values)}')
+	keystats.append(f'\n Annual Root Mean Squared Error: {np.sqrt(sklMet.mean_squared_error(y_test/df_OvsP.ObsGap.values, y_pred/df_OvsP.ObsGap.values))}')
+	# df_OvsP['ObsGap'].values
 	# breakpoint()
 	# ========== overall trends in the model data =======
 	keystats.append(f"\n The fraction sites with Observed increases:\n {(df_OvsP['Observed'] > 0).sum() / df_OvsP.shape[0]}")
