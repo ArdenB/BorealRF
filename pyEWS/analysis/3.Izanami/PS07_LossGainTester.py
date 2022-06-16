@@ -341,14 +341,18 @@ def agreement(path, ppath, dfout, dfl, FWH, df, ds, lats, lons,
 	cbkw = {"pad": 0.015, "shrink":0.85, "label": r"$\Delta$AGB Direction"}
 
 	# ========== Create the mapp projection ==========
-	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
+	# map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
+	dfloss.replace({"Site":"SWE", "Endpoint":"IWE"}, inplace=True)
 
 	# ========== Create the figure ==========
 	fig  = plt.figure(constrained_layout=True, figsize=(12,3*4))
 	spec = gridspec.GridSpec(ncols=1, nrows=3, figure=fig)
 
 	ax0 = fig.add_subplot(spec[0, :])
-	sns.lineplot(y="GainLoss", x="ModAgree", hue="Ensemble", data=dfloss, ci=99, ax=ax0)
+	# Safe_2
+	# palettable.cartocolors.qualitative.Safe_2.hex_colors
+	sns.lineplot(y="GainLoss", x="ModAgree", hue="Ensemble", data=dfloss, 
+		ci=99, ax=ax0, palette= palettable.cartocolors.qualitative.Safe_2.hex_colors)
 	ax0.set_yticks(np.arange(-1, 1.1, 0.2))
 	ax0.set_xticks(np.arange(-1, 1.1, 0.2))
 	ax0.set_title(f"a)", loc= 'left')
@@ -359,7 +363,7 @@ def agreement(path, ppath, dfout, dfl, FWH, df, ds, lats, lons,
 	# breakpoint()
 	dfloss["AGB Direction"] = (dfloss["Observed"] > 0).replace({True:"Gain", False:"Loss"})
 	# dfloss["Ens. Direction"] = dfloss["Ensemble"] + " Ens. " + dfloss["Gain"].replace({True:"Gain", False:"Loss"})
-	for nx, ves in enumerate(["Site", "Endpoint"]):
+	for nx, ves in enumerate(["SWE", "IWE"]):
 		ax1 = fig.add_subplot(spec[nx+1, :])
 		sns.lineplot(y="ModScore", x="ObsGap", hue="AGB Direction", data=dfloss[dfloss.Ensemble == ves], ci=99, ax=ax1)
 		ax1.set_yticks(np.arange(0, 1.01, 0.1))

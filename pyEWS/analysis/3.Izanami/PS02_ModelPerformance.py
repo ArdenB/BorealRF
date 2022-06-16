@@ -112,12 +112,18 @@ def main():
 
 	# experiments = [400]
 	# exp = 402
-	exp = 434
+	exp  = 434
 	exps = [434, 424]
+	
+	# +++++ Figure 5 in the paper +++++
+	FigureExpLimits(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exps, ppath)
+
+	# +++++ Figure 2 and 3 in the paper +++++
+	FigureModelPerfomanceV2(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exps, ppath)
+	
+	# +++++ Make supplementary material figures +++++
 	FigureRegionalLimits(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exps, ppath)
 	FigureModelLimits(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exps, ppath)
-	
-	FigureModelPerfomanceV2(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exps, ppath)
 	
 	breakpoint()
 	FigureModelPerfomancePresentation(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exp, ppath)
@@ -126,6 +132,83 @@ def main():
 	oldplots(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, ppath)
 
 # ================================================================================
+def FigureExpLimits(
+	df_setup, df_mres, keys, df_OvsP, 
+	df_clest, df_branch, path, exps, ppath, years=[2020], 	
+	lons = np.arange(-170, -50.1,  0.5),
+	lats = np.arange(  42,  70.1,  0.5), textsize=14):
+	"""
+	Build model performace figure
+	"""
+	# ========== Create the figure ==========
+	plt.rcParams.update({'axes.titleweight':"bold", 'axes.titlesize':textsize})
+	font = ({'weight' : 'bold', 'size'   : textsize})
+	mpl.rc('font', **font)
+	sns.set_style("whitegrid")
+	plt.rcParams.update({'axes.titleweight':"bold", "axes.labelweight":"bold"})
+	
+	if not isinstance(exps, list):
+		exps = [exps]
+
+	expname = {434:"SWE", 424:"IWE"}
+	for num, exp in enumerate(exps):
+		# ========== Setup the multi ensemble plot ==========
+		fig  = plt.figure(constrained_layout=True, figsize=(6,15))
+		spec = gridspec.GridSpec(ncols=1, nrows=3, figure=fig)#, width_ratios=[5,1,5,5], height_ratios=[5, 10, 5])
+		# ========== Create the figure ==========
+		df = Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, [exp], path)
+		df["Normalised Residual"] = df["Residual"]/df["ObsGap"]
+
+		ax1 = fig.add_subplot(spec[0, 0])
+		Temporal_predictability(ppath, [exp], df_setup, df, keys,  fig, ax1, "Residual", hue="ChangeDirectionAll",
+			va = "Residual", CI = "QuantileInterval", single=False, title=f"{string.ascii_lowercase[0]})",
+			ylim=(-150, 200), Center_title=expname[exp], lgfs =10, loc='upper left')
+
+		ax2 = fig.add_subplot(spec[1, 0])
+		Temporal_predictability(ppath, [exp], df_setup, df, keys,  fig, ax2, "Residual", hue="ChangeDirectionNorm",
+			va = "Residual", CI = "QuantileInterval", single=False, title=f"{string.ascii_lowercase[1]})",
+			ylim=(-3.5, 3.5), lgfs=10, loc='lower right')
+
+		# Regional direction breakkdowns
+		ax3 = fig.add_subplot(spec[2, 0])
+		_regplot(df, ax3, fig, "Residual", title=f"{string.ascii_lowercase[2]})", Center_title="",)
+		
+		# # ========== Save tthe plot ==========
+		print("starting save at:", pd.Timestamp.now())
+		fnout = f"{ppath}PS02_PaperFig05_ModelRegionalLimits_exp{exp}" #
+		for ext in [".png"]:#".pdf",
+			plt.savefig(fnout+ext)#, dpi=130)
+		
+		plotinfo = "PLOT INFO: Multimodel Comparioson made using %s:v.%s by %s, %s" % (
+			__title__, __version__,  __author__, pd.Timestamp.now())
+		gitinfo = cf.gitmetadata()
+		cf.writemetadata(fnout, [plotinfo, gitinfo])
+		plt.show()
+
+		breakpoint()
+
+		# ax3 = fig.add_subplot(spec[2, :])
+
+		# Temporal_predictability(ppath, [exp], df_setup, df, keys,  fig, ax1, "Residual", hue="ChangeDirectionAll",
+		# 	va = "Residual", CI = "QuantileInterval", single=False, title=f"{string.ascii_lowercase[num]})",
+		# 	ylim=(-150, 200), Center_title=expname[exp], lgfs =8, loc='upper left')
+
+		# ax2 = fig.add_subplot(spec[1, num])
+		# _regplot(df, ax2, fig, "Normalised Residual", title=f"{string.ascii_lowercase[num+ len(exps)]})", ylim=(-25, 25))
+		# breakpoint()
+		# Temporal_predictability(ppath, [exp], df_setup, df, keys,  fig, ax2, "Residual", hue="ChangeDirectionNorm",
+		# 	va = "Residual", CI = "QuantileInterval", single=False, title=f"{string.ascii_lowercase[num+ len(exps)]})",
+		# 	ylim=(-3.5, 3.5), lgfs=8, loc='lower right')
+		# ax2 = fig.add_subplot(spec[1, 0])
+		# _confusion_plots(df, keys, exp, fig, ax2, pred, df_setup)
+
+
+		
+		# ax4 = fig.add_subplot(spec[2, 2:], projection= map_proj)
+		# _simplemapper(ds, "MedianDeltaBiomass", fig, ax4, map_proj, 0, "Delta Biomass", lats, lons,  dim="Version")
+
+
+
 def FigureRegionalLimits(
 	df_setup, df_mres, keys, df_OvsP, 
 	df_clest, df_branch, path, exps, ppath, years=[2020], 	
@@ -147,7 +230,7 @@ def FigureRegionalLimits(
 	# ========== Setup the multi ensemble plot ==========
 	fig  = plt.figure(constrained_layout=True, figsize=(6*len(exps),12))
 	spec = gridspec.GridSpec(ncols=len(exps), nrows=2, figure=fig)#, width_ratios=[5,1,5,5], height_ratios=[5, 10, 5])
-	expname = {434:"Site Withholding Ensemble", 424:"Endpoint Withholding Ensemble"}
+	expname = {434:"SWE", 424:"IWE"}
 	for num, exp in enumerate(exps):
 		# ========== Create the figure ==========
 		df = Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, [exp], path)
@@ -191,7 +274,7 @@ def FigureRegionalLimits(
 	breakpoint()
 
 def _regplot(df, ax, fig, var, title="", Center_title=None, ylim=(-250, 250), yfontsize=10,
-	lgfs = 10, loc='lower right', ltitle = "Obs. AGB Change"):
+	lgfs = 10, loc='lower right', ltitle = r"Obs. $\Delta$AGB"):
 	regions   = regionDict()
 	dfx = df.copy()
 	dfx["Region"].replace(regions, inplace=True)
@@ -203,6 +286,9 @@ def _regplot(df, ax, fig, var, title="", Center_title=None, ylim=(-250, 250), yf
 	if not Center_title is None:
 		ax.set_title(f"{Center_title}",)
 	ax.set_xlabel("")
+	if var == "Residual":
+		# unit = r"t $ha^{-1}$"
+		ax.set_ylabel(r"Residual (t $ha^{-1}$)")
 	ax.legend(loc=loc,  fontsize=lgfs, title=ltitle, title_fontsize=lgfs)#labels=lab,
 
 
@@ -265,9 +351,9 @@ def FigureModelPerfomanceV2(
 		"Resname":"Residual"
 		})
 
-	# ========== Create the figure ==========
-	fig  = plt.figure(constrained_layout=True, figsize=(11, (len(exps)+1)*5))
-	spec = gridspec.GridSpec(ncols=2, nrows=len(exps)+1, figure=fig)#, width_ratios=[6,1,6,1], )#height_ratios=[5, 10, 5]
+	# ========== Create the first figure ==========
+	fig  = plt.figure(constrained_layout=True, figsize=(11, (len(exps))*5))
+	spec = gridspec.GridSpec(ncols=2, nrows=len(exps), figure=fig)
 
 	# ========== create containers for 
 	dflist  = []
@@ -289,34 +375,9 @@ def FigureModelPerfomanceV2(
 
 		# breakpoint()
 
-
-	num +=1
-	
-	# ========== Create the figure of grouped importaance ==========
-	expname = {434:"Site", 424:"Endpoint"}
-	dfX  = pd.concat(dflist)
-	dfgr = dfX.groupby(["VariableGroup", 'experiment', 'version']).sum().reset_index()
-	dfgr["Withholding"] = dfgr.experiment.replace(expname)
-	ax3  = fig.add_subplot(spec[num, 0])
-
-	g = sns.barplot(x="VariableGroup", y="PermutationImportance", hue='Withholding', data=dfgr, ax=ax3)
-	g.set_xticklabels(g.get_xticklabels(), rotation=15, horizontalalignment ="right")
-	ax3.set_title(f"{string.ascii_lowercase[num*2]})")
-	ax3.set_ylabel("Total Permutation Importance")
-	ax3.set_xlabel("")
-	# g.set_xscale('log')
-
-	ax4  = fig.add_subplot(spec[num, 1])
-	dfP  = pd.concat(estlist)
-	dfP["Median Absolute Error"] = dfP.Residual.abs()
-	dfP["Withholding"] = dfP.experiment.replace(expname)
-	dfmae = dfP.groupby(['No. Site Measurements', 'Withholding']).median()["Median Absolute Error"].reset_index()
-	sns.lineplot(y="Median Absolute Error", x="No. Site Measurements",hue="Withholding", data=dfmae, ax = ax4)
-	ax4.set_title(f"{string.ascii_lowercase[num*2+1]})")
-
-	# ========== Save tthe plot ==========
+	# ========== Save the first plot ==========
 	print("starting save at:", pd.Timestamp.now())
-	fnout = f"{ppath}PS02_PaperFig03_ModelPerformanceV2" 
+	fnout = f"{ppath}PS02_PaperFig02_ModelPerformanceV2_final" 
 	for ext in [".png"]:#".pdf",
 		plt.savefig(fnout+ext)#, dpi=130)
 	
@@ -326,6 +387,44 @@ def FigureModelPerfomanceV2(
 	cf.writemetadata(fnout, [plotinfo, gitinfo])
 	plt.show()
 
+	# ========== Create the second figure ==========
+	fig  = plt.figure(constrained_layout=True, figsize=(11, 5))
+	spec = gridspec.GridSpec(ncols=2, nrows=1, figure=fig)
+	num = 0 
+	
+	# ========== Create the figure of grouped importaance ==========
+	expname = {434:"SWE", 424:"IWE"}
+	dfX  = pd.concat(dflist)
+	dfgr = dfX.groupby(["VariableGroup", 'experiment', 'version']).sum().reset_index()
+	dfgr["Ensemble"] = dfgr.experiment.replace(expname)
+	ax3  = fig.add_subplot(spec[num, 0])
+
+	g = sns.barplot(x="VariableGroup", y="PermutationImportance", hue='Ensemble', data=dfgr, ax=ax3)
+	g.set_xticklabels(g.get_xticklabels(), rotation=15, horizontalalignment ="right")
+	ax3.set_title(f"{string.ascii_lowercase[num*2]})")
+	ax3.set_ylabel("Total Permutation Importance")
+	ax3.set_xlabel("")
+	# g.set_xscale('log')
+
+	ax4  = fig.add_subplot(spec[num, 1])
+	dfP  = pd.concat(estlist)
+	dfP["Median Absolute Error"] = dfP.Residual.abs()
+	dfP["Ensemble"] = dfP.experiment.replace(expname)
+	dfmae = dfP.groupby(['No. Site Measurements', 'Ensemble']).median()["Median Absolute Error"].reset_index()
+	sns.lineplot(y="Median Absolute Error", x="No. Site Measurements",hue="Ensemble", data=dfmae, ax = ax4)
+	ax4.set_title(f"{string.ascii_lowercase[num*2+1]})")
+
+	# ========== Save the Second plot ==========
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS02_PaperFig03_ModelPerformanceV2_final" 
+	for ext in [".png"]:#".pdf",
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
 	breakpoint()
 
 
@@ -485,7 +584,7 @@ def FigureModelLimits(
 	# ========== Setup the multi ensemble plot ==========
 	fig  = plt.figure(constrained_layout=True, figsize=(6*len(exps),12))
 	spec = gridspec.GridSpec(ncols=len(exps), nrows=2, figure=fig)#, width_ratios=[5,1,5,5], height_ratios=[5, 10, 5])
-	expname = {434:"Site Withholding Ensemble", 424:"Endpoint Withholding Ensemble"}
+	expname = {434:"SWE", 424:"IWE"}
 	for num, exp in enumerate(exps):
 		# ========== Create the figure ==========
 		df = Translator(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, [exp], path)
@@ -524,9 +623,6 @@ def FigureModelLimits(
 	# Regional direction breakkdowns
 	# ax3 = fig.add_subplot(spec[2, :])
 	# _regplot(df, ax3, fig, title="c)")
-
-
-
 
 
 
@@ -756,8 +852,10 @@ def _confusion_plots(
 
 	# ax.set_title(f"{exp}-{keys[exp]} $R^{2}$ {df_set.R2.mean()}", loc= 'left')
 	delt = r"$\Delta$"
-	ax.set_xlabel(f'Observed {delt}Biomass')
-	ax.set_ylabel(f'Predicted {delt}Biomass')
+	unit = r"t $ha^{-1}$"
+
+	ax.set_xlabel(f'Observed {delt}AGB ({unit})')
+	ax.set_ylabel(f'Predicted {delt}AGB ({unit})')
 	ax.set_title(f"{title}")
 
 
@@ -947,7 +1045,7 @@ def confusion_plots(path, df_mres, df_setup, df_OvsP, keys, exp, fig, ax,
 def Temporal_predictability(
 	ppath, experiments, df_setup, df, keys,  fig, ax, var, hue="experiment",
 	va = "Residual", CI = "QuantileInterval", single=True, title="", 
-	Center_title=None, ylim=None, lgfs = 12, loc='upper right', ltitle = "Obs. AGB Change"):
+	Center_title=None, ylim=None, lgfs = 12, loc='upper right', ltitle = r"Obs. $\Delta$AGB"):
 
 	"""
 	Function to make a figure that explores the temporal predictability. This 
@@ -1040,29 +1138,21 @@ def Temporal_predictability(
 		ltitle = huex
 	ax.legend(loc=loc, labels=lab, fontsize=lgfs, title=ltitle, title_fontsize=lgfs)
 	# breakpoint()
+	pm   =  r"$\pm$"
+	unit = r"t $ha^{-1}$"
 	if hue == "ChangeDirectionNorm":
 		# breakpoint()
 		# ax.set_ylim(-5, 5)
-		ax.set_ylabel(r'Normalised Mean Residual ($\pm$ %s)' % CI,  fontweight='bold')#fontsize=lgfs,
+		ax.set_ylabel(f'Norm. Mean Residual ({pm} QI) ',  fontweight='bold')#fontsize=lgfs,
 		# ax.set_title(f"{var} {va} {CI}", loc= 'left')
 	else:
-		ax.set_ylabel(r'Mean Residual ($\pm$ %s)' % CI,  fontweight='bold')#fontsize=lgfs,
+		ax.set_ylabel(f'Mean Residual ({pm} QI) ({unit})' ,  fontweight='bold')#fontsize=lgfs,
 		pass
 
 	ax.set_title(f"{title}", loc= 'left')
 	if not Center_title is None:
 		ax.set_title(f"{Center_title}",)
 
-	# ========== The second subplot ==========
-	# breakpoint()
-	# sns.histplot(data=df_OvsP, x="ObsGap", hue="Region",  
-	# 	multiple="dodge",  ax=ax2) #palette=colours[:len(experiments)]
-	# # ========== fix the labels ==========
-	# ax2.set_xlabel('Years Between Observation', fontsize=8, fontweight='bold')
-	# ax2.set_ylabel(f'# of Obs.', fontsize=8, fontweight='bold')
-	# ========== Create hhe legend ==========
-	# ax2.legend(title='Experiment', loc='upper right', labels=lab)
-	# ax2.set_title(f"b) ", loc= 'left')
 
 	if single:
 		plt.tight_layout()
@@ -1355,7 +1445,7 @@ def _ImpOpener(path, exps, var = "PermutationImportance", AddFeature=False):
 		elif (VN.startswith("Group")) or (VN in species):
 			return "Species"
 		elif VN.startswith("LANDSAT"):
-			return "RS VI"
+			return "RSVI"
 		elif VN.endswith("30years"):
 			return "Climate"
 		elif VN in soils:
@@ -1387,7 +1477,7 @@ def cmapper(varlist, AddFeature, var):
 		breakpoint()
 		sys.exit()
 
-	vaorder = ["Climate", "RS VI", "Survey", "Species","Permafrost", "Soil",]
+	vaorder = ["Climate", "RSVI", "Survey", "Species","Permafrost", "Soil",]
 	cmapHex = palettable.colorbrewer.qualitative.Paired_12.hex_colors
 	if AddFeature and var == "Importance":
 		vaorder = [f"{MI}-{VG}" for VG, MI in product(vaorder, ["FI", "PI"])]

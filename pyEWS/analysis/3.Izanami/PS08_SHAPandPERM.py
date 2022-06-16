@@ -99,7 +99,7 @@ def main():
 
 
 def _ImpOpener(path, ppath, exps, var = "PermutationImportance", AddFeature=False, 
-	textsize=14, plotSHAP=True, plotind=False):
+	textsize=14, plotSHAP=True, plotind=False, smodel=False):
 	"""
 	Function to open the feature importance files and return them as a single 
 	DataFrame"""
@@ -114,6 +114,9 @@ def _ImpOpener(path, ppath, exps, var = "PermutationImportance", AddFeature=Fals
 	for exp in exps:
 		SHAPlst = []
 		df_list = []
+		ypredl  = []
+		X_testl = []
+		expcted = []
 		
 
 		fnames = sorted(glob.glob(f"{path}{exp}/Exp{exp}_*PermutationImportance.csv"))
@@ -129,30 +132,148 @@ def _ImpOpener(path, ppath, exps, var = "PermutationImportance", AddFeature=Fals
 			dfin["VariableName"]  = vnames.VariableGroup
 			df_list.append(dfin)
 
-			if (not ver == 2) or (not plotSHAP):
-				warn.warn("Skipping SHAP values to start")
-				continue
+
+			if smodel:
+				if (not ver == 2) or (not plotSHAP):
+					warn.warn(f"Skipping SHAP in ver:{ver}")
+					continue
 
 			fn_mod = f"{path}{exp}/models/XGBoost_model_exp{exp}_version{ver}.dat"
 			model  = pickle.load(open(f"{fn_mod}", "rb"))
-			ColNm = dfin["Variable"].values
-			X_train, X_test, y_train, y_test, col_nms, loadstats, corr, df_site, dbg = _getdata(path, exp, ColNm)
+			ColNm  = dfin["Variable"].values
+			try:
+				X_train, X_test, y_train, y_test, col_nms, loadstats, corr, df_site, dbg = _getdata(path, exp, ColNm)
+			except Exception as err:
+				print(str(err))
+				breakpoint()
+				break
+			y_pred = model.predict(X_test)
+			ypredl.append(y_pred)
 
 			# ========== calculate the SHAP values ==========
 			explainer   = shap.TreeExplainer(model)
-			shap_values = explainer.shap_values(X_test)
-			SHAPlst.append(shap_values)
+			expcted.append(explainer.expected_value)
+			# breakpoint()
 
-			# ========== Make the relevant explainer plots ==========
-			shap.summary_plot(shap_values, X_test, feature_names= [vn for vn in vnames.VariableGroup],  
-				max_display=20, plot_size=(15, 13), show=False)
+			if not smodel:
+				shap_values = explainer.shap_values(X_test)
+				dfr = pd.DataFrame(shap_values, columns=vnames.VariableGroup.tolist())
+				dfx = X_test.set_axis(vnames.VariableGroup.tolist(), axis=1)
+				
+				# +++++ Find places with unique columns +++++
+				if not  vnames.VariableGroup.unique().shape[0] == vnames.VariableGroup.shape[0]: 
+					uq, ct = np.unique(vnames.VariableGroup.tolist(), return_counts=True)
+					if np.sum(ct > 1)>1:
+						breakpoint()
+					
+					dfr = dfr.loc[:, ~dfr.columns.duplicated()]
+					dfx = dfx.loc[:, ~dfx.columns.duplicated()]
+					# # dfr[uq[ct>1]] = dfr[uq[ct>1]].mean(axis=1)
+					# dfr[uq[ct>1]].mean(axis=1)
+
+				SHAPlst.append(dfr)
+				X_testl.append(dfx)
+
+			else:
+				for vargp in ["_Negative", "_Positive", ""]:
+					if vargp == "_Negative":
+						X_tt = X_test[y_pred < 0]
+						shap_values = explainer.shap_values(X_tt)
+					elif vargp == "_Positive":
+						X_tt = X_test[y_pred >= 0]
+						shap_values = explainer.shap_values(X_tt)
+					else:
+						X_tt = X_test
+						shap_values = explainer.shap_values(X_tt)
+						SHAPlst.append(shap_values)
+
+					# ========== Make the relevant explainer plots ==========
+					shap.summary_plot(shap_values, X_tt, feature_names= [vn for vn in vnames.VariableGroup],  
+						max_display=20, plot_size=(15, 13), show=False)
+					
+					# Get the current figure and axes objects.
+					fig, ax = plt.gcf(), plt.gca()
+					ax.set_xlim(-40, 40)
+					plt.tight_layout()
+
+					# ========== Save the plot ==========
+					print("starting save at:", pd.Timestamp.now())
+					fnout = f"{ppath}PS08_{exp}_{var}_ver{ver}_SHAPsummary{vargp}" 
+					for ext in [".png"]:#".pdf",
+						plt.savefig(fnout+ext, dpi=130)
+					
+					plotinfo = "PLOT INFO: SHAP plots made using %s:v.%s by %s, %s" % (
+						__title__, __version__,  __author__, pd.Timestamp.now())
+					gitinfo = cf.gitmetadata()
+					cf.writemetadata(fnout, [plotinfo, gitinfo])
+					plt.show()
+
+				breakpoint()
+				
+				X_test2 = X_test.copy()
+				X_test2.columns = dfin["VariableName"].values.tolist()
+				
+				fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(9.5,12))
+				for ax, varsig in zip([ax1, ax2, ax3, ax4], dfin.sort_values("PermutationImportance", ascending=False)["VariableName"][:4]):
+					shap.dependence_plot(varsig, shap_values, X_test2, ax=ax, show=False)
+				# shap.dependence_plot("ObsGap", shap_values, X_test, ax=ax2, show=False)
+				plt.tight_layout()
+				# ========== Save the plot ==========
+				print("starting save at:", pd.Timestamp.now())
+				fnout = f"{ppath}PS08_{exp}_{var}_SHAPpartialDependance" 
+				for ext in [".png"]:#".pdf",
+					plt.savefig(fnout+ext, dpi=130)
+				plt.show()
+				breakpoint()
+				if plotind:
+
+					explainer2   = shap.Explainer(model, X_test2)
+					shap_values2 = explainer2(X_test2)
+					shap.plots.waterfall(shap_values2[0])
+					shap.plots.waterfall(shap_values2[1000], show=False)
+					plt.tight_layout()
+					print("starting save at:", pd.Timestamp.now())
+					fnout = f"{ppath}PS08_{exp}_{var}_SHAPexamplepixel" 
+					for ext in [".png"]:#".pdf",
+						plt.savefig(fnout+ext, dpi=130)
+					plt.show()
+					breakpoint()
+
+		if smodel:
+			return True
+		# ========== Group them together ==========
+		# result = pd.concat(SHAPlst, axis=1,  ignore_index=True, sort=False)
+		# SPlist = [df.reset_index(drop=True) for df in SHAPlst]
+		result  = pd.concat(SHAPlst, ignore_index=True, sort=False)
+		X_tt    = pd.concat(X_testl, ignore_index=True, sort=False)
+		y_preds = np.hstack(ypredl)#.tolist()
+
+		# breakpoint()
+		# ========== Make the relevant explainer plots ==========
+		for vargp in ["_Negative", "_Positive", ""]:
+			if vargp == "_Negative":
+				# X_tt = X_test[y_preds < 0]
+				rs  = result.fillna(0)[y_preds < 0].values
+				xtt = X_tt[y_preds < 0]
+			elif vargp == "_Positive":
+				rs  = result.fillna(0)[y_preds >= 0].values
+				xtt = X_tt[y_preds >= 0]
+			else:
+				rs  = result.fillna(0).values
+				xtt = X_tt
+				# X_tt = X_test
+
+			shap.summary_plot(rs, xtt, feature_names= result.columns.tolist(),  
+				max_display=30, plot_size=(8, 13), show=False)
+			
 			# Get the current figure and axes objects.
 			fig, ax = plt.gcf(), plt.gca()
+			ax.set_xlim(-40, 40)
+			ax.set_xlabel(f"SHAP value (t $ha^{-1}$)")
 			plt.tight_layout()
-
 			# ========== Save the plot ==========
 			print("starting save at:", pd.Timestamp.now())
-			fnout = f"{ppath}PS08_{exp}_{var}_SHAPsummary" 
+			fnout = f"{ppath}PS08_{exp}_{var}_ensemble_SHAPsummary{vargp}" 
 			for ext in [".png"]:#".pdf",
 				plt.savefig(fnout+ext, dpi=130)
 			
@@ -161,44 +282,16 @@ def _ImpOpener(path, ppath, exps, var = "PermutationImportance", AddFeature=Fals
 			gitinfo = cf.gitmetadata()
 			cf.writemetadata(fnout, [plotinfo, gitinfo])
 			plt.show()
-			
-			X_test2 = X_test.copy()
-			X_test2.columns = dfin["VariableName"].values.tolist()
-			
-			fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(9.5,12))
-			for ax, varsig in zip([ax1, ax2, ax3, ax4], dfin.sort_values("PermutationImportance", ascending=False)["VariableName"][:4]):
-				shap.dependence_plot(varsig, shap_values, X_test2, ax=ax, show=False)
-			# shap.dependence_plot("ObsGap", shap_values, X_test, ax=ax2, show=False)
-			plt.tight_layout()
-			# ========== Save the plot ==========
-			print("starting save at:", pd.Timestamp.now())
-			fnout = f"{ppath}PS08_{exp}_{var}_SHAPpartialDependance" 
-			for ext in [".png"]:#".pdf",
-				plt.savefig(fnout+ext, dpi=130)
-			plt.show()
-			breakpoint()
-			if plotind:
-
-				explainer2   = shap.Explainer(model, X_test2)
-				shap_values2 = explainer2(X_test2)
-				shap.plots.waterfall(shap_values2[0])
-				shap.plots.waterfall(shap_values2[1000], show=False)
-				plt.tight_layout()
-				print("starting save at:", pd.Timestamp.now())
-				fnout = f"{ppath}PS08_{exp}_{var}_SHAPexamplepixel" 
-				for ext in [".png"]:#".pdf",
-					plt.savefig(fnout+ext, dpi=130)
-				plt.show()
-				breakpoint()
 
 
-		# ========== Group them together ==========
-		df = pd.concat(df_list).reset_index(drop=True)
-		df["Count"] = df.groupby(["experiment", "VariableName"])[var].transform("count")
-
-		print(df["VariableName"].unique().size)
-		
 		breakpoint()
+
+		# df = pd.concat(df_list).reset_index(drop=True)
+		# df["Count"] = df.groupby(["experiment", "VariableName"])[var].transform("count")
+
+		# print(df["VariableName"].unique().size)
+		
+		# breakpoint()
 
 	"""
 	IDEA:
@@ -268,8 +361,13 @@ def Smartrenamer(names):
 			if "DD_" in VN:
 				VN = VN.replace("DD_", "DDb")
 			
+
 			if "abs_trend" in VN:
-				VN = VN.replace("abs_trend", "abs. trend")
+				# breakpoint()
+				VN = VN.replace("abs_trend", "trend")
+			
+			# if "_trend_" in VN:
+			# 	breakpoint()
 			
 			VNcl = VN.split("_")
 			if len(VNcl) == 3:

@@ -1,10 +1,16 @@
 library(dplyr)
 
-leadpath = "/att/nobackup/scooperd/"
 
 
-climate = read.csv(paste0(leadpath,"scooperdock/EWS/data/psp/Climate/1951-2018/Climate_NA_data_1951-2018Y.csv"))  
-climate_names = read.csv(paste0(leadpath,"scooperdock/EWS/data/psp/Climate/1951-2018/Climate_NA_data.csv"),stringsAsFactors = F)
+# leadpath = "/att/nobackup/scooperd/"
+# climate = read.csv(paste0(leadpath,"scooperdock/EWS/data/psp/Climate/1951-2018/Climate_NA_data_1951-2018Y.csv"))
+# climate_names = read.csv(paste0(leadpath,"scooperdock/EWS/data/psp/Climate/1951-2018/Climate_NA_data.csv"),stringsAsFactors = F)
+
+leadpath = "D:/Boreal"
+climate = read.csv(paste0(leadpath,"/EWS_package/data/psp/modeling_data/climate/1951-2018/Climate_NA_data_1951-2018Y.csv"))
+climate_names = read.csv(paste0(leadpath,"/EWS_package/data/psp/modeling_data/climate/1951-2018/Climate_NA_data.csv"),stringsAsFactors = F)
+
+
 climate_names = arrange(climate_names,ID2)
 
 vars = colnames(climate)[7:29]
@@ -26,15 +32,16 @@ for (v in vars){
     }
     mat1[,as.character(y)] = rowMeans(out_mat)
     for (i in 1:nrow(out_mat)){
-      resp = as.numeric(out_mat[i,]) 
+      resp = as.numeric(out_mat[i,])
       if(sum(!is.na(resp))>1){
         mat2[i,as.character(y)] = coefficients(lm(resp~pred))[[2]]
+        browser()
       }
     }
 
   }
-  write.csv(mat1,paste0(leadpath,"scooperdock/EWS/data/psp/Climate/1951-2018/",v,"_mean_30years.csv"))
-  write.csv(mat2,paste0(leadpath,"scooperdock/EWS/data/psp/Climate/1951-2018/",v,"_abs_trend_30years.csv"))
+  # write.csv(mat1,paste0(leadpath,"scooperdock/EWS/data/psp/Climate/1951-2018/",v,"_mean_30years.csv"))
+  # write.csv(mat2,paste0(leadpath,"scooperdock/EWS/data/psp/Climate/1951-2018/",v,"_abs_trend_30years.csv"))
 }
 
 

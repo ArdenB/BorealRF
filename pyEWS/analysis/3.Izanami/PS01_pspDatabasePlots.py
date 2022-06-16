@@ -44,18 +44,19 @@ import time
 import ipdb
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+# import matplotlib.ticker as tck
+import matplotlib.colors as mpc
+import matplotlib.ticker as mticker
 import matplotlib.gridspec as gridspec
 from collections import OrderedDict, defaultdict
 import seaborn as sns
 import palettable
 # from numba import jit
-import matplotlib.colors as mpc
 import xarray as xr
 import cartopy.crs as ccrs
 
 import cartopy.feature as cpf
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
-import matplotlib.ticker as mticker
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 # ========== Import my dunctions ==========
@@ -243,16 +244,29 @@ def _biomasschange(vi_df, fig, ax,title="",):
 	sns.countplot(x="Obs.Year", hue="Biomass Increase", data=test, ax=ax)
 	# ax.set_xlabel("Year of Observations")
 	ax.set_xlabel("")
-	# ax.xaxis.set_major_locator(mdates.AutoDateLocator())
-	# ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
-	ax.set_xticklabels(ax.get_xticklabels(), rotation=90)#, horizontalalignment='right')
+
+	# minorticks = []
+	# for num in ax.get_xticks():
+	# 	if not num in np.arange(0, 33, 5):
+	# 		minorticks.append(num)
+	# ax.set_xticks(minorticks, minor=True)
+	# ax.minorticks_on()
+
+	# ++++++ create ticks ++++++
+	ax.tick_params(bottom=True)
+	ax.set_xticks(np.arange(0, 33, 5))#, labels=np.arange(1985, 2020, 5))#, horizontalalignment='right')
+	
+	# ++++++ create minor tick ++++++
+	ax.xaxis.set_minor_locator(mticker.AutoMinorLocator())
+	ax.tick_params(which='minor', bottom=True)
+
+	
 	ax.set_title("")
 	ax.set_title(f"{title}", loc= 'left')
 	ax.set_xlabel("")
 	ax.set_ylabel("Observations")
 	handles, labels = ax.get_legend_handles_labels()
 	ax.legend(handles=handles, labels=["AGB loss", "AGB gain"])
-	# breakpoint()
 
 
 def _obsgap(vi_df, fig, ax, title="", currentyr=pd.Timestamp.now().year, inclfin=True):
@@ -273,7 +287,7 @@ def _obsgap(vi_df, fig, ax, title="", currentyr=pd.Timestamp.now().year, inclfin
 	vi_df.loc[np.logical_and(vi_df["Future"]==0, vi_df["NanFrac"]==1), "Obs. Type"] = "Modelled"
 
 	sns.kdeplot(data=vi_df, x="ObsGap", hue="Obs. Type", fill=True, 
-		alpha=0.50, ax=ax, common_norm=False, legend=True,)
+		alpha=0.50, ax=ax, common_norm=False, legend=False,)
 	# breakpoint()
 	# handles, labels = ax.get_legend_handles_labels()
 	# ax.legend()
