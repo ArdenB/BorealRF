@@ -98,6 +98,7 @@ def main():
 	_ImpOpener(path, ppath, exps)
 
 
+
 def _ImpOpener(path, ppath, exps, var = "PermutationImportance", AddFeature=False, 
 	textsize=14, plotSHAP=True, plotind=False, smodel=False):
 	"""
@@ -175,7 +176,7 @@ def _ImpOpener(path, ppath, exps, var = "PermutationImportance", AddFeature=Fals
 				X_testl.append(dfx)
 
 			else:
-				for vargp in ["_Negative", "_Positive", ""]:
+				for vargp in ["", "_Negative", "_Positive", ]:
 					if vargp == "_Negative":
 						X_tt = X_test[y_pred < 0]
 						shap_values = explainer.shap_values(X_tt)
@@ -188,13 +189,15 @@ def _ImpOpener(path, ppath, exps, var = "PermutationImportance", AddFeature=Fals
 						SHAPlst.append(shap_values)
 
 					# ========== Make the relevant explainer plots ==========
-					shap.summary_plot(shap_values, X_tt, feature_names= [vn for vn in vnames.VariableGroup],  
+					shap.summary_plot(shap_values, X_tt, 
+						feature_names= [vn for vn in vnames.VariableGroup],  
 						max_display=20, plot_size=(15, 13), show=False)
 					
 					# Get the current figure and axes objects.
 					fig, ax = plt.gcf(), plt.gca()
 					ax.set_xlim(-40, 40)
 					plt.tight_layout()
+					breakpoint()
 
 					# ========== Save the plot ==========
 					print("starting save at:", pd.Timestamp.now())
@@ -208,7 +211,7 @@ def _ImpOpener(path, ppath, exps, var = "PermutationImportance", AddFeature=Fals
 					cf.writemetadata(fnout, [plotinfo, gitinfo])
 					plt.show()
 
-				breakpoint()
+				# breakpoint()
 				
 				X_test2 = X_test.copy()
 				X_test2.columns = dfin["VariableName"].values.tolist()
@@ -250,7 +253,7 @@ def _ImpOpener(path, ppath, exps, var = "PermutationImportance", AddFeature=Fals
 
 		# breakpoint()
 		# ========== Make the relevant explainer plots ==========
-		for vargp in ["_Negative", "_Positive", ""]:
+		for vargp in ["", "_Negative", "_Positive", ]:
 			if vargp == "_Negative":
 				# X_tt = X_test[y_preds < 0]
 				rs  = result.fillna(0)[y_preds < 0].values
@@ -264,7 +267,7 @@ def _ImpOpener(path, ppath, exps, var = "PermutationImportance", AddFeature=Fals
 				# X_tt = X_test
 
 			shap.summary_plot(rs, xtt, feature_names= result.columns.tolist(),  
-				max_display=30, plot_size=(8, 13), show=False)
+				max_display=40, plot_size=(8, 15), show=False)
 			
 			# Get the current figure and axes objects.
 			fig, ax = plt.gcf(), plt.gca()
@@ -282,7 +285,7 @@ def _ImpOpener(path, ppath, exps, var = "PermutationImportance", AddFeature=Fals
 			gitinfo = cf.gitmetadata()
 			cf.writemetadata(fnout, [plotinfo, gitinfo])
 			plt.show()
-
+			breakpoint()
 
 		breakpoint()
 

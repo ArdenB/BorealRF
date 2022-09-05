@@ -106,7 +106,6 @@ def main():
 
 	experiments = [434, 424]
 	# years       = [2030]
-	# years       = [2020, 2025, 2030, 2040]
 	years       = [2020, 2025, 2030, 2040]
 	# ========== Simple lons and lats ========== 
 	lons = np.arange(-170, -50.1,  0.5)
@@ -187,34 +186,65 @@ def splotmap(exp, df, ds, ppath, lats, lons, var, years,
 	# ========== Create the mapp projection ==========
 	map_proj = ccrs.LambertConformal(central_longitude=lons.mean(), central_latitude=lats.mean())
 	# fig  = plt.figure(constrained_layout=True, figsize=(18,ds.time.size*7))
-	f = ds[var].mean(dim).plot(
-		x="longitude", y="latitude", col="time", 
-		col_wrap=col_wrap, 
-		transform=ccrs.PlateCarree(), 
-		cbar_kwargs=cbkw,
-		subplot_kws={'projection': map_proj}, 
-		cmap=cmap, #size =8,
-		figsize=(12, ds.time.size*3.75),
-		norm=norm, 
-		robust=robust,
-		)
+	# breakpoint()
+	if len(years) >1:
+		f = ds[var].mean(dim).plot(
+			x="longitude", y="latitude", col="time", 
+			col_wrap=col_wrap, 
+			transform=ccrs.PlateCarree(), 
+			cbar_kwargs=cbkw,
+			subplot_kws={'projection': map_proj}, 
+			cmap=cmap, #size =8,
+			figsize=(12, ds.time.size*3.75),
+			norm=norm, 
+			robust=robust,
+			)
+		fax = f.axes.flat
+	else:
+		# Defining the figure
+		fig = plt.figure(figsize=(12, ds.time.size*4.5))
+
+		# Axes with Cartopy projection
+		ax1 = plt.axes(projection=map_proj)
+
+		# x="longitude", y="latitude"
+		f = ds[var].mean(dim).isel(time=0).plot(
+			x="longitude", y="latitude", 
+			transform=ccrs.PlateCarree(), 
+			cbar_kwargs=cbkw,
+			cmap=cmap, #size =8,
+			norm=norm, 
+			robust=robust, ax=ax1
+			)
+		fax = [ax1]
+		plt.tight_layout()
 		# norm=LogNorm(vmin=1, vmax=1000,)
 		# size=6,	aspect=ds.dims['longitude'] / ds.dims['latitude'],  
 	# for ax in :
-	for ax, tit, year in zip(f.axes.flat, string.ascii_lowercase, years):
-		ax.set_extent([lons.min()+15, lons.max()-3, lats.min()-5, lats.max()-10])
-		ax.background_img(name='BM', resolution='low')
-		ax.gridlines()
+
+	for ax, tit, year in zip(fax, string.ascii_lowercase, years):
+		# ax.set_extent([lons.min()+15, lons.max()-3, lats.min()-5, lats.max()-10])
+		# ax.background_img(name='BM', resolution='low')
+		# ax.gridlines()
+		ax.set_extent([lons.min()+15, lons.max()-3, lats.min()-3, lats.max()-6])
+		ax.gridlines(alpha=0.5)
+		ax.stock_img()
+
 		coast = cpf.GSHHSFeature(scale="intermediate")
 		ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
 		ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
 		ax.add_feature(coast, zorder=101, alpha=0.5)
-		ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
-		ax.add_feature(cpf.RIVERS, zorder=104)
-		ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
+		ax.add_feature(cpf.BORDERS, linestyle='--', zorder=104)
+		# ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
+		# ax.add_feature(cpf.RIVERS, zorder=104)
+
+		provinc_bodr = cpf.NaturalEarthFeature(category='cultural', 
+			name='admin_1_states_provinces_lines', scale='50m', facecolor='none', edgecolor='k')
+
+		ax.add_feature(provinc_bodr, linestyle='--', linewidth=0.6, edgecolor="k", zorder=105)
+
 		ax.set_title(f"{tit}) {year}", loc= 'left')
 
-	# plt.tight_layout()
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS05_PaperFig04_FuturePredSvar_{ds.time.size}_{var}_exp{exp}" 
 	for ext in [".png", ".pdf"]:#".pdf",
@@ -441,6 +471,7 @@ def fpred(path, exp, years, lats, lons, var = "DeltaBiomass",
 			# ========== calculate the obsgap ==========
 			if "ObsGap" in feat:
 				dfX["ObsGap"] = yr - site_df["year"].values
+				print(f"The Mean Observation gap for {yr} is {dfX.ObsGap.mean()}")
 
 			# ========== Perform the prediction ==========
 			est = model.predict(dfX.values)

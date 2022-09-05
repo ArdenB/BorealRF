@@ -117,9 +117,11 @@ def main():
 	
 	# +++++ Figure 5 in the paper +++++
 	FigureExpLimits(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exps, ppath)
-
+	
 	# +++++ Figure 2 and 3 in the paper +++++
 	FigureModelPerfomanceV2(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exps, ppath)
+	
+
 	
 	# +++++ Make supplementary material figures +++++
 	FigureRegionalLimits(df_setup, df_mres, keys, df_OvsP, df_clest, df_branch, path, exps, ppath)
@@ -413,6 +415,12 @@ def FigureModelPerfomanceV2(
 	dfmae = dfP.groupby(['No. Site Measurements', 'Ensemble']).median()["Median Absolute Error"].reset_index()
 	sns.lineplot(y="Median Absolute Error", x="No. Site Measurements",hue="Ensemble", data=dfmae, ax = ax4)
 	ax4.set_title(f"{string.ascii_lowercase[num*2+1]})")
+
+	unit = r"t $ha^{-1}$"
+	ax4.set_ylabel(f'Median Absolute Error ({unit})')
+
+	# ax.set_xlabel(f'Observed {delt}AGB ({unit})')
+	# ax4.set_ylabel()
 
 	# ========== Save the Second plot ==========
 	print("starting save at:", pd.Timestamp.now())

@@ -338,24 +338,32 @@ def _mapgridder(exp, vi_df, fig, ax, map_proj, lons, lats, title="", modelled=Tr
 	levels = [0, 1,  5, 10, 50, 100, 500, 1000]
 
 	f = ds[vas].isel(time=0).plot(
-		x="longitude", y="latitude", transform=ccrs.PlateCarree(), vmin=vmin, vmax=vmax, levels=levels,
-		cbar_kwargs={"pad": 0.015, "shrink":0.80, "extend":"max", "label": "Observations"},	ax=ax)
+		x="longitude", y="latitude", transform=ccrs.PlateCarree(), 
+		vmin=vmin, vmax=vmax, levels=levels,
+		cbar_kwargs={"pad": 0.015, "shrink":0.80, "extend":"max", "label": "Number of Observations"},	ax=ax)
 
-	ax.set_extent([lons.min()+15, lons.max()-3, lats.min()-5, lats.max()-10])
 	# print([lons.min()+15, lons.max()-5, lats.min()-5, lats.max()-10])
 	# ax.set_extent([lons.min()+10, lons.max()-5, lats.min()-13, lats.max()])
-	ax.gridlines()
+	ax.set_extent([lons.min()+15, lons.max()-3, lats.min()-3, lats.max()-6])
+	ax.gridlines(alpha=0.5)
+	ax.stock_img()
 	os.environ["CARTOPY_USER_BACKGROUNDS"] = "./data/Background/"
 	# breakpoint()
-	ax.background_img(name='BM', resolution='low')
+	# ax.background_img(name='BM', resolution='low')
 
 	coast = cpf.GSHHSFeature(scale="intermediate")
 	ax.add_feature(cpf.LAND, facecolor='dimgrey', alpha=1, zorder=0)
 	ax.add_feature(cpf.OCEAN, facecolor="w", alpha=1, zorder=100)
 	ax.add_feature(coast, zorder=101, alpha=0.5)
-	ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
-	ax.add_feature(cpf.RIVERS, zorder=104)
-	ax.add_feature(cpf.BORDERS, linestyle='--', zorder=102)
+
+	provinc_bodr = cpf.NaturalEarthFeature(category='cultural', 
+		name='admin_1_states_provinces_lines', scale='50m', facecolor='none', edgecolor='k')
+	ax.add_feature(provinc_bodr, linestyle='--', linewidth=0.6, edgecolor="k", zorder=105)
+
+
+	# ax.add_feature(cpf.LAKES, alpha=0.5, zorder=103)
+	# ax.add_feature(cpf.RIVERS, zorder=104)
+	ax.add_feature(cpf.BORDERS, linestyle='--', zorder=104)
 
 	ax.set_title("")
 	ax.set_title(f"{title}", loc= 'left')

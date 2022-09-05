@@ -128,12 +128,12 @@ def main():
 
 	df_LS, ds_LS, metric = lsloader(dfp, 2020, metric='ftrend')
 	agreement(path, ppath, dfout, dfl, FWH, df, ds, lats, lons, df_LS, ds_LS, dfp, dsdict, dfloss,)
+	breakpoint()
 	# try:
 	FigureAgree(path, ppath, dfout, df_LS, ds_LS, dfp, dsdict, dfloss, lats, lons, metric)
 	# except Exception as e:
 	# 	print(str(er))
 	# 	breakpoint()
-	# breakpoint()
 
 
 
@@ -345,8 +345,8 @@ def agreement(path, ppath, dfout, dfl, FWH, df, ds, lats, lons,
 	dfloss.replace({"Site":"SWE", "Endpoint":"IWE"}, inplace=True)
 
 	# ========== Create the figure ==========
-	fig  = plt.figure(constrained_layout=True, figsize=(12,3*4))
-	spec = gridspec.GridSpec(ncols=1, nrows=3, figure=fig)
+	fig  = plt.figure(constrained_layout=True, figsize=(12,4))
+	spec = gridspec.GridSpec(ncols=1, nrows=1, figure=fig)
 
 	ax0 = fig.add_subplot(spec[0, :])
 	# Safe_2
@@ -355,25 +355,54 @@ def agreement(path, ppath, dfout, dfl, FWH, df, ds, lats, lons,
 		ci=99, ax=ax0, palette= palettable.cartocolors.qualitative.Safe_2.hex_colors)
 	ax0.set_yticks(np.arange(-1, 1.1, 0.2))
 	ax0.set_xticks(np.arange(-1, 1.1, 0.2))
-	ax0.set_title(f"a)", loc= 'left')
+	# ax0.set_title(f"a)", loc= 'left')
 	ax0.set_ylabel("Obs. AGB Gain and Loss")
 	ax0.set_xlabel("Ensemble Agreement")
 	ax0.legend(loc=loc, fontsize=lgfs, title_fontsize=lgfs)# title=ltitle,
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS07_PaperFig05_EnsenbleStats_agreement" 
+	for ext in [".png", ".pdf",]:
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+	# breakpoint()
+
+
+	# ========== Create the figure ==========
+	fig  = plt.figure(constrained_layout=True, figsize=(12,2*4))
+	spec = gridspec.GridSpec(ncols=1, nrows=2, figure=fig)
+
+	# ax0 = fig.add_subplot(spec[0, :])
 
 	# breakpoint()
 	dfloss["AGB Direction"] = (dfloss["Observed"] > 0).replace({True:"Gain", False:"Loss"})
 	# dfloss["Ens. Direction"] = dfloss["Ensemble"] + " Ens. " + dfloss["Gain"].replace({True:"Gain", False:"Loss"})
 	for nx, ves in enumerate(["SWE", "IWE"]):
-		ax1 = fig.add_subplot(spec[nx+1, :])
+		ax1 = fig.add_subplot(spec[nx, :])
 		sns.lineplot(y="ModScore", x="ObsGap", hue="AGB Direction", data=dfloss[dfloss.Ensemble == ves], ci=99, ax=ax1)
 		ax1.set_yticks(np.arange(0, 1.01, 0.1))
 		ax1.set_xticks(np.arange(0, 31, 5))
 
-		ax1.set_title(f"{string.ascii_lowercase[nx+1]}) {ves}", loc= 'left')
+		ax1.set_title(f"{string.ascii_lowercase[nx]}) {ves}", loc= 'left')
 		ax1.set_ylabel("Direction Accuracy")
 		ax1.set_xlabel("Observation Gap")
 		ax1.legend(loc=loc, fontsize=lgfs, title_fontsize=lgfs, title= r"Obs. $\Delta$AGB")#
 		
+	print("starting save at:", pd.Timestamp.now())
+	fnout = f"{ppath}PS07_PaperFig05_EnsenbleStats_agreementmulti" 
+	for ext in [".png", ".pdf",]:
+		plt.savefig(fnout+ext)#, dpi=130)
+	
+	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
+		__title__, __version__,  __author__, pd.Timestamp.now())
+	gitinfo = cf.gitmetadata()
+	cf.writemetadata(fnout, [plotinfo, gitinfo])
+	plt.show()
+	breakpoint()
 
 	# ax1 = fig.add_subplot(spec[1, :], projection= map_proj)
 	# f = dsdict[434]["EnsembleDirection"].isel(time=0).mean(dim="Version").plot(
@@ -398,17 +427,6 @@ def agreement(path, ppath, dfout, dfl, FWH, df, ds, lats, lons,
 
 
 	
-	print("starting save at:", pd.Timestamp.now())
-	fnout = f"{ppath}PS07_PaperFig05_EnsenbleStats_agreement" 
-	for ext in [".png", ".pdf",]:
-		plt.savefig(fnout+ext)#, dpi=130)
-	
-	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
-		__title__, __version__,  __author__, pd.Timestamp.now())
-	gitinfo = cf.gitmetadata()
-	cf.writemetadata(fnout, [plotinfo, gitinfo])
-	plt.show()
-	breakpoint()
 
 
 def losspotter(path, ppath, dfout, dfl, FWH, modnum=10):

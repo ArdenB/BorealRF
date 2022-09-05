@@ -118,6 +118,8 @@ def main():
 		df_OvsP["AnnualABSResidual"] = df_OvsP["ABSResidual"] /df_OvsP["ObsGap"]
 		df_mod     = df_OvsP[~df_OvsP.index.duplicated(keep='first')]
 		# breakpoint()
+		# ========== Chose the experiment ==========
+		sitedtb(path, ppath, exp, fpath, vi_df, site_df, df_mod, VIfvi)
 
 		PredictorInfo(ppath, exp, setup, ColNm = None)
 
@@ -128,8 +130,6 @@ def main():
 		
 		predictions(path, ppath, exp, fpath, vi_df, site_df, df_OvsP)
 		# breakpoint()
-		# ========== Chose the experiment ==========
-		sitedtb(path, ppath, exp, fpath, vi_df, site_df, df_mod, VIfvi)
 
 # ==============================================================================
 def PredictorInfo(ppath, exp, setup, ColNm = None, inheritrows=True):
@@ -581,7 +581,7 @@ def plotter(ppath, exp, site_dfM, inc, cnt):
 	sns.set_style("whitegrid")
 
 	# ========== Create the figure ==========
-	fig  = plt.figure(constrained_layout=True, figsize=(16,13))
+	fig  = plt.figure(constrained_layout=True, figsize=(16,19))
 	spec = gridspec.GridSpec(ncols=1, nrows=4, figure=fig)
 
 	# +++++ the plot of the number of sites +++++
@@ -598,15 +598,17 @@ def plotter(ppath, exp, site_dfM, inc, cnt):
 	sns.violinplot(y = "Biomass", x="Region", data = site_dfM.groupby(["Plot_ID", "year"]).first(), ax=ax1)
 	ax1.set_ylim(0, 1000)
 	ax1.set_title("b)")
-	ax1.set_ylabel("Biomass (t/ha)")
+	unt = r"t $ha^{-1}$"
+	ax1.set_ylabel(f"Biomass ({unt})")
 	ax1.set_xlabel("")
 	ax1.set_xticklabels(ax1.get_xticklabels(), rotation=15, horizontalalignment='right')
 
 	ax2  = fig.add_subplot(spec[2, :])
 	data = 1-(inc / cnt)
-	data.plot.bar(ax=ax2)
+	# data.plot.bar(ax=ax2)
+	sns.barplot(data=pd.DataFrame(data).reset_index(), x="Region", y="Observed", ax=ax2)
 	ax2.set_title("c)")
-	ax2.set_ylabel("Loss Frac.")
+	ax2.set_ylabel("Loss Fraction")
 	ax2.set_xlabel("")
 	ax2.set_xticklabels(ax2.get_xticklabels(), rotation=15, horizontalalignment='right')
 	
@@ -615,8 +617,10 @@ def plotter(ppath, exp, site_dfM, inc, cnt):
 	site_dfM["AnnualBiomassChange"] = site_dfM["Observed"] / site_dfM["ObsGap"]
 	sns.violinplot(y = "AnnualBiomassChange", x="Region", data = site_dfM, ax=ax3)
 	# ax1.set_ylim(0, 1000)
+	unit = r"t $ha^{-1} yr^{-1}$"
+	ax3.set_ylim(-20, 20)
 	ax3.set_title("d)")
-	ax3.set_ylabel("Biomass Change Rate (t/ha/yr)")
+	ax3.set_ylabel(f"Biomass Change Rate ({unit})")
 	ax3.set_xlabel("")
 	ax3.set_xticklabels(ax3.get_xticklabels(), rotation=15, horizontalalignment='right')
 
@@ -633,8 +637,8 @@ def plotter(ppath, exp, site_dfM, inc, cnt):
 	cf.writemetadata(fnout, [plotinfo, gitinfo])
 	plt.show()
 
-	# ipdb.set_trace()
-	# breakpoint()
+	ipdb.set_trace()
+	breakpoint()
 
 # ==============================================================================
 def fpred(path, exp, years, var = "DeltaBiomass",
