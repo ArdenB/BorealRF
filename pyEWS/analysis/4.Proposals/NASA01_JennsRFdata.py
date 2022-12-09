@@ -95,8 +95,6 @@ def main():
 
 	# fig, ax = plt.subplots(constrained_layout=True, figsize=(13,7))
 
-
-
 	df = pd.read_csv("./data/RFdata/BorealNA_Postfire_Regeneration_1989_2014.csv")
 	df = df[~(df["total_density"] == 0)]
 	df["RecRatio"] =  df["total_sdlng_sucker_dens"] / df["total_density"]
@@ -113,16 +111,55 @@ def main():
 	df2 = Field_data()
 	df3 = Field_data(year=2017)
 
-	# breakpoint()
+
 
 	# dfg = df.groupby(["Region","Plot_ID", "time"]).median().reset_index()
-	gdf = gpd.GeoDataFrame(pd.concat([df[['longitude', 'latitude', 'Pathway']], df2, df3]))
+	# 110.7099992°E 51.2394442°N
+	# 110.7094783°E 51.2391087°N
+	df4 = pd.DataFrame({"latitude":[51.2394442, 51.2391087], "longitude":[110.7099992, 110.7094783], "Pathway":[2,2]})
+
+	gdf = gpd.GeoDataFrame(pd.concat([df[['longitude', 'latitude', 'Pathway']], df2, df3, df4]))
 	gdf.set_geometry(
 	    gpd.points_from_xy(gdf['longitude'], gdf['latitude']),
 	    inplace=True, crs='EPSG:4326')
 	gdf.drop(['latitude', 'longitude'], axis=1, inplace=True)
-	# gdf[["Pathway", "geometry"]].to_file('./data/RFdata/BorealNA_Postfire_Regeneration_1989_2014.shp')
+	gdf[["Pathway", "geometry"]].to_file('./data/RFdata/BorealNA_Postfire_Regeneration_1989_2014v2.shp')
+	gdf2 = gdf.replace({'Pathway': {1: 0, 2: 1}})
+	gdf2[["Pathway", "geometry"]].to_file('./data/RFdata/Postfire_Regeneration_Simplified.shp')
+	breakpoint() 
+	# ========== Add in the other dataset ==========
+	dfs = pd.read_csv("./data/RFdata/TREEMAP_DATA_PROCESSED.csv")[['POINT_Y', 'POINT_X', 'density_threshold']]
+	dfs.rename({'POINT_X':'longitude', 'POINT_Y':'latitude', 'density_threshold':'Pathway'}, axis=1, inplace=True)
+	
 
+	dfp = df[['longitude', 'latitude', 'Pathway']]
+	dfp = dfp.replace({'Pathway': {1: 0, 2: 1}})
+
+	gdf2 = gpd.GeoDataFrame(pd.concat([dfp, dfs]))
+	gdf2.set_geometry(
+	    gpd.points_from_xy(gdf2['longitude'], gdf2['latitude']),
+	    inplace=True, crs='EPSG:4326')
+	gdf2.drop(['latitude', 'longitude'], axis=1, inplace=True)
+	gdf2[["Pathway", "geometry"]].to_file('./data/RFdata/NA_Postfire_Regeneration.shp')
+
+	breakpoint()
+	# ========== bring in the PSP database ==========
+
+	fpath = "./pyEWS/experiments/3.ModelBenchmarking/1.Datasets/ModDataset/"
+	site_dfu = pd.read_csv(f"{fpath}SiteInfo_AllSampleyears_FutureBiomass.csv")
+	site_dfu.rename({"Unnamed: 0":"PlotIndex"}, axis=1, inplace=True)
+
+	dfpsp = site_dfu[['Longitude', 'Latitude', 'PlotIndex']]
+	# dfp = dfp.replace({'Pathway': {1: 0, 2: 1}})
+
+	gdf3 = gpd.GeoDataFrame(dfpsp)
+	gdf3.set_geometry(
+	    gpd.points_from_xy(gdf3['Longitude'], gdf3['Latitude']),
+	    inplace=True, crs='EPSG:4326')
+	gdf3.drop(['Latitude', 'Longitude'], axis=1, inplace=True)
+	gdf3[["PlotIndex", "geometry"]].to_file('./data/RFdata/PSP_locations.shp')
+
+	breakpoint()
 
 	da = xr.open_rasterio("./data/RFdata/EuroasiaLidar.tif").rename({"y":"latitude", "x":"longitude"})
 	da = da.where(da>=0)
