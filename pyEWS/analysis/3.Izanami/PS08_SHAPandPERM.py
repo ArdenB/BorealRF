@@ -60,14 +60,14 @@ import myfunctions.benchmarkfunctions as bf
 # import multiprocessing as mp
 import xgboost as xgb
 import xarray as xr
-import cartopy.crs as ccrs
+# import cartopy.crs as ccrs
 import dask
 from dask.diagnostics import ProgressBar
 from tqdm import tqdm
 import shap
 
-import cartopy.feature as cpf
-from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+# import cartopy.feature as cpf
+# from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 import matplotlib.ticker as mticker
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import ast
@@ -95,12 +95,12 @@ def main():
 
 	# ========== Chose the experiment ==========
 	exps      = [434, 424]
+	_ImpOpener(path, ppath, exps, plotind=True, smodel=True)
+
 	_ImpOpener(path, ppath, exps)
 
-
-
 def _ImpOpener(path, ppath, exps, var = "PermutationImportance", AddFeature=False, 
-	textsize=14, plotSHAP=True, plotind=False, smodel=False):
+	textsize=14, plotSHAP=True, plotind=False, smodel=False, skipsin=True):
 	"""
 	Function to open the feature importance files and return them as a single 
 	DataFrame"""
@@ -111,7 +111,6 @@ def _ImpOpener(path, ppath, exps, var = "PermutationImportance", AddFeature=Fals
 		"axes.labelweight":"bold", 'axes.titlesize':textsize, 'axes.titlelocation': 'left',}) 
 
 	# ========== Loop over the exps ==========
-	
 	for exp in exps:
 		SHAPlst = []
 		df_list = []
@@ -121,7 +120,6 @@ def _ImpOpener(path, ppath, exps, var = "PermutationImportance", AddFeature=Fals
 		
 
 		fnames = sorted(glob.glob(f"{path}{exp}/Exp{exp}_*PermutationImportance.csv"))
-
 		for ver, fn in enumerate(fnames):
 			print(ver)
 
@@ -176,69 +174,71 @@ def _ImpOpener(path, ppath, exps, var = "PermutationImportance", AddFeature=Fals
 				X_testl.append(dfx)
 
 			else:
-				for vargp in ["", "_Negative", "_Positive", ]:
-					if vargp == "_Negative":
-						X_tt = X_test[y_pred < 0]
-						shap_values = explainer.shap_values(X_tt)
-					elif vargp == "_Positive":
-						X_tt = X_test[y_pred >= 0]
-						shap_values = explainer.shap_values(X_tt)
-					else:
-						X_tt = X_test
-						shap_values = explainer.shap_values(X_tt)
-						SHAPlst.append(shap_values)
+				if not skipsin:
+					for vargp in ["", "_Negative", "_Positive", ]:
+						if vargp == "_Negative":
+							X_tt = X_test[y_pred < 0]
+							shap_values = explainer.shap_values(X_tt)
+						elif vargp == "_Positive":
+							X_tt = X_test[y_pred >= 0]
+							shap_values = explainer.shap_values(X_tt)
+						else:
+							X_tt = X_test
+							shap_values = explainer.shap_values(X_tt)
+							SHAPlst.append(shap_values)
 
-					# ========== Make the relevant explainer plots ==========
-					shap.summary_plot(shap_values, X_tt, 
-						feature_names= [vn for vn in vnames.VariableGroup],  
-						max_display=20, plot_size=(15, 13), show=False)
-					
-					# Get the current figure and axes objects.
-					fig, ax = plt.gcf(), plt.gca()
-					ax.set_xlim(-40, 40)
-					plt.tight_layout()
-					breakpoint()
+						# ========== Make the relevant explainer plots ==========
+						shap.summary_plot(shap_values, X_tt, 
+							feature_names= [vn for vn in vnames.VariableGroup],  
+							max_display=20, plot_size=(15, 13), show=False)
+						
+						# Get the current figure and axes objects.
+						fig, ax = plt.gcf(), plt.gca()
+						ax.set_xlim(-40, 40)
+						plt.tight_layout()
 
-					# ========== Save the plot ==========
-					print("starting save at:", pd.Timestamp.now())
-					fnout = f"{ppath}PS08_{exp}_{var}_ver{ver}_SHAPsummary{vargp}" 
-					for ext in [".png"]:#".pdf",
-						plt.savefig(fnout+ext, dpi=130)
-					
-					plotinfo = "PLOT INFO: SHAP plots made using %s:v.%s by %s, %s" % (
-						__title__, __version__,  __author__, pd.Timestamp.now())
-					gitinfo = cf.gitmetadata()
-					cf.writemetadata(fnout, [plotinfo, gitinfo])
-					plt.show()
+						# ========== Save the plot ==========
+						print("starting save at:", pd.Timestamp.now())
+						fnout = f"{ppath}PS08_{exp}_{var}_ver{ver}_SHAPsummary{vargp}" 
+						for ext in [".png"]:#".pdf",
+							plt.savefig(fnout+ext, dpi=130)
+						
+						plotinfo = "PLOT INFO: SHAP plots made using %s:v.%s by %s, %s" % (
+							__title__, __version__,  __author__, pd.Timestamp.now())
+						gitinfo = cf.gitmetadata()
+						cf.writemetadata(fnout, [plotinfo, gitinfo])
+						plt.show()
 
 				# breakpoint()
 				
 				X_test2 = X_test.copy()
 				X_test2.columns = dfin["VariableName"].values.tolist()
 				
-				fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(9.5,12))
-				for ax, varsig in zip([ax1, ax2, ax3, ax4], dfin.sort_values("PermutationImportance", ascending=False)["VariableName"][:4]):
-					shap.dependence_plot(varsig, shap_values, X_test2, ax=ax, show=False)
-				# shap.dependence_plot("ObsGap", shap_values, X_test, ax=ax2, show=False)
-				plt.tight_layout()
-				# ========== Save the plot ==========
-				print("starting save at:", pd.Timestamp.now())
-				fnout = f"{ppath}PS08_{exp}_{var}_SHAPpartialDependance" 
-				for ext in [".png"]:#".pdf",
-					plt.savefig(fnout+ext, dpi=130)
-				plt.show()
-				breakpoint()
+				if not skipsin:
+					fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(9.5,12))
+					for ax, varsig in zip([ax1, ax2, ax3, ax4], dfin.sort_values("PermutationImportance", ascending=False)["VariableName"][:4]):
+						shap.dependence_plot(varsig, shap_values, X_test2, ax=ax, show=False)
+					# shap.dependence_plot("ObsGap", shap_values, X_test, ax=ax2, show=False)
+					plt.tight_layout()
+					# ========== Save the plot ==========
+					print("starting save at:", pd.Timestamp.now())
+					fnout = f"{ppath}PS08_{exp}_{var}_SHAPpartialDependance" 
+					for ext in [".png"]:#".pdf",
+						plt.savefig(fnout+ext, dpi=130)
+					plt.show()
+				# breakpoint()
 				if plotind:
 
+					# +++++Shrink the slice to reduce compute time +++++
 					explainer2   = shap.Explainer(model, X_test2)
-					shap_values2 = explainer2(X_test2)
-					shap.plots.waterfall(shap_values2[0])
+					shap_values2 = explainer2(X_test2.iloc[0:1001])
+					# shap.plots.waterfall(shap_values2[0])
 					shap.plots.waterfall(shap_values2[1000], show=False)
 					plt.tight_layout()
 					print("starting save at:", pd.Timestamp.now())
 					fnout = f"{ppath}PS08_{exp}_{var}_SHAPexamplepixel" 
-					for ext in [".png"]:#".pdf",
-						plt.savefig(fnout+ext, dpi=130)
+					for ext in [".png"]:
+						plt.savefig(fnout+ext, dpi=300)
 					plt.show()
 					breakpoint()
 
