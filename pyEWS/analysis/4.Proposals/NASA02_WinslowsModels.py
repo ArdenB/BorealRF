@@ -59,7 +59,10 @@ import myfunctions.benchmarkfunctions as bf
 # ========== Import packages for parellelisation ==========
 # import multiprocessing as mp
 import xgboost as xgb
+<<<<<<< HEAD
 import rioxarray 
+=======
+>>>>>>> 12bf2f27a583055a62b58c7de5523e335e4f4330
 import xarray as xr
 import cartopy.crs as ccrs
 import dask
@@ -81,6 +84,7 @@ from sklearn import metrics as sklMet
 # from sklearn.utils import shuffle
 from scipy.stats import spearmanr
 # from scipy.cluster import hierarchy
+<<<<<<< HEAD
 from pyproj import CRS
 # ==============================================================================
 
@@ -156,3 +160,5 @@ def main():
 
 if __name__ == '__main__':
 	main()
+=======
+>>>>>>> 12bf2f27a583055a62b58c7de5523e335e4f4330
