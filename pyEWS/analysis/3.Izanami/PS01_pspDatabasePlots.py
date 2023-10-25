@@ -134,7 +134,7 @@ def PSPfigurePres(ppath, vi_df, fcount, exp, lons, lats, inclfin=True, textsize=
 	if inclfin:
 		fnout += "_WithLastObs"
 	for ext in [".png", ".pdf",]:
-		plt.savefig(fnout+ext)#, dpi=130)
+		plt.savefig(fnout+ext, dpi=300)
 	
 	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
 		__title__, __version__,  __author__, pd.Timestamp.now())
@@ -157,7 +157,7 @@ def PSPfigurePres(ppath, vi_df, fcount, exp, lons, lats, inclfin=True, textsize=
 	if inclfin:
 		fnout += "_WithLastObs"
 	for ext in [".png", ".pdf",]:
-		plt.savefig(fnout+ext)#, dpi=130)
+		plt.savefig(fnout+ext, dpi=300)
 	
 	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
 		__title__, __version__,  __author__, pd.Timestamp.now())
@@ -174,7 +174,7 @@ def PSPfigurePres(ppath, vi_df, fcount, exp, lons, lats, inclfin=True, textsize=
 	if inclfin:
 		fnout += "_WithLastObs"
 	for ext in [".png", ".pdf",]:
-		plt.savefig(fnout+ext)#, dpi=130)
+		plt.savefig(fnout+ext, dpi=300)
 	
 	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
 		__title__, __version__,  __author__, pd.Timestamp.now())
@@ -225,7 +225,7 @@ def PSPfigure(ppath, vi_df, fcount, exp, lons, lats, inclfin=True, textsize=12):
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS01_PaperFig01_PSPdatabase" 
 	for ext in [".png", ".pdf"]:#".pdf",
-		plt.savefig(fnout+ext)#, dpi=130)
+		plt.savefig(fnout+ext, dpi=300)
 	
 	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
 		__title__, __version__,  __author__, pd.Timestamp.now())
@@ -424,8 +424,8 @@ def yearcount(ppath, vi_df, fcount):
 	# ========== Save tthe plot ==========
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS01_ObsYear_single" 
-	for ext in [".png"]:#".pdf",
-		plt.savefig(fnout+ext)
+	for ext in [".png",".pdf"]:
+		plt.savefig(fnout+ext, dpi=300)
 	
 	plt.show()
 
@@ -436,8 +436,8 @@ def yearcount(ppath, vi_df, fcount):
 	# ========== Save tthe plot ==========
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS01_ObsYear_Region_single" 
-	for ext in [".png"]:#".pdf",
-		plt.savefig(fnout+ext)
+	for ext in [".png",".pdf"]:
+		plt.savefig(fnout+ext, dpi=300)
 	
 	plt.show()
 	
@@ -449,8 +449,8 @@ def yearcount(ppath, vi_df, fcount):
 	# ========== Save tthe plot ==========
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS01_ObsYear_Region_Multi" 
-	for ext in [".png"]:#".pdf",
-		plt.savefig(fnout+ext)
+	for ext in [".png",".pdf"]:
+		plt.savefig(fnout+ext, dpi=300)
 
 	plotinfo = "PLOT INFO: PDF plots made using %s:v.%s by %s, %s" % (
 		__title__, __version__,  __author__, pd.Timestamp.now())

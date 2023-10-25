@@ -223,8 +223,8 @@ def FigureAgree(path, ppath, dfout, df_LS, ds_LS, dfp, dsdict, dfloss, lats, lon
 
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS07_PaperFig05_EnsenbleAgreement_{metric}" 
-	for ext in [".png", ]:#".pdf",
-		plt.savefig(fnout+ext)#, dpi=130)
+	for ext in [".png",".pdf"]:
+		plt.savefig(fnout+ext, dpi=300)
 	
 	plotinfo = "PLOT INFO: Ensemble Agreement made using %s:v.%s by %s, %s" % (
 		__title__, __version__,  __author__, pd.Timestamp.now())
@@ -353,6 +353,9 @@ def agreement(path, ppath, dfout, dfl, FWH, df, ds, lats, lons,
 	# palettable.cartocolors.qualitative.Safe_2.hex_colors
 	sns.lineplot(y="GainLoss", x="ModAgree", hue="Ensemble", data=dfloss, 
 		ci=99, ax=ax0, palette= palettable.cartocolors.qualitative.Safe_2.hex_colors)
+	# ========== hack workaround to fix alpha ==========
+	ax0.collections[-1].set_alpha(0.3)
+	ax0.collections[-2].set_alpha(0.5)
 	ax0.set_yticks(np.arange(-1, 1.1, 0.2))
 	ax0.set_xticks(np.arange(-1, 1.1, 0.2))
 	# ax0.set_title(f"a)", loc= 'left')
@@ -362,7 +365,7 @@ def agreement(path, ppath, dfout, dfl, FWH, df, ds, lats, lons,
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS07_PaperFig05_EnsenbleStats_agreement" 
 	for ext in [".png", ".pdf",]:
-		plt.savefig(fnout+ext)#, dpi=130)
+		plt.savefig(fnout+ext, dpi=300)
 	
 	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
 		__title__, __version__,  __author__, pd.Timestamp.now())
@@ -395,7 +398,7 @@ def agreement(path, ppath, dfout, dfl, FWH, df, ds, lats, lons,
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS07_PaperFig05_EnsenbleStats_agreementmulti" 
 	for ext in [".png", ".pdf",]:
-		plt.savefig(fnout+ext)#, dpi=130)
+		plt.savefig(fnout+ext, dpi=300)
 	
 	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
 		__title__, __version__,  __author__, pd.Timestamp.now())
@@ -466,7 +469,7 @@ def losspotter(path, ppath, dfout, dfl, FWH, modnum=10):
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS07_PaperFig02_EnsenbleStats_fract" 
 	for ext in [".png", ".pdf",]:
-		plt.savefig(fnout+ext)#, dpi=130)
+		plt.savefig(fnout+ext, dpi=300)
 	
 	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
 		__title__, __version__,  __author__, pd.Timestamp.now())
@@ -485,7 +488,7 @@ def losspotter(path, ppath, dfout, dfl, FWH, modnum=10):
 	fnout = f"{ppath}PS07_PaperFig02_EnsenbleStats" 
 	for ext in [".png", ".pdf",]:
 		try:
-			plt.savefig(fnout+ext)#, dpi=130)
+			plt.savefig(fnout+ext, dpi=300)
 		except Exception as err:
 			warn.warn(str(err))
 	

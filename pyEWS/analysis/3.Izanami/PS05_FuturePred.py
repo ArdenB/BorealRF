@@ -105,46 +105,47 @@ def main():
 
 
 	experiments = [434, 424]
-	# years       = [2030]
-	years       = [2020, 2025, 2030, 2040]
+	years1       = [2030]
+	years2       = [2020, 2025, 2030, 2040]
 	# ========== Simple lons and lats ========== 
 	lons = np.arange(-170, -50.1,  0.5)
 	lats = np.arange(  42,  70.1,  0.5)
 
 	for exp in experiments:
-		# +++++ the final model results +++++
+		for years in [years1, years2]:
+			# +++++ the final model results +++++
 
 
 
-		df  = fpred(path, exp, years, lats, lons)
+			df  = fpred(path, exp, years, lats, lons)
 
-		# ========== Convert to a dataarray ==========
-		ds = gridder(path, exp, years, df, lats, lons)
+			# ========== Convert to a dataarray ==========
+			ds = gridder(path, exp, years, df, lats, lons)
 
-		# breakpoint()
-		
-		for fvar in ["EnsembleDirection","MeanDeltaBiomass", "sites",]:
-			splotmap(exp, df, ds, ppath, lats, lons, fvar, years,)
-		# breakpoint()
+			# breakpoint()
+			
+			for fvar in ["EnsembleDirection","MeanDeltaBiomass", "sites",]:
+				splotmap(exp, df, ds, ppath, lats, lons, fvar, years,)
+			breakpoint()
 
 
-		# FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass")
-		
-		# breakpoint()
-		# dfg = df.groupby(["Region","Plot_ID", "time"]).median().reset_index()
-		# gdf = gpd.GeoDataFrame(dfg)
-		# gdf.set_geometry(
-		#     geopandas.points_from_xy(gdf['Longitude'], gdf['Latitude']),
-		#     inplace=True, crs='EPSG:4326')
-		# gdf.drop(['Latitude', 'Longitude'], axis=1, inplace=True)
-		# gdf[["DeltaBiomass", "geometry"]].to_file(f'{ppath}test.shp')
+			# FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass")
+			
+			# breakpoint()
+			# dfg = df.groupby(["Region","Plot_ID", "time"]).median().reset_index()
+			# gdf = gpd.GeoDataFrame(dfg)
+			# gdf.set_geometry(
+			#     geopandas.points_from_xy(gdf['Longitude'], gdf['Latitude']),
+			#     inplace=True, crs='EPSG:4326')
+			# gdf.drop(['Latitude', 'Longitude'], axis=1, inplace=True)
+			# gdf[["DeltaBiomass", "geometry"]].to_file(f'{ppath}test.shp')
 
-		# fnout = f"{ppath}Examplenetcdf.nc"
-		# ds.to_netcdf(fnout, 
-		# 	format         = 'NETCDF4', 
-		# 	# encoding       = encoding,
-		# 	unlimited_dims = ["time"])
-		# breakpoint()
+			# fnout = f"{ppath}Examplenetcdf.nc"
+			# ds.to_netcdf(fnout, 
+			# 	format         = 'NETCDF4', 
+			# 	# encoding       = encoding,
+			# 	unlimited_dims = ["time"])
+			# breakpoint()
 
 
 	# for epnm in expr:
@@ -243,12 +244,15 @@ def splotmap(exp, df, ds, ppath, lats, lons, var, years,
 
 		ax.add_feature(provinc_bodr, linestyle='--', linewidth=0.6, edgecolor="k", zorder=105)
 
-		ax.set_title(f"{tit}) {year}", loc= 'left')
+		if len(years) >1:
+			ax.set_title(f"{tit}) {year}", loc= 'left')
+		else:
+			ax.set_title(f"{year}", loc= 'left')
 
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS05_PaperFig04_FuturePredSvar_{ds.time.size}_{var}_exp{exp}" 
 	for ext in [".png", ".pdf"]:#".pdf",
-		plt.savefig(fnout+ext)#, dpi=130)
+		plt.savefig(fnout+ext, dpi=300)
 	
 	plotinfo = "PLOT INFO: Paper figure made using %s:v.%s by %s, %s" % (
 		__title__, __version__,  __author__, pd.Timestamp.now())
@@ -297,7 +301,7 @@ def FutureMapper(df, ds, ppath, lats, lons, var = "DeltaBiomass", textsize=24):
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS05_PaperFig04_FuturePred_{ds.time.size}" 
 	for ext in [".png", ".pdf"]:#".pdf",
-		plt.savefig(fnout+ext)#, dpi=130)
+		plt.savefig(fnout+ext, dpi=300)
 	
 	plotinfo = "PLOT INFO: Paper figure made using %s:v.%s by %s, %s" % (
 		__title__, __version__,  __author__, pd.Timestamp.now())

@@ -272,13 +272,15 @@ def _ImpOpener(path, ppath, exps, var = "PermutationImportance", AddFeature=Fals
 			# Get the current figure and axes objects.
 			fig, ax = plt.gcf(), plt.gca()
 			ax.set_xlim(-40, 40)
-			ax.set_xlabel(f"SHAP value (t $ha^{-1}$)")
+			unit = "t $\mathregular{ha^{-1}}$"
+			# ax.set_xlabel(f"SHAP value (t ha$^{-1}$)")
+			ax.set_xlabel(f"SHAP value ({unit})")
 			plt.tight_layout()
 			# ========== Save the plot ==========
 			print("starting save at:", pd.Timestamp.now())
 			fnout = f"{ppath}PS08_{exp}_{var}_ensemble_SHAPsummary{vargp}" 
-			for ext in [".png"]:#".pdf",
-				plt.savefig(fnout+ext, dpi=130)
+			for ext in [".png", ".pdf"]:
+				plt.savefig(fnout+ext, dpi=300)
 			
 			plotinfo = "PLOT INFO: SHAP plots made using %s:v.%s by %s, %s" % (
 				__title__, __version__,  __author__, pd.Timestamp.now())

@@ -779,9 +779,6 @@ def Variable_selection(corr_linkage, branch, feature_imp, col_nms, orig_clnm):
 	# ========== Pull out the features that i'm going to use on the next loop ==========
 	ColNm = sel_feat
 
-	# ========== readd lagged biomass ==========
-	# ColNm.append("lagged_biomass")
-
 	return ColNm
 
 def _XGBdict(GPU=False, XGB_dict=None):

@@ -178,8 +178,8 @@ def FigureExpLimits(
 		# # ========== Save tthe plot ==========
 		print("starting save at:", pd.Timestamp.now())
 		fnout = f"{ppath}PS02_PaperFig05_ModelRegionalLimits_exp{exp}" #
-		for ext in [".png"]:#".pdf",
-			plt.savefig(fnout+ext)#, dpi=130)
+		for ext in [".png", ".pdf"]:#".pdf",
+			plt.savefig(fnout+ext, dpi=300)
 		
 		plotinfo = "PLOT INFO: Multimodel Comparioson made using %s:v.%s by %s, %s" % (
 			__title__, __version__,  __author__, pd.Timestamp.now())
@@ -265,7 +265,7 @@ def FigureRegionalLimits(
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS02_PaperFig03_ModelRegionalLimits" #_exp{exp}
 	for ext in [".png", ".pdf"]:#".pdf",
-		plt.savefig(fnout+ext)#, dpi=130)
+		plt.savefig(fnout+ext, dpi=300)
 	
 	plotinfo = "PLOT INFO: Multimodel Comparioson made using %s:v.%s by %s, %s" % (
 		__title__, __version__,  __author__, pd.Timestamp.now())
@@ -290,7 +290,9 @@ def _regplot(df, ax, fig, var, title="", Center_title=None, ylim=(-250, 250), yf
 	ax.set_xlabel("")
 	if var == "Residual":
 		# unit = r"t $ha^{-1}$"
-		ax.set_ylabel(r"Residual (t $ha^{-1}$)")
+		unit = "t $\mathregular{ha^{-1}}$"
+		# ax.set_ylabel(r"Residual (t $ha^{-1}$)")
+		ax.set_ylabel(f"Residual ({unit})")
 	ax.legend(loc=loc,  fontsize=lgfs, title=ltitle, title_fontsize=lgfs)#labels=lab,
 
 
@@ -380,8 +382,8 @@ def FigureModelPerfomanceV2(
 	# ========== Save the first plot ==========
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS02_PaperFig02_ModelPerformanceV2_final" 
-	for ext in [".png"]:#".pdf",
-		plt.savefig(fnout+ext)#, dpi=130)
+	for ext in [".png", ".pdf"]:#".pdf",
+		plt.savefig(fnout+ext, dpi=300)
 	
 	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
 		__title__, __version__,  __author__, pd.Timestamp.now())
@@ -416,7 +418,10 @@ def FigureModelPerfomanceV2(
 	sns.lineplot(y="Median Absolute Error", x="No. Site Measurements",hue="Ensemble", data=dfmae, ax = ax4)
 	ax4.set_title(f"{string.ascii_lowercase[num*2+1]})")
 
-	unit = r"t $ha^{-1}$"
+	# +++++ fix the units t ha ++++
+	# unit = r"t $ha^{-1}$"
+	unit = "t $\mathregular{ha^{-1}}$"
+
 	ax4.set_ylabel(f'Median Absolute Error ({unit})')
 
 	# ax.set_xlabel(f'Observed {delt}AGB ({unit})')
@@ -425,8 +430,8 @@ def FigureModelPerfomanceV2(
 	# ========== Save the Second plot ==========
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS02_PaperFig03_ModelPerformanceV2_final" 
-	for ext in [".png"]:#".pdf",
-		plt.savefig(fnout+ext)#, dpi=130)
+	for ext in [".png", ".pdf"]:#".pdf",
+		plt.savefig(fnout+ext, dpi=300)
 	
 	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
 		__title__, __version__,  __author__, pd.Timestamp.now())
@@ -483,7 +488,7 @@ def FigureModelPerfomancePresentation(
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS02_PaperFig03_ModelPerformance_tempgapperf_CD" 
 	for ext in [".png", ".pdf"]:#".pdf",
-		plt.savefig(fnout+ext)#, dpi=130)
+		plt.savefig(fnout+ext, dpi=300)
 	
 	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
 		__title__, __version__,  __author__, pd.Timestamp.now())
@@ -498,7 +503,7 @@ def FigureModelPerfomancePresentation(
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS02_PaperFig03_ModelPerformance_tempgapperf" 
 	for ext in [".png", ".pdf"]:#".pdf",
-		plt.savefig(fnout+ext)#, dpi=130)
+		plt.savefig(fnout+ext, dpi=300)
 	
 	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
 		__title__, __version__,  __author__, pd.Timestamp.now())
@@ -512,7 +517,7 @@ def FigureModelPerfomancePresentation(
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS02_PaperFig03_ModelPerformance_NormConf" 
 	for ext in [".png", ".pdf"]:#".pdf",
-		plt.savefig(fnout+ext)#, dpi=130)
+		plt.savefig(fnout+ext, dpi=300)
 	
 	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
 		__title__, __version__,  __author__, pd.Timestamp.now())
@@ -526,7 +531,7 @@ def FigureModelPerfomancePresentation(
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS02_PaperFig03_ModelPerformance_RawConf" 
 	for ext in [".png", ".pdf"]:#".pdf",
-		plt.savefig(fnout+ext)#, dpi=130)
+		plt.savefig(fnout+ext, dpi=300)
 	
 	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
 		__title__, __version__,  __author__, pd.Timestamp.now())
@@ -541,7 +546,7 @@ def FigureModelPerfomancePresentation(
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS02_PaperFig03_ModelPerformance_RegionProDistFunc" 
 	for ext in [".png", ".pdf"]:#".pdf",
-		plt.savefig(fnout+ext)#, dpi=130)
+		plt.savefig(fnout+ext, dpi=300)
 	
 	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
 		__title__, __version__,  __author__, pd.Timestamp.now())
@@ -559,7 +564,7 @@ def FigureModelPerfomancePresentation(
 	# print("starting save at:", pd.Timestamp.now())
 	# fnout = f"{ppath}PS02_PaperFig03_ModelPerformance_Map" 
 	# for ext in [".png", ".pdf"]:#".pdf",
-	# 	plt.savefig(fnout+ext)#, dpi=130)
+	# 	plt.savefig(fnout+ext, dpi=300)
 	
 	# plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
 	# 	__title__, __version__,  __author__, pd.Timestamp.now())
@@ -619,7 +624,7 @@ def FigureModelLimits(
 	print("starting save at:", pd.Timestamp.now())
 	fnout = f"{ppath}PS02_PaperFig03_ModelPerformanceLimits" #_exp{exp}
 	for ext in [".png", ".pdf"]:#".pdf",
-		plt.savefig(fnout+ext)#, dpi=130)
+		plt.savefig(fnout+ext, dpi=300)
 	
 	plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
 		__title__, __version__,  __author__, pd.Timestamp.now())
@@ -860,7 +865,8 @@ def _confusion_plots(
 
 	# ax.set_title(f"{exp}-{keys[exp]} $R^{2}$ {df_set.R2.mean()}", loc= 'left')
 	delt = r"$\Delta$"
-	unit = r"t $ha^{-1}$"
+	# unit = r"t $ha^{-1}$"
+	unit = "t $\mathregular{ha^{-1}}$"
 
 	ax.set_xlabel(f'Observed {delt}AGB ({unit})')
 	ax.set_ylabel(f'Predicted {delt}AGB ({unit})')
@@ -882,8 +888,8 @@ def pdfplot(ppath, df, exp, keys, fig, ax, obsvar, estvar, var, clip, single=Tru
 		# ========== Save tthe plot ==========
 		print("starting save at:", pd.Timestamp.now())
 		fnout = f"{ppath}PS02_{exp}_{var}_ProbDistFunc" 
-		for ext in [".png"]:#".pdf",
-			plt.savefig(fnout+ext, dpi=130)
+		for ext in [".png", ".pdf"]:#".pdf",
+			plt.savefig(fnout+ext, dpi=300)
 		
 		plotinfo = "PLOT INFO: PDF plots made using %s:v.%s by %s, %s" % (
 			__title__, __version__,  __author__, pd.Timestamp.now())
@@ -1042,7 +1048,7 @@ def confusion_plots(path, df_mres, df_setup, df_OvsP, keys, exp, fig, ax,
 	# print("starting save at:", pd.Timestamp.now())
 	# fnout = path+ "plots/BM03_Normalised_Confusion_Matrix_" + sumtxt
 	# for ext in [".pdf", ".png"]:
-	# 	plt.savefig(fnout+ext, dpi=130)
+	# 	plt.savefig(fnout+ext, dpi=300)
 	
 	# plotinfo = "PLOT INFO: Multimodel confusion plots Comparioson made using %s:v.%s by %s, %s" % (
 	# 	__title__, __version__,  __author__, pd.Timestamp.now())
@@ -1147,7 +1153,8 @@ def Temporal_predictability(
 	ax.legend(loc=loc, labels=lab, fontsize=lgfs, title=ltitle, title_fontsize=lgfs)
 	# breakpoint()
 	pm   =  r"$\pm$"
-	unit = r"t $ha^{-1}$"
+	# unit = r"t $ha^{-1}$"
+	unit = "t $\mathregular{ha^{-1}}$"
 	if hue == "ChangeDirectionNorm":
 		# breakpoint()
 		# ax.set_ylim(-5, 5)
@@ -1171,8 +1178,8 @@ def Temporal_predictability(
 			fnout = f"{ppath}PS02_{var}_{va}_{CI}_{experiments[0]}_TemporalPred" 
 		else:
 			fnout = f"{ppath}PS02_{var}_{va}_{CI}_TemporalPred" 
-		for ext in [".png"]:#".pdf",
-			plt.savefig(fnout+ext)#, dpi=130)
+		for ext in [".png", ".pdf"]:#".pdf",
+			plt.savefig(fnout+ext, dpi=300)
 		plotinfo = "PLOT INFO: PDF plots made using %s:v.%s by %s, %s" % (
 			__title__, __version__,  __author__, pd.Timestamp.now())
 		gitinfo = cf.gitmetadata()
